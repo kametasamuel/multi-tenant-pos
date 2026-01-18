@@ -1,0 +1,201 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Multi-Tenant: Each business has a unique ID
+model Tenant {
+  id                String   @id @default(uuid())
+  businessName      String   @unique
+  businessLogo      String?
+  subscriptionStart DateTime @default(now())
+  subscriptionEnd   DateTime
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  users     User[]
+  products  Product[]
+  sales     Sale[]
+  expenses  Expense[]
+  auditLogs AuditLog[]
+  
+  @@map("tenants")
+}
+
+// Users: Staff (Cashier) and Admin
+model User {
+  id           String   @id @default(uuid())
+  username     String
+  password     String   // Hashed password
+  fullName     String
+  role         Role     @default(CASHIER)
+  isActive     Boolean  @default(true)
+  isSuperAdmin Boolean  @default(false)
+  tenantId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sales        Sale[]
+  expenses     Expense[]
+  auditLogs    AuditLog[]
+  
+  @@unique([username, tenantId]) // Username unique per tenant
+  @@map("users")
+}
+
+enum Role {
+  CASHIER
+  ADMIN
+}
+
+// Products: Inventory items and services
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  category    ProductCategory @default(PRODUCT)
+  barcode     String?
+  costPrice   Float
+  sellingPrice Float
+  stockQuantity Int    @default(0)
+  lowStockThreshold Int @default(10)
+  isActive    Boolean  @default(true)
+  tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  saleItems   SaleItem[]
+  
+  @@index([tenantId, name])
+  @@map("products")
+}
+
+enum ProductCategory {
+  PRODUCT
+  SERVICE
+}
+
+// Sales: Transaction records
+model Sale {
+  id          String   @id @default(uuid())
+  transactionNumber String
+  totalAmount Float
+  discountAmount Float @default(0)
+  finalAmount Float
+  paymentMethod PaymentMethod
+  paymentStatus String @default("completed") // completed, cancelled, voided
+  cashierId   String
+  tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  cashier     User     @relation(fields: [cashierId], references: [id])
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items       SaleItem[]
+  
+  @@index([tenantId, createdAt])
+  @@index([cashierId, createdAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String   @id @default(uuid())
+  saleId      String
+  productId   String
+  quantity    Int
+  unitPrice   Float
+  discount    Float    @default(0)
+  subtotal    Float
+  createdAt   DateTime @default(now())
+  
+  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
+  
+  @@map("sale_items")
+}
+
+enum PaymentMethod {
+  CASH
+  MOBILE_MONEY
+  SPLIT_CASH_MOMO
+}
+
+// Expenses: Business expenses
+model Expense {
+  id          String   @id @default(uuid())
+  description String
+  amount      Float
+  category    String   // e.g., "Rent", "Electricity", "Internet", "Petty Cash"
+  recordedBy  String   // User ID who recorded it
+  tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  recorder    User     @relation(fields: [recordedBy], references: [id])
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  @@index([tenantId, createdAt])
+  @@map("expenses")
+}
+
+// Audit Log: Track sensitive actions
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String   // e.g., "drawer_opened", "transaction_voided", "price_changed"
+  description String?
+  userId      String
+  tenantId    String
+  metadata    String?  // JSON string for additional data
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+// Application Status enum
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Tenant Applications: New business signups awaiting approval
+model TenantApplication {
+  id                String            @id @default(uuid())
+  businessName      String
+  businessEmail     String            @unique
+  businessPhone     String?
+  businessLogo      String?
+  businessAddress   String?
+
+  // Admin user details (becomes tenant admin on approval)
+  ownerFullName     String
+  ownerEmail        String
+  ownerPhone        String?
+  password          String            // Hashed - used when creating admin user
+
+  // Status tracking
+  status            ApplicationStatus @default(PENDING)
+  rejectionReason   String?
+  reviewedBy        String?
+  reviewedAt        DateTime?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([status, createdAt])
+  @@map("tenant_applications")
+}

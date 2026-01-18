@@ -1,0 +1,359 @@
+.signup-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.signup-card {
+  background: white;
+  padding: 2rem 3rem;
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 500px;
+}
+
+.signup-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.signup-header h1 {
+  color: #333;
+  margin-bottom: 0.25rem;
+  font-size: 2rem;
+}
+
+.signup-header h2 {
+  color: #666;
+  font-weight: 400;
+  font-size: 1.1rem;
+}
+
+.step-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.step-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
+.step-dot.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.step-line {
+  width: 40px;
+  height: 3px;
+  background: #e0e0e0;
+  margin: 0 0.5rem;
+}
+
+.form-step h3 {
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.step-description {
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 1rem;
+  transition: border-color 0.3s;
+  box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.form-group input.error,
+.form-group textarea.error {
+  border-color: #e74c3c;
+}
+
+.error-text {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 0.75rem;
+  border-radius: 5px;
+  margin-bottom: 1rem;
+  border: 1px solid #fcc;
+}
+
+.logo-upload {
+  margin-bottom: 2rem;
+}
+
+.upload-area {
+  border: 2px dashed #e0e0e0;
+  border-radius: 10px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.upload-area:hover {
+  border-color: #667eea;
+}
+
+.upload-area input {
+  display: none;
+}
+
+.upload-area label {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-icon {
+  width: 50px;
+  height: 50px;
+  border: 2px solid #667eea;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: #667eea;
+}
+
+.upload-hint {
+  font-size: 0.8rem;
+  color: #999;
+}
+
+.logo-preview {
+  text-align: center;
+}
+
+.logo-preview img {
+  max-width: 150px;
+  max-height: 150px;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  border: 2px solid #e0e0e0;
+}
+
+.logo-preview button {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.review-section {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-top: 1rem;
+}
+
+.review-section h4 {
+  margin-bottom: 0.75rem;
+  color: #333;
+}
+
+.review-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 0.9rem;
+}
+
+.review-item:last-child {
+  border-bottom: none;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.btn-primary {
+  flex: 1;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  flex: 1;
+  padding: 0.75rem;
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+  border-radius: 5px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #667eea;
+  color: white;
+}
+
+.signup-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+  color: #666;
+}
+
+.signup-footer a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.signup-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Success Step */
+.success-step {
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  color: white;
+  font-size: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+}
+
+.success-step h3 {
+  color: #27ae60;
+  font-size: 1.5rem;
+}
+
+.application-id {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+}
+
+.application-id code {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  color: #667eea;
+  word-break: break-all;
+}
+
+.note {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.success-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.success-actions button {
+  padding: 0.75rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.success-actions .link-btn {
+  padding: 0.75rem;
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+  border: 2px solid #667eea;
+  border-radius: 5px;
+}
+
+.success-actions .link-btn:hover {
+  background: #667eea;
+  color: white;
+}
