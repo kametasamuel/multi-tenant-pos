@@ -12,6 +12,7 @@ const userRoutes = require('./routes/users');
 const auditRoutes = require('./routes/audit');
 const applicationRoutes = require('./routes/applications');
 const superAdminRoutes = require('./routes/superAdmin');
+const customerRoutes = require('./routes/customers');
 const {
   generalLimiter,
   loginLimiter,
@@ -65,6 +66,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/super-admin', superAdminRoutes);
+app.use('/api/customers', customerRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

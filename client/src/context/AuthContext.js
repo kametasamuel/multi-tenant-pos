@@ -64,9 +64,12 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const isAdmin = () => user?.role === 'ADMIN' || user?.isSuperAdmin;
+  const isAdmin = () => user?.role === 'ADMIN' || user?.role === 'OWNER' || user?.isSuperAdmin;
+  const isOwner = () => user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const isManager = () => user?.role === 'MANAGER';
   const isCashier = () => user?.role === 'CASHIER';
   const isSuperAdmin = () => user?.isSuperAdmin === true;
+  const canViewAnalytics = () => user?.role === 'ADMIN' || user?.role === 'OWNER' || user?.role === 'MANAGER' || user?.isSuperAdmin;
 
   const value = {
     user,
@@ -74,8 +77,11 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     isAdmin,
+    isOwner,
+    isManager,
     isCashier,
     isSuperAdmin,
+    canViewAnalytics,
     loading
   };
 

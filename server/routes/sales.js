@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 // Create sale transaction
 router.post('/', authenticate, validateCreateSale, async (req, res) => {
   try {
-    const { items, paymentMethod, discountAmount = 0, notes } = req.body;
+    const { items, paymentMethod, discountAmount = 0, notes, customerId } = req.body;
     const cashierId = req.user.id;
 
     // Validate all products exist and have sufficient stock
@@ -66,6 +66,16 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
     // Generate transaction number
     const transactionNumber = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
+    // Validate customer if provided
+    if (customerId) {
+      const customer = await prisma.customer.findFirst({
+        where: { id: customerId, tenantId: req.tenantId }
+      });
+      if (!customer) {
+        return res.status(400).json({ error: 'Customer not found' });
+      }
+    }
+
     // Create sale with items (transaction)
     const sale = await prisma.$transaction(async (tx) => {
       // Create sale
@@ -78,6 +88,7 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
           paymentMethod,
           paymentStatus: 'completed',
           cashierId,
+          customerId: customerId || null,
           tenantId: req.tenantId,
           items: {
             create: saleItemsData
@@ -93,6 +104,13 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
             select: {
               fullName: true,
               username: true
+            }
+          },
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              phone: true
             }
           }
         }
@@ -111,6 +129,17 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
             }
           });
         }
+      }
+
+      // Update customer stats if customer was specified
+      if (customerId) {
+        await tx.customer.update({
+          where: { id: customerId },
+          data: {
+            totalSpent: { increment: finalAmount },
+            visitCount: { increment: 1 }
+          }
+        });
       }
 
       return newSale;

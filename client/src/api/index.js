@@ -88,6 +88,16 @@ export const auditAPI = {
   getAll: (params) => api.get('/audit', { params })
 };
 
+// Customers API
+export const customersAPI = {
+  search: (q) => api.get('/customers/search', { params: { q } }),
+  getAll: (params) => api.get('/customers', { params }),
+  getById: (id) => api.get(`/customers/${id}`),
+  create: (data) => api.post('/customers', data),
+  update: (id, data) => api.put(`/customers/${id}`, data),
+  delete: (id) => api.delete(`/customers/${id}`)
+};
+
 // Applications API (Public)
 export const applicationsAPI = {
   signup: (data) => api.post('/applications/signup', data),
@@ -116,7 +126,14 @@ export const superAdminAPI = {
   updateTenantStatus: (id, isActive) =>
     api.put(`/super-admin/tenants/${id}/status`, { isActive }),
   extendSubscription: (id, data) =>
-    api.put(`/super-admin/tenants/${id}/subscription`, data)
+    api.put(`/super-admin/tenants/${id}/subscription`, data),
+  // Global Analytics
+  getAnalytics: (params) => api.get('/super-admin/analytics', { params }),
+  getRevenueByTenant: (params) => api.get('/super-admin/analytics/revenue-by-tenant', { params }),
+  getSubscriptionHealth: () => api.get('/super-admin/analytics/subscription-health'),
+  getStaffProductivity: (params) => api.get('/super-admin/analytics/staff-productivity', { params }),
+  getIndustryPerformance: () => api.get('/super-admin/analytics/industry-performance'),
+  getAnomalies: () => api.get('/super-admin/analytics/anomalies')
 };
 
 export default api;

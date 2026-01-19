@@ -10,23 +10,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Business Type Enum
+enum BusinessType {
+  RETAIL
+  RESTAURANT
+  SALON
+  PHARMACY
+  GROCERY
+  ELECTRONICS
+  CLOTHING
+  OTHER
+}
+
 // Multi-Tenant: Each business has a unique ID
 model Tenant {
-  id                String   @id @default(uuid())
-  businessName      String   @unique
+  id                String       @id @default(uuid())
+  businessName      String       @unique
+  businessType      BusinessType @default(RETAIL)
   businessLogo      String?
-  subscriptionStart DateTime @default(now())
+  currency          String       @default("USD") // Currency code (USD, GHS, NGN, KES, etc.)
+  currencySymbol    String       @default("$")   // Currency symbol ($, GH₵, ₦, KSh, etc.)
+  taxRate           Float        @default(0)     // Tax rate as decimal (e.g., 0.08 for 8%)
+  subscriptionStart DateTime     @default(now())
   subscriptionEnd   DateTime
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
   users     User[]
   products  Product[]
   sales     Sale[]
   expenses  Expense[]
+  customers Customer[]
   auditLogs AuditLog[]
-  
+
   @@map("tenants")
 }
 
@@ -54,7 +71,9 @@ model User {
 
 enum Role {
   CASHIER
-  ADMIN
+  MANAGER
+  OWNER
+  ADMIN  // Kept for backward compatibility, same as OWNER
 }
 
 // Products: Inventory items and services
@@ -85,6 +104,28 @@ enum ProductCategory {
   SERVICE
 }
 
+// Customers: Customer records for loyalty and tracking
+model Customer {
+  id          String   @id @default(uuid())
+  name        String
+  phone       String?
+  email       String?
+  address     String?
+  notes       String?
+  totalSpent  Float    @default(0)
+  visitCount  Int      @default(0)
+  tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sales       Sale[]
+
+  @@index([tenantId, name])
+  @@index([tenantId, phone])
+  @@map("customers")
+}
+
 // Sales: Transaction records
 model Sale {
   id          String   @id @default(uuid())
@@ -95,14 +136,16 @@ model Sale {
   paymentMethod PaymentMethod
   paymentStatus String @default("completed") // completed, cancelled, voided
   cashierId   String
+  customerId  String?
   tenantId    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   cashier     User     @relation(fields: [cashierId], references: [id])
+  customer    Customer? @relation(fields: [customerId], references: [id])
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   items       SaleItem[]
-  
+
   @@index([tenantId, createdAt])
   @@index([cashierId, createdAt])
   @@map("sales")
@@ -126,6 +169,7 @@ model SaleItem {
 
 enum PaymentMethod {
   CASH
+  CARD
   MOBILE_MONEY
   SPLIT_CASH_MOMO
 }
@@ -176,6 +220,7 @@ enum ApplicationStatus {
 model TenantApplication {
   id                String            @id @default(uuid())
   businessName      String
+  businessType      BusinessType      @default(RETAIL)
   businessEmail     String            @unique
   businessPhone     String?
   businessLogo      String?

@@ -1,7 +1,39 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { applicationsAPI } from '../api';
-import './Signup.css';
+import {
+  Building2,
+  Mail,
+  Phone,
+  MapPin,
+  User,
+  Lock,
+  Upload,
+  Check,
+  ChevronRight,
+  ChevronLeft,
+  Store,
+  Utensils,
+  Scissors,
+  Pill,
+  ShoppingCart,
+  Tv,
+  Shirt,
+  MoreHorizontal,
+  Copy,
+  ExternalLink
+} from 'lucide-react';
+
+const businessTypes = [
+  { value: 'RETAIL', label: 'Retail Store', icon: Store, description: 'General retail and merchandise' },
+  { value: 'RESTAURANT', label: 'Restaurant', icon: Utensils, description: 'Food service and dining' },
+  { value: 'SALON', label: 'Salon & Spa', icon: Scissors, description: 'Beauty and wellness services' },
+  { value: 'PHARMACY', label: 'Pharmacy', icon: Pill, description: 'Medical and health products' },
+  { value: 'GROCERY', label: 'Grocery', icon: ShoppingCart, description: 'Food and household items' },
+  { value: 'ELECTRONICS', label: 'Electronics', icon: Tv, description: 'Tech and gadgets' },
+  { value: 'CLOTHING', label: 'Clothing', icon: Shirt, description: 'Fashion and apparel' },
+  { value: 'OTHER', label: 'Other', icon: MoreHorizontal, description: 'Other business types' }
+];
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -11,9 +43,11 @@ const Signup = () => {
   const [applicationId, setApplicationId] = useState(null);
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const [formData, setFormData] = useState({
     businessName: '',
+    businessType: '',
     businessEmail: '',
     businessPhone: '',
     businessAddress: '',
@@ -34,6 +68,13 @@ const Signup = () => {
     }
   };
 
+  const handleBusinessTypeSelect = (type) => {
+    setFormData(prev => ({ ...prev, businessType: type }));
+    if (errors.businessType) {
+      setErrors(prev => ({ ...prev, businessType: '' }));
+    }
+  };
+
   const handleLogoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -50,6 +91,9 @@ const Signup = () => {
     const newErrors = {};
     if (!formData.businessName.trim()) {
       newErrors.businessName = 'Business name is required';
+    }
+    if (!formData.businessType) {
+      newErrors.businessType = 'Please select a business type';
     }
     if (!formData.businessEmail.trim()) {
       newErrors.businessEmail = 'Business email is required';
@@ -102,23 +146,20 @@ const Signup = () => {
     setError('');
 
     try {
-      // Submit application
       const { confirmPassword, ...submitData } = formData;
       const response = await applicationsAPI.signup(submitData);
       const appId = response.data.applicationId;
       setApplicationId(appId);
 
-      // Upload logo if provided
       if (logoFile) {
         try {
           await applicationsAPI.uploadLogo(appId, logoFile);
         } catch (logoError) {
           console.error('Logo upload failed:', logoError);
-          // Continue anyway - logo is optional
         }
       }
 
-      setStep(4); // Success step
+      setStep(4);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit application');
     } finally {
@@ -126,246 +167,501 @@ const Signup = () => {
     }
   };
 
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(applicationId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const getSelectedBusinessType = () => {
+    return businessTypes.find(t => t.value === formData.businessType);
+  };
+
   const renderStep1 = () => (
-    <div className="form-step">
-      <h3>Business Information</h3>
-      <div className="form-group">
-        <label>Business Name *</label>
-        <input
-          type="text"
-          name="businessName"
-          value={formData.businessName}
-          onChange={handleChange}
-          placeholder="Your Business Name"
-          className={errors.businessName ? 'error' : ''}
-        />
-        {errors.businessName && <span className="error-text">{errors.businessName}</span>}
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">Business Information</h3>
+        <p className="text-sm text-gray-500">Tell us about your business</p>
       </div>
-      <div className="form-group">
-        <label>Business Email *</label>
-        <input
-          type="email"
-          name="businessEmail"
-          value={formData.businessEmail}
-          onChange={handleChange}
-          placeholder="business@example.com"
-          className={errors.businessEmail ? 'error' : ''}
-        />
-        {errors.businessEmail && <span className="error-text">{errors.businessEmail}</span>}
+
+      {/* Business Name */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Business Name <span className="text-red-500">*</span>
+        </label>
+        <div className="relative">
+          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            name="businessName"
+            value={formData.businessName}
+            onChange={handleChange}
+            placeholder="Your Business Name"
+            className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
+              errors.businessName ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            }`}
+          />
+        </div>
+        {errors.businessName && <p className="mt-1 text-sm text-red-500">{errors.businessName}</p>}
       </div>
-      <div className="form-group">
-        <label>Business Phone</label>
-        <input
-          type="tel"
-          name="businessPhone"
-          value={formData.businessPhone}
-          onChange={handleChange}
-          placeholder="+1 234 567 8900"
-        />
+
+      {/* Business Type */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-3">
+          Business Type <span className="text-red-500">*</span>
+        </label>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {businessTypes.map((type) => {
+            const Icon = type.icon;
+            const isSelected = formData.businessType === type.value;
+            return (
+              <button
+                key={type.value}
+                type="button"
+                onClick={() => handleBusinessTypeSelect(type.value)}
+                className={`p-4 rounded-xl border-2 text-center transition-all ${
+                  isSelected
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <Icon className={`w-6 h-6 mx-auto mb-2 ${isSelected ? 'text-blue-600' : 'text-gray-500'}`} />
+                <p className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
+                  {type.label}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+        {errors.businessType && <p className="mt-2 text-sm text-red-500">{errors.businessType}</p>}
       </div>
-      <div className="form-group">
-        <label>Business Address</label>
-        <textarea
-          name="businessAddress"
-          value={formData.businessAddress}
-          onChange={handleChange}
-          placeholder="Street, City, Country"
-          rows="3"
-        />
+
+      {/* Business Email */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Business Email <span className="text-red-500">*</span>
+        </label>
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="email"
+            name="businessEmail"
+            value={formData.businessEmail}
+            onChange={handleChange}
+            placeholder="business@example.com"
+            className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
+              errors.businessEmail ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            }`}
+          />
+        </div>
+        {errors.businessEmail && <p className="mt-1 text-sm text-red-500">{errors.businessEmail}</p>}
+      </div>
+
+      {/* Business Phone */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Business Phone
+        </label>
+        <div className="relative">
+          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="tel"
+            name="businessPhone"
+            value={formData.businessPhone}
+            onChange={handleChange}
+            placeholder="+1 234 567 8900"
+            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* Business Address */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Business Address
+        </label>
+        <div className="relative">
+          <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+          <textarea
+            name="businessAddress"
+            value={formData.businessAddress}
+            onChange={handleChange}
+            placeholder="Street, City, Country"
+            rows="3"
+            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors resize-none"
+          />
+        </div>
       </div>
     </div>
   );
 
   const renderStep2 = () => (
-    <div className="form-step">
-      <h3>Owner / Admin Details</h3>
-      <p className="step-description">These credentials will be used to access your POS system</p>
-      <div className="form-group">
-        <label>Full Name *</label>
-        <input
-          type="text"
-          name="ownerFullName"
-          value={formData.ownerFullName}
-          onChange={handleChange}
-          placeholder="John Doe"
-          className={errors.ownerFullName ? 'error' : ''}
-        />
-        {errors.ownerFullName && <span className="error-text">{errors.ownerFullName}</span>}
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">Owner Details</h3>
+        <p className="text-sm text-gray-500">These credentials will be used to access your POS system</p>
       </div>
-      <div className="form-group">
-        <label>Email *</label>
-        <input
-          type="email"
-          name="ownerEmail"
-          value={formData.ownerEmail}
-          onChange={handleChange}
-          placeholder="owner@example.com"
-          className={errors.ownerEmail ? 'error' : ''}
-        />
-        {errors.ownerEmail && <span className="error-text">{errors.ownerEmail}</span>}
+
+      {/* Full Name */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Full Name <span className="text-red-500">*</span>
+        </label>
+        <div className="relative">
+          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            name="ownerFullName"
+            value={formData.ownerFullName}
+            onChange={handleChange}
+            placeholder="John Doe"
+            className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
+              errors.ownerFullName ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            }`}
+          />
+        </div>
+        {errors.ownerFullName && <p className="mt-1 text-sm text-red-500">{errors.ownerFullName}</p>}
       </div>
-      <div className="form-group">
-        <label>Phone</label>
-        <input
-          type="tel"
-          name="ownerPhone"
-          value={formData.ownerPhone}
-          onChange={handleChange}
-          placeholder="+1 234 567 8900"
-        />
+
+      {/* Owner Email */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Email <span className="text-red-500">*</span>
+        </label>
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="email"
+            name="ownerEmail"
+            value={formData.ownerEmail}
+            onChange={handleChange}
+            placeholder="owner@example.com"
+            className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
+              errors.ownerEmail ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            }`}
+          />
+        </div>
+        {errors.ownerEmail && <p className="mt-1 text-sm text-red-500">{errors.ownerEmail}</p>}
       </div>
-      <div className="form-group">
-        <label>Password *</label>
-        <input
-          type="password"
-          name="password"
-          value={formData.password}
-          onChange={handleChange}
-          placeholder="Min 6 chars, with upper, lower, number"
-          className={errors.password ? 'error' : ''}
-        />
-        {errors.password && <span className="error-text">{errors.password}</span>}
+
+      {/* Owner Phone */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Phone
+        </label>
+        <div className="relative">
+          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="tel"
+            name="ownerPhone"
+            value={formData.ownerPhone}
+            onChange={handleChange}
+            placeholder="+1 234 567 8900"
+            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+          />
+        </div>
       </div>
-      <div className="form-group">
-        <label>Confirm Password *</label>
-        <input
-          type="password"
-          name="confirmPassword"
-          value={formData.confirmPassword}
-          onChange={handleChange}
-          placeholder="Re-enter your password"
-          className={errors.confirmPassword ? 'error' : ''}
-        />
-        {errors.confirmPassword && <span className="error-text">{errors.confirmPassword}</span>}
+
+      {/* Password */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Password <span className="text-red-500">*</span>
+        </label>
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="Min 6 chars, with upper, lower, number"
+            className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
+              errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            }`}
+          />
+        </div>
+        {errors.password && <p className="mt-1 text-sm text-red-500">{errors.password}</p>}
+      </div>
+
+      {/* Confirm Password */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Confirm Password <span className="text-red-500">*</span>
+        </label>
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="password"
+            name="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            placeholder="Re-enter your password"
+            className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
+              errors.confirmPassword ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            }`}
+          />
+        </div>
+        {errors.confirmPassword && <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>}
       </div>
     </div>
   );
 
-  const renderStep3 = () => (
-    <div className="form-step">
-      <h3>Business Logo (Optional)</h3>
-      <p className="step-description">Upload your business logo to personalize your POS system</p>
-      <div className="logo-upload">
-        {logoPreview ? (
-          <div className="logo-preview">
-            <img src={logoPreview} alt="Logo preview" />
-            <button type="button" onClick={() => { setLogoFile(null); setLogoPreview(null); }}>
-              Remove
-            </button>
-          </div>
-        ) : (
-          <div className="upload-area">
-            <input
-              type="file"
-              id="logo"
-              accept="image/jpeg,image/png,image/gif,image/webp"
-              onChange={handleLogoChange}
-            />
-            <label htmlFor="logo">
-              <span className="upload-icon">+</span>
-              <span>Click to upload logo</span>
-              <span className="upload-hint">JPEG, PNG, GIF, WebP (max 5MB)</span>
+  const renderStep3 = () => {
+    const selectedType = getSelectedBusinessType();
+    const TypeIcon = selectedType?.icon || Building2;
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">Review & Submit</h3>
+          <p className="text-sm text-gray-500">Review your information before submitting</p>
+        </div>
+
+        {/* Logo Upload */}
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-700">
+            Business Logo (Optional)
+          </label>
+          {logoPreview ? (
+            <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <img src={logoPreview} alt="Logo preview" className="w-16 h-16 object-contain rounded-lg bg-white" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900">{logoFile?.name}</p>
+                <p className="text-xs text-gray-500">{(logoFile?.size / 1024).toFixed(1)} KB</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setLogoFile(null); setLogoPreview(null); }}
+                className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-colors">
+              <Upload className="w-10 h-10 text-gray-400 mb-2" />
+              <p className="text-sm font-medium text-gray-700">Click to upload logo</p>
+              <p className="text-xs text-gray-500 mt-1">JPEG, PNG, GIF, WebP (max 5MB)</p>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleLogoChange}
+                className="hidden"
+              />
             </label>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      <div className="review-section">
-        <h4>Review Your Application</h4>
-        <div className="review-item">
-          <strong>Business:</strong> {formData.businessName}
-        </div>
-        <div className="review-item">
-          <strong>Business Email:</strong> {formData.businessEmail}
-        </div>
-        <div className="review-item">
-          <strong>Owner:</strong> {formData.ownerFullName}
-        </div>
-        <div className="review-item">
-          <strong>Owner Email:</strong> {formData.ownerEmail}
+        {/* Review Information */}
+        <div className="bg-gray-50 rounded-xl border border-gray-200 divide-y divide-gray-200">
+          <div className="p-4">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Business Information</h4>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Business Name</span>
+                <span className="text-sm font-medium text-gray-900">{formData.businessName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">Business Type</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                  <TypeIcon className="w-3.5 h-3.5" />
+                  {selectedType?.label}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Email</span>
+                <span className="text-sm font-medium text-gray-900">{formData.businessEmail}</span>
+              </div>
+              {formData.businessPhone && (
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Phone</span>
+                  <span className="text-sm font-medium text-gray-900">{formData.businessPhone}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="p-4">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Owner Information</h4>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Full Name</span>
+                <span className="text-sm font-medium text-gray-900">{formData.ownerFullName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Email</span>
+                <span className="text-sm font-medium text-gray-900">{formData.ownerEmail}</span>
+              </div>
+              {formData.ownerPhone && (
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Phone</span>
+                  <span className="text-sm font-medium text-gray-900">{formData.ownerPhone}</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderStep4 = () => (
-    <div className="form-step success-step">
-      <div className="success-icon">&#10003;</div>
-      <h3>Application Submitted!</h3>
-      <p>Your application has been submitted successfully and is pending review.</p>
-      <div className="application-id">
-        <strong>Application ID:</strong>
-        <code>{applicationId}</code>
+    <div className="text-center space-y-6">
+      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+        <Check className="w-8 h-8 text-green-600" />
       </div>
-      <p className="note">
-        Save this ID to check your application status. You will receive access credentials
-        once your application is approved by our team.
+      <div>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">Application Submitted!</h3>
+        <p className="text-gray-500">Your application has been submitted and is pending review.</p>
+      </div>
+
+      <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+        <p className="text-sm text-gray-500 mb-2">Application ID</p>
+        <div className="flex items-center justify-center gap-2">
+          <code className="text-lg font-mono font-semibold text-gray-900">{applicationId}</code>
+          <button
+            onClick={copyToClipboard}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Copy to clipboard"
+          >
+            {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+
+      <p className="text-sm text-gray-500 bg-amber-50 border border-amber-200 rounded-lg p-3">
+        Save this ID to check your application status. You will receive access credentials once your application is approved.
       </p>
-      <div className="success-actions">
-        <button onClick={() => navigate('/application-status', { state: { applicationId } })}>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          onClick={() => navigate('/application-status', { state: { applicationId } })}
+          className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+        >
+          <ExternalLink className="w-4 h-4" />
           Check Status
         </button>
-        <Link to="/login" className="link-btn">Back to Login</Link>
+        <Link
+          to="/login"
+          className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+        >
+          Back to Login
+        </Link>
       </div>
     </div>
   );
 
   return (
-    <div className="signup-container">
-      <div className="signup-card">
-        <div className="signup-header">
-          <h1>POS System</h1>
-          <h2>Business Registration</h2>
-        </div>
-
-        {step < 4 && (
-          <div className="step-indicator">
-            <div className={`step-dot ${step >= 1 ? 'active' : ''}`}>1</div>
-            <div className="step-line"></div>
-            <div className={`step-dot ${step >= 2 ? 'active' : ''}`}>2</div>
-            <div className="step-line"></div>
-            <div className={`step-dot ${step >= 3 ? 'active' : ''}`}>3</div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-lg">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-8 text-center">
+            <h1 className="text-2xl font-bold text-white mb-1">Smart POS</h1>
+            <p className="text-blue-100">Business Registration</p>
           </div>
-        )}
 
-        {error && <div className="error-message">{error}</div>}
-
-        <form onSubmit={(e) => e.preventDefault()}>
-          {step === 1 && renderStep1()}
-          {step === 2 && renderStep2()}
-          {step === 3 && renderStep3()}
-          {step === 4 && renderStep4()}
-
+          {/* Step Indicator */}
           {step < 4 && (
-            <div className="form-actions">
-              {step > 1 && (
-                <button type="button" onClick={handleBack} className="btn-secondary">
-                  Back
-                </button>
-              )}
-              {step < 3 ? (
-                <button type="button" onClick={handleNext} className="btn-primary">
-                  Next
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  className="btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? 'Submitting...' : 'Submit Application'}
-                </button>
-              )}
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+              <div className="flex items-center justify-center gap-2">
+                {[1, 2, 3].map((num) => (
+                  <React.Fragment key={num}>
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                        step >= num
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 text-gray-500'
+                      }`}
+                    >
+                      {step > num ? <Check className="w-4 h-4" /> : num}
+                    </div>
+                    {num < 3 && (
+                      <div
+                        className={`w-12 h-1 rounded-full transition-colors ${
+                          step > num ? 'bg-blue-600' : 'bg-gray-200'
+                        }`}
+                      />
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+              <div className="flex justify-between mt-2 text-xs text-gray-500">
+                <span>Business</span>
+                <span>Owner</span>
+                <span>Review</span>
+              </div>
             </div>
           )}
-        </form>
 
-        {step < 4 && (
-          <div className="signup-footer">
-            Already have an account? <Link to="/login">Sign In</Link>
+          {/* Form Content */}
+          <div className="p-6">
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={(e) => e.preventDefault()}>
+              {step === 1 && renderStep1()}
+              {step === 2 && renderStep2()}
+              {step === 3 && renderStep3()}
+              {step === 4 && renderStep4()}
+
+              {step < 4 && (
+                <div className="flex gap-3 mt-8">
+                  {step > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleBack}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Back
+                    </button>
+                  )}
+                  {step < 3 ? (
+                    <button
+                      type="button"
+                      onClick={handleNext}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSubmit}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          Submit Application
+                          <ChevronRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+            </form>
+
+            {step < 4 && (
+              <p className="text-center text-sm text-gray-500 mt-6">
+                Already have an account?{' '}
+                <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+                  Sign In
+                </Link>
+              </p>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

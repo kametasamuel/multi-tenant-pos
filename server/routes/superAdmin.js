@@ -508,4 +508,430 @@ router.put('/tenants/:id/subscription', validateSubscriptionUpdate, async (req, 
   }
 });
 
+// ============ GLOBAL ANALYTICS ROUTES ============
+
+// GET /api/super-admin/analytics - Get global analytics overview
+router.get('/analytics', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    // Build date filter
+    const dateFilter = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) dateFilter.lte = new Date(endDate);
+    const hasDateFilter = startDate || endDate;
+
+    const salesWhere = hasDateFilter ? { createdAt: dateFilter } : {};
+
+    // Get aggregate stats across all tenants
+    const [
+      totalRevenue,
+      totalTransactions,
+      activeTenants,
+      totalProducts,
+      totalUsers,
+      recentSales
+    ] = await Promise.all([
+      prisma.sale.aggregate({
+        where: salesWhere,
+        _sum: { finalAmount: true }
+      }),
+      prisma.sale.count({ where: salesWhere }),
+      prisma.tenant.count({ where: { isActive: true } }),
+      prisma.product.count(),
+      prisma.user.count({ where: { isActive: true, isSuperAdmin: false } }),
+      prisma.sale.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          tenant: { select: { businessName: true } },
+          user: { select: { fullName: true } }
+        }
+      })
+    ]);
+
+    // Get sales by day for the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const dailySales = await prisma.sale.groupBy({
+      by: ['createdAt'],
+      where: {
+        createdAt: { gte: thirtyDaysAgo }
+      },
+      _sum: { finalAmount: true },
+      _count: true
+    });
+
+    res.json({
+      stats: {
+        totalRevenue: totalRevenue._sum.finalAmount || 0,
+        totalTransactions,
+        activeTenants,
+        totalProducts,
+        totalUsers
+      },
+      recentSales: recentSales.map(sale => ({
+        id: sale.id,
+        amount: sale.finalAmount,
+        tenant: sale.tenant.businessName,
+        cashier: sale.user.fullName,
+        date: sale.createdAt
+      })),
+      dailySales
+    });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({ error: 'Failed to load analytics' });
+  }
+});
+
+// GET /api/super-admin/analytics/revenue-by-tenant - Revenue breakdown by tenant
+router.get('/analytics/revenue-by-tenant', async (req, res) => {
+  try {
+    const { startDate, endDate, limit = 10 } = req.query;
+
+    const dateFilter = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) dateFilter.lte = new Date(endDate);
+    const hasDateFilter = startDate || endDate;
+
+    // Get all tenants with their sales totals
+    const tenants = await prisma.tenant.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        businessName: true,
+        businessType: true,
+        currency: true,
+        currencySymbol: true,
+        sales: {
+          where: hasDateFilter ? { createdAt: dateFilter } : {},
+          select: { finalAmount: true }
+        }
+      }
+    });
+
+    // Calculate revenue for each tenant
+    const revenueByTenant = tenants.map(tenant => ({
+      id: tenant.id,
+      businessName: tenant.businessName,
+      businessType: tenant.businessType,
+      currency: tenant.currency,
+      currencySymbol: tenant.currencySymbol,
+      totalRevenue: tenant.sales.reduce((sum, sale) => sum + sale.finalAmount, 0),
+      transactionCount: tenant.sales.length
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+    .slice(0, parseInt(limit));
+
+    res.json({ revenueByTenant });
+  } catch (error) {
+    console.error('Revenue by tenant error:', error);
+    res.status(500).json({ error: 'Failed to load revenue by tenant' });
+  }
+});
+
+// GET /api/super-admin/analytics/subscription-health - Subscription health overview
+router.get('/analytics/subscription-health', async (req, res) => {
+  try {
+    const now = new Date();
+    const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const [
+      active,
+      inactive,
+      expiringSoon,
+      expiringThisMonth,
+      expired
+    ] = await Promise.all([
+      prisma.tenant.count({
+        where: {
+          isActive: true,
+          subscriptionEnd: { gt: thirtyDays }
+        }
+      }),
+      prisma.tenant.count({ where: { isActive: false } }),
+      prisma.tenant.count({
+        where: {
+          isActive: true,
+          subscriptionEnd: { gt: now, lte: sevenDays }
+        }
+      }),
+      prisma.tenant.count({
+        where: {
+          isActive: true,
+          subscriptionEnd: { gt: sevenDays, lte: thirtyDays }
+        }
+      }),
+      prisma.tenant.count({
+        where: {
+          isActive: true,
+          subscriptionEnd: { lte: now }
+        }
+      })
+    ]);
+
+    // Get list of expiring tenants
+    const expiringTenants = await prisma.tenant.findMany({
+      where: {
+        isActive: true,
+        subscriptionEnd: { lte: thirtyDays }
+      },
+      orderBy: { subscriptionEnd: 'asc' },
+      select: {
+        id: true,
+        businessName: true,
+        businessType: true,
+        subscriptionEnd: true
+      }
+    });
+
+    res.json({
+      summary: {
+        healthy: active,
+        inactive,
+        expiringSoon,
+        expiringThisMonth,
+        expired
+      },
+      expiringTenants
+    });
+  } catch (error) {
+    console.error('Subscription health error:', error);
+    res.status(500).json({ error: 'Failed to load subscription health' });
+  }
+});
+
+// GET /api/super-admin/analytics/staff-productivity - Staff performance across all tenants
+router.get('/analytics/staff-productivity', async (req, res) => {
+  try {
+    const { startDate, endDate, limit = 20 } = req.query;
+
+    const dateFilter = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) dateFilter.lte = new Date(endDate);
+    const hasDateFilter = startDate || endDate;
+
+    // Get users with their sales data
+    const users = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        isSuperAdmin: false,
+        role: { in: ['CASHIER', 'MANAGER', 'OWNER', 'ADMIN'] }
+      },
+      select: {
+        id: true,
+        fullName: true,
+        role: true,
+        tenant: {
+          select: {
+            businessName: true,
+            currencySymbol: true
+          }
+        },
+        sales: {
+          where: hasDateFilter ? { createdAt: dateFilter } : {},
+          select: {
+            finalAmount: true,
+            createdAt: true
+          }
+        }
+      }
+    });
+
+    // Calculate productivity metrics
+    const staffProductivity = users
+      .map(user => ({
+        id: user.id,
+        name: user.fullName,
+        role: user.role,
+        tenant: user.tenant.businessName,
+        currencySymbol: user.tenant.currencySymbol,
+        totalSales: user.sales.reduce((sum, sale) => sum + sale.finalAmount, 0),
+        transactionCount: user.sales.length,
+        avgTransactionValue: user.sales.length > 0
+          ? user.sales.reduce((sum, sale) => sum + sale.finalAmount, 0) / user.sales.length
+          : 0
+      }))
+      .filter(staff => staff.transactionCount > 0)
+      .sort((a, b) => b.totalSales - a.totalSales)
+      .slice(0, parseInt(limit));
+
+    res.json({ staffProductivity });
+  } catch (error) {
+    console.error('Staff productivity error:', error);
+    res.status(500).json({ error: 'Failed to load staff productivity' });
+  }
+});
+
+// GET /api/super-admin/analytics/industry-performance - Performance by business type
+router.get('/analytics/industry-performance', async (req, res) => {
+  try {
+    // Get all tenants grouped by business type with their sales
+    const tenants = await prisma.tenant.findMany({
+      where: { isActive: true },
+      select: {
+        businessType: true,
+        sales: {
+          select: { finalAmount: true }
+        },
+        products: {
+          select: { id: true }
+        }
+      }
+    });
+
+    // Group by business type
+    const industryMap = {};
+    tenants.forEach(tenant => {
+      const type = tenant.businessType || 'OTHER';
+      if (!industryMap[type]) {
+        industryMap[type] = {
+          businessType: type,
+          tenantCount: 0,
+          totalRevenue: 0,
+          totalTransactions: 0,
+          totalProducts: 0
+        };
+      }
+      industryMap[type].tenantCount++;
+      industryMap[type].totalRevenue += tenant.sales.reduce((sum, sale) => sum + sale.finalAmount, 0);
+      industryMap[type].totalTransactions += tenant.sales.length;
+      industryMap[type].totalProducts += tenant.products.length;
+    });
+
+    const industryPerformance = Object.values(industryMap)
+      .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    res.json({ industryPerformance });
+  } catch (error) {
+    console.error('Industry performance error:', error);
+    res.status(500).json({ error: 'Failed to load industry performance' });
+  }
+});
+
+// GET /api/super-admin/analytics/anomalies - Detect unusual patterns
+router.get('/analytics/anomalies', async (req, res) => {
+  try {
+    const anomalies = [];
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // 1. Check for tenants with expired subscriptions but still active
+    const expiredButActive = await prisma.tenant.findMany({
+      where: {
+        isActive: true,
+        subscriptionEnd: { lt: now }
+      },
+      select: {
+        id: true,
+        businessName: true,
+        subscriptionEnd: true
+      }
+    });
+
+    expiredButActive.forEach(tenant => {
+      anomalies.push({
+        type: 'EXPIRED_SUBSCRIPTION',
+        severity: 'HIGH',
+        message: `${tenant.businessName} has an expired subscription but is still active`,
+        tenantId: tenant.id,
+        tenantName: tenant.businessName,
+        date: tenant.subscriptionEnd
+      });
+    });
+
+    // 2. Check for unusually high transaction amounts in last 24 hours
+    const recentHighValueSales = await prisma.sale.findMany({
+      where: {
+        createdAt: { gte: yesterday },
+        finalAmount: { gte: 1000000 } // 1 million in base currency
+      },
+      include: {
+        tenant: { select: { businessName: true } },
+        user: { select: { fullName: true } }
+      }
+    });
+
+    recentHighValueSales.forEach(sale => {
+      anomalies.push({
+        type: 'HIGH_VALUE_TRANSACTION',
+        severity: 'MEDIUM',
+        message: `Unusually high transaction of ${sale.finalAmount} at ${sale.tenant.businessName}`,
+        tenantId: sale.tenantId,
+        tenantName: sale.tenant.businessName,
+        amount: sale.finalAmount,
+        cashier: sale.user.fullName,
+        date: sale.createdAt
+      });
+    });
+
+    // 3. Check for products with negative stock
+    const negativeStock = await prisma.product.findMany({
+      where: {
+        stockQuantity: { lt: 0 },
+        category: 'PRODUCT'
+      },
+      include: {
+        tenant: { select: { businessName: true } }
+      }
+    });
+
+    negativeStock.forEach(product => {
+      anomalies.push({
+        type: 'NEGATIVE_STOCK',
+        severity: 'HIGH',
+        message: `${product.name} at ${product.tenant.businessName} has negative stock (${product.stockQuantity})`,
+        tenantId: product.tenantId,
+        tenantName: product.tenant.businessName,
+        productName: product.name,
+        stockQuantity: product.stockQuantity
+      });
+    });
+
+    // 4. Check for inactive users with recent transactions
+    const inactiveUserSales = await prisma.sale.findMany({
+      where: {
+        createdAt: { gte: yesterday },
+        user: { isActive: false }
+      },
+      include: {
+        tenant: { select: { businessName: true } },
+        user: { select: { fullName: true, isActive: true } }
+      }
+    });
+
+    inactiveUserSales.forEach(sale => {
+      anomalies.push({
+        type: 'INACTIVE_USER_ACTIVITY',
+        severity: 'HIGH',
+        message: `Inactive user ${sale.user.fullName} made a transaction at ${sale.tenant.businessName}`,
+        tenantId: sale.tenantId,
+        tenantName: sale.tenant.businessName,
+        userName: sale.user.fullName,
+        date: sale.createdAt
+      });
+    });
+
+    // Sort by severity (HIGH first)
+    const severityOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    anomalies.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+    res.json({
+      anomalies,
+      summary: {
+        total: anomalies.length,
+        high: anomalies.filter(a => a.severity === 'HIGH').length,
+        medium: anomalies.filter(a => a.severity === 'MEDIUM').length,
+        low: anomalies.filter(a => a.severity === 'LOW').length
+      }
+    });
+  } catch (error) {
+    console.error('Anomalies detection error:', error);
+    res.status(500).json({ error: 'Failed to detect anomalies' });
+  }
+});
+
 module.exports = router;

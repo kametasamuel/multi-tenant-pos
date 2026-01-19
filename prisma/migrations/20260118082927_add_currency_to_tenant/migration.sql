@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "tenants" ADD COLUMN     "currency" TEXT NOT NULL DEFAULT 'USD',
+ADD COLUMN     "currencySymbol" TEXT NOT NULL DEFAULT '$',
+ADD COLUMN     "taxRate" DOUBLE PRECISION NOT NULL DEFAULT 0;
