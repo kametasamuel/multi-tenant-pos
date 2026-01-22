@@ -26,7 +26,6 @@ import {
   Wallet,
   UserCheck,
   ChevronDown,
-  ChevronRight,
   Check,
   Globe
 } from 'lucide-react';
