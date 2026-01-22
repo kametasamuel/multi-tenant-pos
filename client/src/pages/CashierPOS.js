@@ -110,6 +110,9 @@ const CashierPOS = ({
   // Date/Time
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Mobile responsiveness - toggle between products and cart on small screens
+  const [mobileView, setMobileView] = useState('products'); // 'products' or 'cart'
+
   // Currency from tenant settings
   const currencySymbol = user?.currencySymbol || '$';
 
@@ -709,130 +712,120 @@ const CashierPOS = ({
     <div className={`${embedded || managerView ? 'h-full' : 'h-screen'} overflow-hidden flex flex-col ${bgClass} ${textClass}`}>
       {/* Header - Hidden when embedded or in manager view */}
       {!embedded && !managerView && (
-      <header className={`h-16 sm:h-20 ${surfaceClass} border-b ${borderClass} flex items-center justify-between px-4 sm:px-8 lg:px-12 shrink-0 z-50`}>
-        <div className="flex items-center gap-3 sm:gap-5">
-          <div className={`w-8 h-8 sm:w-10 sm:h-10 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl flex items-center justify-center shadow-lg`}>
-            <Store className="w-4 h-4 sm:w-5 sm:h-5" />
+      <header className={`h-14 sm:h-16 ${surfaceClass} border-b ${borderClass} flex items-center justify-between px-2 sm:px-4 lg:px-8 shrink-0 z-50`}>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className={`w-8 h-8 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg`}>
+            <Store className="w-4 h-4" />
           </div>
           <div className="hidden sm:block">
-            <h1 className={`text-base sm:text-lg font-black tracking-tighter uppercase ${textClass}`}>Smart POS</h1>
-            <p className={`text-[9px] font-bold uppercase tracking-widest ${mutedClass}`}>
-              {user?.fullName} @ {user?.tenantName}
+            <h1 className={`text-sm sm:text-base font-black tracking-tighter uppercase ${textClass}`}>Smart POS</h1>
+            <p className={`text-[8px] font-bold uppercase tracking-widest ${mutedClass} truncate max-w-[120px] lg:max-w-none`}>
+              {user?.fullName}
             </p>
           </div>
         </div>
 
-        <div className="flex-1 max-w-xl px-4 sm:px-12 hidden md:block">
+        <div className="flex-1 max-w-md px-2 sm:px-8 hidden md:block">
           <div className="relative">
-            <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${mutedClass} w-4 h-4`} />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${mutedClass} w-4 h-4`} />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search menu..."
-              className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-accent-500/20 text-sm font-semibold ${textClass}`}
+              placeholder="Search..."
+              className={`w-full ${bgClass} border ${borderClass} rounded-lg py-2 pl-9 pr-3 focus:outline-none focus:ring-2 focus:ring-accent-500/20 text-sm font-semibold ${textClass}`}
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4">
-          {/* Date/Time Display */}
-          <div className={`hidden lg:flex items-center gap-3 px-4 py-2 ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} rounded-xl`}>
-            <div className="flex items-center gap-1.5">
-              <Calendar className={`w-3.5 h-3.5 ${mutedClass}`} />
-              <span className={`text-[10px] font-bold uppercase ${textClass}`}>
-                {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-              </span>
-            </div>
-            <div className={`w-px h-4 ${borderClass}`}></div>
-            <div className="flex items-center gap-1.5">
-              <Clock className={`w-3.5 h-3.5 ${mutedClass}`} />
-              <span className={`text-[10px] font-bold uppercase ${textClass}`}>
-                {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-            </div>
+        <div className="flex items-center gap-1 sm:gap-2">
+          {/* Date/Time Display - Hidden on smaller screens */}
+          <div className={`hidden xl:flex items-center gap-2 px-3 py-1.5 ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} rounded-lg`}>
+            <span className={`text-[9px] font-bold ${textClass}`}>
+              {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+            </span>
           </div>
           {/* Low Stock Alert Button */}
           <button
             onClick={() => setView(view === 'lowStock' ? 'menu' : 'lowStock')}
-            className={`relative w-8 h-8 sm:w-10 sm:h-10 border ${borderClass} rounded-xl flex items-center justify-center ${view === 'lowStock' ? 'bg-warning-500 text-white border-warning-500' : surfaceClass} ${textClass} transition-all`}
+            className={`relative w-8 h-8 border ${borderClass} rounded-lg flex items-center justify-center ${view === 'lowStock' ? 'bg-warning-500 text-white border-warning-500' : surfaceClass} ${textClass} transition-all`}
           >
-            <AlertTriangle className={`w-4 h-4 sm:w-5 sm:h-5 ${lowStockItems.length > 0 && view !== 'lowStock' ? 'text-warning-500' : ''}`} />
+            <AlertTriangle className={`w-4 h-4 ${lowStockItems.length > 0 && view !== 'lowStock' ? 'text-warning-500' : ''}`} />
             {lowStockItems.length > 0 && (
-              <span className={`absolute -top-1.5 -right-1.5 bg-warning-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 ${darkMode ? 'border-slate-800' : 'border-white'}`}>
+              <span className={`absolute -top-1 -right-1 bg-warning-500 text-white text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center`}>
                 {lowStockItems.length}
               </span>
             )}
           </button>
           <button
             onClick={toggleTheme}
-            className={`w-8 h-8 sm:w-10 sm:h-10 border ${borderClass} rounded-xl flex items-center justify-center ${surfaceClass} hover:bg-slate-50 dark:hover:bg-slate-700 ${textClass} transition-all`}
+            className={`w-8 h-8 border ${borderClass} rounded-lg flex items-center justify-center ${surfaceClass} ${textClass} transition-all`}
           >
-            {darkMode ? <Sun className="w-4 h-4 sm:w-5 sm:h-5" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5" />}
+            {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
           <button
             onClick={() => setView(view === 'held' ? 'menu' : 'held')}
-            className={`relative w-8 h-8 sm:w-10 sm:h-10 border ${borderClass} rounded-xl flex items-center justify-center ${surfaceClass} ${textClass} transition-all`}
+            className={`relative w-8 h-8 border ${borderClass} rounded-lg flex items-center justify-center ${surfaceClass} ${textClass} transition-all`}
           >
-            <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
+            <Layers className="w-4 h-4" />
             {heldOrders.length > 0 && (
-              <span className={`absolute -top-1.5 -right-1.5 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 ${darkMode ? 'border-slate-800' : 'border-white'}`}>
+              <span className={`absolute -top-1 -right-1 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center`}>
                 {heldOrders.length}
               </span>
             )}
           </button>
           <button
             onClick={() => openConfirm('End Session?', 'This will log you out.', handleLogout)}
-            className={`w-8 h-8 sm:w-10 sm:h-10 border ${borderClass} rounded-xl flex items-center justify-center ${textClass} hover:text-negative-500`}
+            className={`w-8 h-8 border ${borderClass} rounded-lg flex items-center justify-center ${textClass} hover:text-negative-500`}
           >
-            <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </header>
       )}
 
       {/* Main Content */}
-      <div className={`flex flex-1 overflow-hidden ${embedded ? 'p-2 gap-2' : managerView ? 'p-2 sm:p-4 gap-3 sm:gap-6' : 'p-3 sm:p-6 lg:px-16 gap-4 sm:gap-8'}`}>
-        {/* Products Grid */}
-        <main className="flex-1 overflow-y-auto pr-2 sm:pr-6" style={{ scrollbarWidth: 'thin' }}>
+      <div className={`flex flex-col md:flex-row flex-1 overflow-hidden ${embedded ? 'p-2 gap-2' : managerView ? 'p-2 sm:p-3 gap-2 sm:gap-4' : 'p-2 sm:p-4 lg:px-12 gap-2 sm:gap-6'}`}>
+        {/* Products Grid - Hidden on mobile when viewing cart */}
+        <main className={`flex-1 overflow-y-auto pr-1 sm:pr-4 ${mobileView === 'cart' ? 'hidden md:block' : ''}`} style={{ scrollbarWidth: 'thin' }}>
           {view === 'menu' ? (
             <>
               {/* Search and Quick Actions - Mobile or Manager View */}
-              <div className={`${managerView ? 'block' : 'md:hidden'} mb-4`}>
-                <div className="flex gap-2 items-center">
+              <div className={`${managerView ? 'block' : 'md:hidden'} mb-3`}>
+                <div className="flex gap-1.5 items-center">
                   <div className="relative flex-1">
-                    <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${mutedClass} w-4 h-4`} />
+                    <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${mutedClass} w-3.5 h-3.5`} />
                     <input
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search menu..."
-                      className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-accent-500/20 text-sm font-semibold ${textClass}`}
+                      placeholder="Search..."
+                      className={`w-full ${bgClass} border ${borderClass} rounded-lg py-2 pl-9 pr-3 focus:outline-none focus:ring-2 focus:ring-accent-500/20 text-xs font-semibold ${textClass}`}
                     />
                   </div>
                   {/* Quick Actions for Manager View */}
                   {managerView && (
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1">
                       <button
                         onClick={() => setView(view === 'lowStock' ? 'menu' : 'lowStock')}
-                        className={`relative w-9 h-9 border ${borderClass} rounded-xl flex items-center justify-center ${view === 'lowStock' ? 'bg-warning-500 text-white border-warning-500' : surfaceClass} ${textClass} transition-all`}
-                        title="Low Stock Alerts"
+                        className={`relative w-8 h-8 border ${borderClass} rounded-lg flex items-center justify-center ${view === 'lowStock' ? 'bg-warning-500 text-white border-warning-500' : surfaceClass} ${textClass} transition-all`}
+                        title="Low Stock"
                       >
-                        <AlertTriangle className={`w-4 h-4 ${lowStockItems.length > 0 && view !== 'lowStock' ? 'text-warning-500' : ''}`} />
+                        <AlertTriangle className={`w-3.5 h-3.5 ${lowStockItems.length > 0 && view !== 'lowStock' ? 'text-warning-500' : ''}`} />
                         {lowStockItems.length > 0 && (
-                          <span className={`absolute -top-1 -right-1 bg-warning-500 text-white text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center`}>
+                          <span className={`absolute -top-0.5 -right-0.5 bg-warning-500 text-white text-[6px] font-black w-3 h-3 rounded-full flex items-center justify-center`}>
                             {lowStockItems.length}
                           </span>
                         )}
                       </button>
                       <button
                         onClick={() => setView(view === 'held' ? 'menu' : 'held')}
-                        className={`relative w-9 h-9 border ${borderClass} rounded-xl flex items-center justify-center ${view === 'held' ? 'bg-accent-500 text-white border-accent-500' : surfaceClass} ${textClass} transition-all`}
+                        className={`relative w-8 h-8 border ${borderClass} rounded-lg flex items-center justify-center ${view === 'held' ? 'bg-accent-500 text-white border-accent-500' : surfaceClass} ${textClass} transition-all`}
                         title="Held Orders"
                       >
-                        <Layers className="w-4 h-4" />
+                        <Layers className="w-3.5 h-3.5" />
                         {heldOrders.length > 0 && (
-                          <span className={`absolute -top-1 -right-1 bg-accent-500 text-white text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center`}>
+                          <span className={`absolute -top-0.5 -right-0.5 bg-accent-500 text-white text-[6px] font-black w-3 h-3 rounded-full flex items-center justify-center`}>
                             {heldOrders.length}
                           </span>
                         )}
@@ -843,12 +836,12 @@ const CashierPOS = ({
               </div>
 
               {/* Category Filters */}
-              <div className="flex gap-2 mb-4 sm:mb-6 overflow-x-auto pb-2">
+              <div className="flex gap-1.5 sm:gap-2 mb-3 sm:mb-4 overflow-x-auto pb-1 scrollbar-hide">
                 {categories.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}
-                    className={`px-4 sm:px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
+                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[8px] sm:text-[9px] font-bold uppercase tracking-wide whitespace-nowrap transition-all ${
                       activeCategory === cat
                         ? `${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} shadow-md`
                         : `${surfaceClass} border ${borderClass} ${mutedClass} hover:text-accent-500`
@@ -860,28 +853,28 @@ const CashierPOS = ({
               </div>
 
               {/* Products */}
-              <div className={`grid ${managerView ? 'grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6'} pb-10`}>
+              <div className={`grid ${managerView ? 'grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-3' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4'} pb-16 md:pb-6`}>
                 {filteredProducts.map((product) => (
                   <div
                     key={product.id}
                     onClick={() => addToCart(product)}
-                    className={`${surfaceClass} border ${borderClass} ${managerView ? 'rounded-xl p-2.5 sm:p-4' : 'rounded-2xl sm:rounded-3xl p-3 sm:p-5'} cursor-pointer hover:border-accent-500 hover:shadow-xl transition-all group`}
+                    className={`${surfaceClass} border ${borderClass} rounded-xl sm:rounded-2xl p-2 sm:p-3 cursor-pointer hover:border-accent-500 hover:shadow-lg transition-all group`}
                   >
-                    <div className={`aspect-square ${bgClass} rounded-xl sm:rounded-2xl mb-2 sm:mb-3 flex items-center justify-center`}>
+                    <div className={`aspect-square ${bgClass} rounded-lg sm:rounded-xl mb-1.5 sm:mb-2 flex items-center justify-center`}>
                       {product.category === 'SERVICE' ? (
-                        <Scissors className={`w-6 h-6 sm:w-7 sm:h-7 ${mutedClass} group-hover:text-accent-500`} />
+                        <Scissors className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} group-hover:text-accent-500`} />
                       ) : (
-                        <Package className={`w-6 h-6 sm:w-7 sm:h-7 ${mutedClass} group-hover:text-accent-500`} />
+                        <Package className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} group-hover:text-accent-500`} />
                       )}
                     </div>
-                    <h3 className={`font-bold text-[10px] sm:text-xs uppercase tracking-tight mb-1 ${textClass} truncate`}>
+                    <h3 className={`font-bold text-[9px] sm:text-[10px] uppercase tracking-tight mb-0.5 ${textClass} truncate`}>
                       {product.name}
                     </h3>
                     <div className="flex justify-between items-center">
-                      <span className={`${mutedClass} text-[7px] sm:text-[8px] font-bold uppercase`}>
-                        {product.category === 'SERVICE' ? 'Service' : `Stock: ${product.stockQuantity}`}
+                      <span className={`${mutedClass} text-[7px] font-bold uppercase hidden sm:inline`}>
+                        {product.category === 'SERVICE' ? 'Svc' : `${product.stockQuantity}`}
                       </span>
-                      <span className={`font-black text-xs sm:text-sm ${textClass}`}>
+                      <span className={`font-black text-[10px] sm:text-xs ${textClass}`}>
                         {formatCurrency(product.sellingPrice)}
                       </span>
                     </div>
@@ -1192,20 +1185,21 @@ const CashierPOS = ({
         </main>
 
         {/* Sidebar - Right Panel with special font styling */}
-        <aside className={`w-full ${managerView ? 'sm:w-[280px] lg:w-[320px]' : 'sm:w-[320px] lg:w-[360px]'} flex flex-col gap-4 shrink-0 min-h-0 overflow-hidden`} style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+        {/* Hidden on mobile when viewing products, shown when viewing cart */}
+        <aside className={`w-full md:w-[280px] lg:w-[320px] xl:w-[360px] flex flex-col gap-2 sm:gap-3 shrink-0 min-h-0 overflow-hidden ${mobileView === 'products' ? 'hidden md:flex' : 'flex'}`} style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}>
           {/* Stats Card - Clickable to show today's sales */}
           <div
             onClick={() => setView(view === 'sales' ? 'menu' : 'sales')}
-            className={`${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-2xl p-4 shadow-lg flex justify-around items-center shrink-0 cursor-pointer hover:opacity-90 transition-opacity ${view === 'sales' ? 'ring-2 ring-accent-500' : ''}`}
+            className={`${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl sm:rounded-2xl p-2.5 sm:p-3 shadow-lg flex justify-around items-center shrink-0 cursor-pointer hover:opacity-90 transition-opacity ${view === 'sales' ? 'ring-2 ring-accent-500' : ''}`}
           >
             <div className="text-center">
-              <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">Customers Served</p>
-              <p className="text-lg font-black">{stats.orders}</p>
+              <p className="text-[7px] sm:text-[8px] font-black uppercase opacity-60 tracking-wider sm:tracking-widest">Served</p>
+              <p className="text-base sm:text-lg font-black">{stats.orders}</p>
             </div>
-            <div className={`h-6 w-px ${darkMode ? 'bg-black/10' : 'bg-white/10'}`}></div>
+            <div className={`h-5 w-px ${darkMode ? 'bg-black/10' : 'bg-white/10'}`}></div>
             <div className="text-center">
-              <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">Today's Sales</p>
-              <p className="text-lg font-black">{formatCurrency(stats.revenue)}</p>
+              <p className="text-[7px] sm:text-[8px] font-black uppercase opacity-60 tracking-wider sm:tracking-widest">Sales</p>
+              <p className="text-base sm:text-lg font-black">{formatCurrency(stats.revenue)}</p>
             </div>
           </div>
 
@@ -1214,7 +1208,7 @@ const CashierPOS = ({
             {sidebarView === 'cart' && (
               <div className="flex flex-col flex-1 gap-4 min-h-0 overflow-hidden">
                 {/* Customer Input with Autocomplete */}
-                <div className={`${surfaceClass} border ${borderClass} rounded-2xl p-3.5 shrink-0 shadow-sm`}>
+                <div className={`${surfaceClass} border ${borderClass} rounded-xl sm:rounded-2xl p-2.5 sm:p-3 shrink-0 shadow-sm`}>
                   <div className="flex gap-2">
                     <div className="flex-1 relative">
                       <User className={`absolute left-3 ${selectedCustomer ? 'top-2.5' : 'top-1/2 -translate-y-1/2'} ${mutedClass} w-3.5 h-3.5`} />
@@ -1299,10 +1293,10 @@ const CashierPOS = ({
                 </div>
 
                 {/* Cart Container - Takes remaining space */}
-                <div className={`${surfaceClass} border ${borderClass} rounded-2xl p-4 sm:p-5 flex-1 flex flex-col shadow-sm min-h-0 overflow-hidden`}>
+                <div className={`${surfaceClass} border ${borderClass} rounded-xl sm:rounded-2xl p-3 sm:p-4 flex-1 flex flex-col shadow-sm min-h-0 overflow-hidden`}>
                   {/* Fixed Header */}
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className={`text-xs font-black uppercase tracking-tight ${textClass}`}>Active Cart</h3>
+                  <div className="flex items-center justify-between mb-2 sm:mb-3">
+                    <h3 className={`text-[10px] sm:text-xs font-black uppercase tracking-tight ${textClass}`}>Cart</h3>
                     {cart.length > 0 && (
                       <span className={`text-[10px] font-bold ${mutedClass} bg-accent-100 ${darkMode ? 'bg-accent-900/50 text-accent-300' : 'text-accent-600'} px-2 py-0.5 rounded-full`}>
                         {cart.reduce((sum, item) => sum + item.qty, 0)} items
@@ -1385,10 +1379,10 @@ const CashierPOS = ({
                   </div>
 
                   {/* Fixed Total */}
-                  <div className={`pt-3 mt-3 border-t ${borderClass}`}>
+                  <div className={`pt-2 sm:pt-3 mt-2 sm:mt-3 border-t ${borderClass}`}>
                     <div className="flex justify-between items-end">
-                      <span className={`text-[10px] font-black uppercase ${mutedClass} leading-none`}>Due Total</span>
-                      <span className="text-xl sm:text-2xl font-black text-accent-500 leading-none">
+                      <span className={`text-[9px] sm:text-[10px] font-black uppercase ${mutedClass} leading-none`}>Total</span>
+                      <span className="text-lg sm:text-xl font-black text-accent-500 leading-none">
                         {formatCurrency(getCartTotal())}
                       </span>
                     </div>
@@ -1396,75 +1390,72 @@ const CashierPOS = ({
                 </div>
 
                 {/* Fixed Action Buttons */}
-                <div className="flex flex-col gap-2">
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1.5 sm:gap-2">
+                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                     <button
                       onClick={() => openConfirm('Clear cart?', 'This will remove all items.', clearCart)}
-                      className={`py-3 border border-negative-200 rounded-xl text-negative-500 font-bold text-[10px] uppercase hover:bg-negative-50 ${surfaceClass}`}
+                      className={`py-2.5 sm:py-3 border border-negative-200 rounded-lg sm:rounded-xl text-negative-500 font-bold text-[9px] sm:text-[10px] uppercase hover:bg-negative-50 ${surfaceClass}`}
                     >
                       Cancel
                     </button>
                     <button
                       onClick={showPayment}
-                      className="py-3 bg-green-600 text-white rounded-xl font-black text-[10px] uppercase hover:bg-green-700 shadow-lg"
+                      className="py-2.5 sm:py-3 bg-green-600 text-white rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase hover:bg-green-700 shadow-lg"
                     >
                       Pay Now
                     </button>
                   </div>
                   <button
                     onClick={holdOrder}
-                    className={`w-full py-3.5 ${darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-900 border-slate-900'} border rounded-xl font-black text-[10px] uppercase hover:opacity-80 transition-all flex items-center justify-center gap-2`}
+                    className={`w-full py-2.5 sm:py-3 ${darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-900 border-slate-900'} border rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase hover:opacity-80 transition-all flex items-center justify-center gap-1.5`}
                   >
-                    <PauseCircle className="w-3.5 h-3.5" /> Hold Order
+                    <PauseCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Hold
                   </button>
                 </div>
               </div>
             )}
 
             {sidebarView === 'payment' && (
-              <div className={`${surfaceClass} border ${borderClass} rounded-2xl p-6 flex flex-1 flex-col shadow-sm min-h-0 overflow-hidden`}>
+              <div className={`${surfaceClass} border ${borderClass} rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-1 flex-col shadow-sm min-h-0 overflow-hidden`}>
                 <button
                   onClick={goBackPayment}
-                  className={`text-xs font-bold ${mutedClass} mb-4 flex items-center gap-2`}
+                  className={`text-[10px] sm:text-xs font-bold ${mutedClass} mb-2 sm:mb-3 flex items-center gap-1`}
                 >
-                  ← {paymentStep === 'amount' ? 'Back to Methods' : paymentStep === 'select' ? 'Back to Order Type' : 'Back to Cart'}
+                  ← {paymentStep === 'amount' ? 'Methods' : paymentStep === 'select' ? 'Order Type' : 'Cart'}
                 </button>
 
                 {/* Total Display */}
-                <div className="mb-4">
-                  <h2 className={`text-lg font-black uppercase mb-1 ${textClass}`}>
-                    {paymentStep === 'orderType' ? 'Order Type' : paymentStep === 'select' ? 'Select Payment' : 'Enter Amount'}
+                <div className="mb-3 sm:mb-4">
+                  <h2 className={`text-sm sm:text-base font-black uppercase mb-0.5 ${textClass}`}>
+                    {paymentStep === 'orderType' ? 'Order Type' : paymentStep === 'select' ? 'Payment' : 'Amount'}
                   </h2>
-                  <p className="text-accent-500 font-black text-2xl">{formatCurrency(getCartTotal())}</p>
+                  <p className="text-accent-500 font-black text-xl sm:text-2xl">{formatCurrency(getCartTotal())}</p>
                 </div>
 
                 {/* Step 0: Select Order Type */}
                 {paymentStep === 'orderType' && (
                   <div className="flex-1 overflow-y-auto">
-                    <p className={`text-[10px] font-bold ${mutedClass} mb-3`}>Select the type of order</p>
-                    <div className="space-y-2">
+                    <p className={`text-[9px] sm:text-[10px] font-bold ${mutedClass} mb-2`}>Select order type</p>
+                    <div className="grid grid-cols-2 gap-1.5 sm:space-y-0 sm:grid-cols-1 sm:gap-2">
                       {[
-                        { id: 'Walk-in', label: 'Walk-in', desc: 'Customer at location' },
-                        { id: 'Delivery', label: 'Delivery', desc: 'Order for delivery' },
-                        { id: 'Pickup', label: 'Pickup', desc: 'Customer will pick up' },
-                        { id: 'Out-service', label: 'Out-service', desc: 'Service outside location' }
-                      ].map(({ id, label, desc }) => (
+                        { id: 'Walk-in', label: 'Walk-in' },
+                        { id: 'Delivery', label: 'Delivery' },
+                        { id: 'Pickup', label: 'Pickup' },
+                        { id: 'Out-service', label: 'Out-svc' }
+                      ].map(({ id, label }) => (
                         <button
                           key={id}
                           onClick={() => setOrderType(id)}
-                          className={`w-full p-3 border rounded-xl text-left transition-all ${
+                          className={`p-2 sm:p-2.5 border rounded-lg sm:rounded-xl text-left transition-all ${
                             orderType === id
                               ? 'border-accent-500 bg-accent-50 ' + (darkMode ? 'bg-accent-900/30' : '')
                               : `${borderClass} hover:border-accent-300`
                           }`}
                         >
                           <div className="flex items-center justify-between">
-                            <div>
-                              <span className={`font-bold text-xs ${textClass}`}>{label}</span>
-                              <p className={`text-[9px] ${mutedClass}`}>{desc}</p>
-                            </div>
+                            <span className={`font-bold text-[10px] sm:text-xs ${textClass}`}>{label}</span>
                             {orderType === id && (
-                              <CheckCircle className="w-4 h-4 text-accent-500" />
+                              <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-accent-500" />
                             )}
                           </div>
                         </button>
@@ -1473,9 +1464,9 @@ const CashierPOS = ({
 
                     <button
                       onClick={() => setPaymentStep('select')}
-                      className={`w-full mt-4 py-3.5 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl font-black text-[10px] uppercase`}
+                      className={`w-full mt-3 py-2.5 sm:py-3 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase`}
                     >
-                      Continue to Payment
+                      Continue
                     </button>
                   </div>
                 )}
@@ -1484,9 +1475,9 @@ const CashierPOS = ({
                 {paymentStep === 'select' && (
                   <div className="flex-1 overflow-y-auto">
                     {/* Split Payment Toggle */}
-                    <div className={`mb-4 p-3 rounded-xl ${bgClass} border ${borderClass}`}>
+                    <div className={`mb-3 p-2 sm:p-2.5 rounded-lg ${bgClass} border ${borderClass}`}>
                       <label className="flex items-center justify-between cursor-pointer">
-                        <span className={`text-xs font-bold ${textClass}`}>Split Payment</span>
+                        <span className={`text-[10px] sm:text-xs font-bold ${textClass}`}>Split</span>
                         <div className="relative">
                           <input
                             type="checkbox"
@@ -1494,42 +1485,39 @@ const CashierPOS = ({
                             onChange={toggleSplitPayment}
                             className="sr-only"
                           />
-                          <div className={`w-10 h-5 rounded-full transition-colors ${isSplitPayment ? 'bg-accent-500' : darkMode ? 'bg-slate-600' : 'bg-gray-300'}`}>
-                            <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform mt-0.5 ${isSplitPayment ? 'translate-x-5 ml-0.5' : 'translate-x-0.5'}`}></div>
+                          <div className={`w-8 h-4 rounded-full transition-colors ${isSplitPayment ? 'bg-accent-500' : darkMode ? 'bg-slate-600' : 'bg-gray-300'}`}>
+                            <div className={`w-3 h-3 bg-white rounded-full shadow transform transition-transform mt-0.5 ${isSplitPayment ? 'translate-x-4 ml-0.5' : 'translate-x-0.5'}`}></div>
                           </div>
                         </div>
                       </label>
-                      {isSplitPayment && (
-                        <p className={`text-[9px] ${mutedClass} mt-1`}>Select multiple payment methods</p>
-                      )}
                     </div>
 
                     {/* Payment Methods - Compact Cards */}
-                    <div className="space-y-2">
+                    <div className="space-y-1.5 sm:space-y-2">
                       {[
                         { id: 'Cash', label: 'Cash', icon: Banknote },
                         { id: 'Card', label: 'Card', icon: CreditCard },
-                        { id: 'Momo', label: 'Mobile Money', icon: Smartphone }
+                        { id: 'Momo', label: 'Momo', icon: Smartphone }
                       ].map(({ id, label, icon: Icon }) => (
                         <button
                           key={id}
                           onClick={() => isSplitPayment ? toggleMethod(id) : selectSingleMethod(id)}
-                          className={`w-full p-2.5 border rounded-xl flex items-center gap-3 transition-all ${
+                          className={`w-full p-2 sm:p-2.5 border rounded-lg sm:rounded-xl flex items-center gap-2 sm:gap-3 transition-all ${
                             isSplitPayment && selectedMethods.includes(id)
                               ? 'border-accent-500 bg-accent-50'
                               : `${borderClass} hover:bg-accent-50 hover:border-accent-500`
                           } ${darkMode && isSplitPayment && selectedMethods.includes(id) ? 'bg-accent-900/30' : ''} group`}
                         >
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
                             isSplitPayment && selectedMethods.includes(id)
                               ? 'bg-accent-500 text-white'
                               : `${bgClass} group-hover:bg-accent-500 group-hover:text-white`
                           }`}>
-                            <Icon className="w-4 h-4" />
+                            <Icon className="w-3.5 h-3.5" />
                           </div>
-                          <span className={`font-bold text-xs flex-1 text-left ${textClass}`}>{label}</span>
+                          <span className={`font-bold text-[10px] sm:text-xs flex-1 text-left ${textClass}`}>{label}</span>
                           {isSplitPayment && selectedMethods.includes(id) && (
-                            <CheckCircle className="w-4 h-4 text-accent-500" />
+                            <CheckCircle className="w-3.5 h-3.5 text-accent-500" />
                           )}
                         </button>
                       ))}
@@ -1539,9 +1527,9 @@ const CashierPOS = ({
                     {isSplitPayment && selectedMethods.length >= 2 && (
                       <button
                         onClick={proceedToSplitAmount}
-                        className="w-full mt-4 py-3.5 bg-accent-500 text-white rounded-xl font-black text-[10px] uppercase hover:bg-accent-600 transition-colors"
+                        className="w-full mt-3 py-2.5 sm:py-3 bg-accent-500 text-white rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase hover:bg-accent-600 transition-colors"
                       >
-                        Continue with {selectedMethods.length} Methods
+                        Continue ({selectedMethods.length})
                       </button>
                     )}
                   </div>
@@ -1605,20 +1593,20 @@ const CashierPOS = ({
                       ) : (
                         // Single Payment Amount Input
                         <>
-                          <div className={`p-4 rounded-xl border ${borderClass}`}>
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className={`w-8 h-8 ${bgClass} rounded-lg flex items-center justify-center`}>
-                                {selectedPayment === 'Cash' && <Banknote className="w-4 h-4" />}
-                                {selectedPayment === 'Card' && <CreditCard className="w-4 h-4" />}
-                                {selectedPayment === 'Momo' && <Smartphone className="w-4 h-4" />}
+                          <div className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border ${borderClass}`}>
+                            <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                              <div className={`w-6 h-6 sm:w-7 sm:h-7 ${bgClass} rounded-lg flex items-center justify-center`}>
+                                {selectedPayment === 'Cash' && <Banknote className="w-3.5 h-3.5" />}
+                                {selectedPayment === 'Card' && <CreditCard className="w-3.5 h-3.5" />}
+                                {selectedPayment === 'Momo' && <Smartphone className="w-3.5 h-3.5" />}
                               </div>
-                              <span className={`text-sm font-bold ${textClass}`}>{selectedPayment}</span>
+                              <span className={`text-xs font-bold ${textClass}`}>{selectedPayment}</span>
                             </div>
-                            <label className={`text-[10px] font-bold uppercase ${mutedClass} mb-2 block`}>
-                              Amount Tendered
+                            <label className={`text-[9px] sm:text-[10px] font-bold uppercase ${mutedClass} mb-1.5 block`}>
+                              Amount
                             </label>
                             <div className="relative">
-                              <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold ${mutedClass}`}>
+                              <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-base sm:text-lg font-bold ${mutedClass}`}>
                                 {currencySymbol}
                               </span>
                               <input
@@ -1631,14 +1619,14 @@ const CashierPOS = ({
                                   amountTendered && parseFloat(amountTendered) >= getCartTotal()
                                     ? 'border-positive-500'
                                     : borderClass
-                                } rounded-xl py-4 pl-16 pr-4 text-2xl font-black focus:outline-none focus:border-accent-500 ${textClass}`}
+                                } rounded-lg sm:rounded-xl py-3 sm:py-4 pl-12 sm:pl-14 pr-3 text-xl sm:text-2xl font-black focus:outline-none focus:border-accent-500 ${textClass}`}
                               />
                             </div>
                           </div>
 
                           {/* Quick Amount Buttons for Cash */}
                           {selectedPayment === 'Cash' && (
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                               {[
                                 Math.ceil(getCartTotal()),
                                 Math.ceil(getCartTotal() / 10) * 10,
@@ -1650,7 +1638,7 @@ const CashierPOS = ({
                                 <button
                                   key={amount}
                                   onClick={() => setAmountTendered(amount.toString())}
-                                  className={`py-2.5 px-3 border ${borderClass} rounded-xl text-xs font-bold ${textClass} hover:border-accent-500 hover:bg-accent-50 transition-colors`}
+                                  className={`py-2 px-2 border ${borderClass} rounded-lg text-[10px] sm:text-xs font-bold ${textClass} hover:border-accent-500 hover:bg-accent-50 transition-colors`}
                                 >
                                   {formatCurrency(amount)}
                                 </button>
@@ -1660,12 +1648,12 @@ const CashierPOS = ({
 
                           {/* Change Display */}
                           {amountTendered && parseFloat(amountTendered) >= getCartTotal() && (
-                            <div className={`p-4 rounded-xl bg-green-50 border border-green-200 ${darkMode ? 'bg-green-900/20 border-green-800' : ''}`}>
+                            <div className={`p-3 rounded-lg sm:rounded-xl bg-green-50 border border-green-200 ${darkMode ? 'bg-green-900/20 border-green-800' : ''}`}>
                               <div className="flex justify-between items-center">
-                                <span className={`text-xs font-bold uppercase ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
-                                  Change to Give
+                                <span className={`text-[10px] sm:text-xs font-bold uppercase ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
+                                  Change
                                 </span>
-                                <span className={`text-2xl font-black ${darkMode ? 'text-green-400' : 'text-positive-600'}`}>
+                                <span className={`text-xl sm:text-2xl font-black ${darkMode ? 'text-green-400' : 'text-positive-600'}`}>
                                   {formatCurrency(getChange())}
                                 </span>
                               </div>
@@ -1673,9 +1661,9 @@ const CashierPOS = ({
                           )}
 
                           {amountTendered && parseFloat(amountTendered) < getCartTotal() && (
-                            <div className={`p-3 rounded-xl bg-negative-50 border border-negative-200 ${darkMode ? 'bg-red-900/20 border-negative-800' : ''}`}>
-                              <p className={`text-xs font-bold ${darkMode ? 'text-negative-400' : 'text-negative-600'}`}>
-                                Amount is less than total by {formatCurrency(getCartTotal() - parseFloat(amountTendered))}
+                            <div className={`p-2 sm:p-3 rounded-lg bg-negative-50 border border-negative-200 ${darkMode ? 'bg-red-900/20 border-negative-800' : ''}`}>
+                              <p className={`text-[10px] sm:text-xs font-bold ${darkMode ? 'text-negative-400' : 'text-negative-600'}`}>
+                                Short by {formatCurrency(getCartTotal() - parseFloat(amountTendered))}
                               </p>
                             </div>
                           )}
@@ -1684,11 +1672,11 @@ const CashierPOS = ({
                     </div>
 
                     {/* Confirm Payment Button */}
-                    <div className="pt-4 mt-auto">
+                    <div className="pt-3 sm:pt-4 mt-auto">
                       <button
                         onClick={processPayment}
                         disabled={!isPaymentValid() || processingPayment}
-                        className={`w-full py-4 rounded-xl font-black text-sm uppercase transition-all flex items-center justify-center gap-2 ${
+                        className={`w-full py-3 sm:py-4 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm uppercase transition-all flex items-center justify-center gap-2 ${
                           isPaymentValid() && !processingPayment
                             ? 'bg-positive-500 text-white hover:bg-green-600 shadow-lg'
                             : `${darkMode ? 'bg-slate-700 text-slate-500' : 'bg-gray-200 text-gray-400'} cursor-not-allowed`
@@ -1696,13 +1684,13 @@ const CashierPOS = ({
                       >
                         {processingPayment ? (
                           <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Processing...
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span className="hidden sm:inline">Processing...</span><span className="sm:hidden">...</span>
                           </>
                         ) : (
                           <>
-                            <CheckCircle className="w-5 h-5" />
-                            Confirm Payment
+                            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <span className="hidden sm:inline">Confirm Payment</span><span className="sm:hidden">Confirm</span>
                           </>
                         )}
                       </button>
@@ -1713,13 +1701,12 @@ const CashierPOS = ({
             )}
 
             {sidebarView === 'receipt' && lastReceipt && (
-              <div className={`${surfaceClass} border ${borderClass} rounded-2xl p-4 flex flex-1 flex-col shadow-sm overflow-hidden`}>
+              <div className={`${surfaceClass} border ${borderClass} rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-1 flex-col shadow-sm overflow-hidden`}>
                 <div className="flex-1 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
                   {/* Header - Business Info */}
-                  <div className="text-center mb-3">
-                    <h1 className={`text-sm font-black uppercase leading-tight ${textClass}`}>{user?.tenantName}</h1>
-                    <p className={`text-[8px] ${mutedClass} mt-0.5`}>{user?.tenant?.address || 'Business Address'}</p>
-                    <p className={`text-[8px] ${mutedClass}`}>Tel: {user?.tenant?.phone || '0000-000-000'}</p>
+                  <div className="text-center mb-2 sm:mb-3">
+                    <h1 className={`text-xs sm:text-sm font-black uppercase leading-tight ${textClass}`}>{user?.tenantName}</h1>
+                    <p className={`text-[7px] sm:text-[8px] ${mutedClass} mt-0.5 hidden sm:block`}>{user?.tenant?.address || 'Business Address'}</p>
                   </div>
 
                   {/* Receipt Title */}
@@ -1826,18 +1813,18 @@ const CashierPOS = ({
                     <p className={`text-[7px] ${mutedClass}`}>+233 24 000 0000</p>
                   </div>
                 </div>
-                <div className={`mt-3 pt-3 border-t ${borderClass} space-y-2`}>
+                <div className={`mt-2 sm:mt-3 pt-2 sm:pt-3 border-t ${borderClass} space-y-1.5 sm:space-y-2`}>
                   <button
                     onClick={() => window.print()}
-                    className={`w-full py-2.5 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2`}
+                    className={`w-full py-2 sm:py-2.5 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase flex items-center justify-center gap-1.5`}
                   >
-                    <Printer className="w-4 h-4" /> Print Receipt
+                    <Printer className="w-3.5 h-3.5" /> Print
                   </button>
                   <button
                     onClick={newTransaction}
-                    className="w-full py-2 text-accent-500 font-bold text-[10px] uppercase text-center"
+                    className="w-full py-1.5 sm:py-2 text-accent-500 font-bold text-[9px] sm:text-[10px] uppercase text-center"
                   >
-                    New Transaction
+                    New Sale
                   </button>
                 </div>
               </div>
@@ -1845,6 +1832,39 @@ const CashierPOS = ({
           </div>
         </aside>
       </div>
+
+      {/* Mobile Floating Cart Button - Shows when viewing products on mobile */}
+      {mobileView === 'products' && cart.length > 0 && (
+        <div className="md:hidden fixed bottom-4 left-4 right-4 z-40">
+          <button
+            onClick={() => setMobileView('cart')}
+            className={`w-full ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-2xl py-3 px-4 shadow-2xl flex items-center justify-between`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 ${darkMode ? 'bg-slate-900 text-white' : 'bg-white text-black'} rounded-xl flex items-center justify-center`}>
+                <ShoppingBag className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-bold uppercase opacity-70">View Cart</p>
+                <p className="text-xs font-black">{cart.reduce((sum, item) => sum + item.qty, 0)} items</p>
+              </div>
+            </div>
+            <span className="text-lg font-black">{formatCurrency(getCartTotal())}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Mobile Back to Products Button - Shows when viewing cart on mobile */}
+      {mobileView === 'cart' && (
+        <div className="md:hidden fixed top-2 left-2 z-40">
+          <button
+            onClick={() => setMobileView('products')}
+            className={`${surfaceClass} border ${borderClass} rounded-xl py-2 px-3 shadow-lg flex items-center gap-2 text-xs font-bold ${textClass}`}
+          >
+            ← Products
+          </button>
+        </div>
+      )}
 
       {/* Toast */}
       {toast.show && (
@@ -1858,17 +1878,17 @@ const CashierPOS = ({
 
       {/* Confirm Modal */}
       {showConfirm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`${surfaceClass} w-full max-w-sm rounded-3xl p-10 shadow-2xl text-center animate-fade-in`}>
-            <div className={`w-16 h-16 ${bgClass} rounded-full flex items-center justify-center mx-auto mb-6`}>
-              <HelpCircle className="w-8 h-8 text-accent-500" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className={`${surfaceClass} w-full max-w-xs sm:max-w-sm rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-2xl text-center animate-fade-in`}>
+            <div className={`w-12 h-12 sm:w-14 sm:h-14 ${bgClass} rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-5`}>
+              <HelpCircle className="w-6 h-6 sm:w-7 sm:h-7 text-accent-500" />
             </div>
-            <h2 className={`text-lg font-black uppercase ${textClass} mb-2`}>{confirmData.title}</h2>
-            <p className={`text-xs ${mutedClass} font-medium mb-8`}>{confirmData.message}</p>
-            <div className="flex gap-4">
+            <h2 className={`text-base sm:text-lg font-black uppercase ${textClass} mb-1.5 sm:mb-2`}>{confirmData.title}</h2>
+            <p className={`text-[10px] sm:text-xs ${mutedClass} font-medium mb-5 sm:mb-6`}>{confirmData.message}</p>
+            <div className="flex gap-2 sm:gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
-                className={`flex-1 py-4 border ${borderClass} rounded-2xl font-black text-[10px] uppercase ${mutedClass} ${surfaceClass} hover:bg-slate-50`}
+                className={`flex-1 py-3 sm:py-3.5 border ${borderClass} rounded-xl sm:rounded-2xl font-black text-[9px] sm:text-[10px] uppercase ${mutedClass} ${surfaceClass}`}
               >
                 Cancel
               </button>
@@ -1877,7 +1897,7 @@ const CashierPOS = ({
                   confirmData.onConfirm?.();
                   setShowConfirm(false);
                 }}
-                className={`flex-1 py-4 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-2xl font-black text-[10px] uppercase shadow-lg`}
+                className={`flex-1 py-3 sm:py-3.5 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl sm:rounded-2xl font-black text-[9px] sm:text-[10px] uppercase shadow-lg`}
               >
                 Confirm
               </button>
@@ -1888,16 +1908,16 @@ const CashierPOS = ({
 
       {/* Request Modal (Void/Review with reason) */}
       {showRequestModal && requestModalData.sale && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`${surfaceClass} w-full max-w-md rounded-3xl shadow-2xl animate-fade-in overflow-hidden`}>
-            <div className={`px-6 py-4 border-b ${borderClass} flex items-center justify-between ${
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className={`${surfaceClass} w-full max-w-sm sm:max-w-md rounded-2xl sm:rounded-3xl shadow-2xl animate-fade-in overflow-hidden`}>
+            <div className={`px-4 sm:px-6 py-3 sm:py-4 border-b ${borderClass} flex items-center justify-between ${
               requestModalData.type === 'Void' ? 'bg-negative-50' : 'bg-accent-50'
             } ${darkMode ? (requestModalData.type === 'Void' ? 'bg-red-900/20' : 'bg-accent-900/20') : ''}`}>
-              <h2 className={`text-lg font-black uppercase ${requestModalData.type === 'Void' ? 'text-negative-600' : 'text-accent-600'}`}>
+              <h2 className={`text-base sm:text-lg font-black uppercase ${requestModalData.type === 'Void' ? 'text-negative-600' : 'text-accent-600'}`}>
                 {requestModalData.type === 'Void' ? (
-                  <><XCircle className="w-5 h-5 inline mr-2" />Void Request</>
+                  <><XCircle className="w-4 h-4 sm:w-5 sm:h-5 inline mr-1.5" />Void</>
                 ) : (
-                  <><Eye className="w-5 h-5 inline mr-2" />Review Request</>
+                  <><Eye className="w-4 h-4 sm:w-5 sm:h-5 inline mr-1.5" />Review</>
                 )}
               </h2>
               <button
@@ -1905,12 +1925,12 @@ const CashierPOS = ({
                   setShowRequestModal(false);
                   setRequestModalData({ sale: null, type: '', reason: '' });
                 }}
-                className={`p-2 ${mutedClass} hover:text-negative-500 rounded-lg transition-colors`}
+                className={`p-1.5 ${mutedClass} hover:text-negative-500 rounded-lg transition-colors`}
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {/* Sale Info */}
               <div className={`p-3 rounded-xl ${bgClass} border ${borderClass} mb-4`}>
                 <div className="flex justify-between items-center">
@@ -1946,20 +1966,20 @@ const CashierPOS = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <button
                   onClick={() => {
                     setShowRequestModal(false);
                     setRequestModalData({ sale: null, type: '', reason: '' });
                   }}
-                  className={`flex-1 py-3.5 border ${borderClass} rounded-xl font-bold text-[10px] uppercase ${mutedClass} ${surfaceClass} hover:bg-slate-50 transition-colors`}
+                  className={`flex-1 py-2.5 sm:py-3 border ${borderClass} rounded-lg sm:rounded-xl font-bold text-[9px] sm:text-[10px] uppercase ${mutedClass} ${surfaceClass} transition-colors`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={submitRequest}
                   disabled={sendingRequest || !requestModalData.reason.trim()}
-                  className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase transition-colors flex items-center justify-center gap-2 ${
+                  className={`flex-1 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase transition-colors flex items-center justify-center gap-1.5 ${
                     requestModalData.reason.trim() && !sendingRequest
                       ? requestModalData.type === 'Void'
                         ? 'bg-negative-500 text-white hover:bg-negative-600'
@@ -1970,10 +1990,10 @@ const CashierPOS = ({
                   {sendingRequest ? (
                     <>
                       <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Sending...
+                      <span className="hidden sm:inline">Sending...</span>
                     </>
                   ) : (
-                    <>Send Request</>
+                    <>Send</>
                   )}
                 </button>
               </div>
@@ -1984,18 +2004,18 @@ const CashierPOS = ({
 
       {/* Add Customer Modal */}
       {showCustomerModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`${surfaceClass} w-full max-w-md rounded-3xl shadow-2xl animate-fade-in overflow-hidden`}>
-            <div className={`px-6 py-4 border-b ${borderClass} flex items-center justify-between`}>
-              <h2 className={`text-lg font-black uppercase ${textClass}`}>New Customer</h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className={`${surfaceClass} w-full max-w-sm sm:max-w-md rounded-2xl sm:rounded-3xl shadow-2xl animate-fade-in overflow-hidden max-h-[90vh] flex flex-col`}>
+            <div className={`px-4 sm:px-6 py-3 sm:py-4 border-b ${borderClass} flex items-center justify-between shrink-0`}>
+              <h2 className={`text-base sm:text-lg font-black uppercase ${textClass}`}>New Customer</h2>
               <button
                 onClick={() => setShowCustomerModal(false)}
-                className={`p-2 ${mutedClass} hover:text-negative-500 rounded-lg transition-colors`}
+                className={`p-1.5 ${mutedClass} hover:text-negative-500 rounded-lg transition-colors`}
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-3 sm:space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className={`block text-[10px] font-bold uppercase mb-1.5 ${mutedClass}`}>
                   Name <span className="text-negative-500">*</span>
@@ -2064,19 +2084,19 @@ const CashierPOS = ({
                 </div>
               </div>
             </div>
-            <div className={`px-6 py-4 border-t ${borderClass} flex gap-3`}>
+            <div className={`px-4 sm:px-6 py-3 sm:py-4 border-t ${borderClass} flex gap-2 sm:gap-3 shrink-0`}>
               <button
                 onClick={() => setShowCustomerModal(false)}
-                className={`flex-1 py-3 border ${borderClass} rounded-xl font-bold text-[10px] uppercase ${mutedClass} ${surfaceClass} hover:bg-slate-50`}
+                className={`flex-1 py-2.5 sm:py-3 border ${borderClass} rounded-lg sm:rounded-xl font-bold text-[9px] sm:text-[10px] uppercase ${mutedClass} ${surfaceClass}`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateCustomer}
                 disabled={savingCustomer}
-                className={`flex-1 py-3 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl font-black text-[10px] uppercase shadow-lg disabled:opacity-50`}
+                className={`flex-1 py-2.5 sm:py-3 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase shadow-lg disabled:opacity-50`}
               >
-                {savingCustomer ? 'Saving...' : 'Add Customer'}
+                {savingCustomer ? 'Saving...' : 'Add'}
               </button>
             </div>
           </div>
