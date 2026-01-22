@@ -160,6 +160,9 @@ router.get('/:id', authenticate, async (req, res) => {
     // Cashiers can only see their own requests
     if (req.user.role === 'CASHIER') {
       where.requesterId = req.user.id;
+    } else if (req.user.role === 'MANAGER' && req.branchId) {
+      // Managers can only see their branch's requests
+      where.branchId = req.branchId;
     }
 
     const securityRequest = await prisma.securityRequest.findFirst({
@@ -205,12 +208,19 @@ router.get('/:id', authenticate, async (req, res) => {
 // Approve security request (Manager/Admin only)
 router.post('/:id/approve', authenticate, requireAdmin, async (req, res) => {
   try {
+    const requestWhere = {
+      id: req.params.id,
+      tenantId: req.tenantId,
+      status: 'PENDING'
+    };
+
+    // Managers can only approve their branch's requests
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      requestWhere.branchId = req.branchId;
+    }
+
     const securityRequest = await prisma.securityRequest.findFirst({
-      where: {
-        id: req.params.id,
-        tenantId: req.tenantId,
-        status: 'PENDING'
-      },
+      where: requestWhere,
       include: {
         sale: {
           include: {
@@ -309,12 +319,19 @@ router.post('/:id/approve', authenticate, requireAdmin, async (req, res) => {
 // Reject security request (Manager/Admin only)
 router.post('/:id/reject', authenticate, requireAdmin, async (req, res) => {
   try {
+    const requestWhere = {
+      id: req.params.id,
+      tenantId: req.tenantId,
+      status: 'PENDING'
+    };
+
+    // Managers can only reject their branch's requests
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      requestWhere.branchId = req.branchId;
+    }
+
     const securityRequest = await prisma.securityRequest.findFirst({
-      where: {
-        id: req.params.id,
-        tenantId: req.tenantId,
-        status: 'PENDING'
-      }
+      where: requestWhere
     });
 
     if (!securityRequest) {

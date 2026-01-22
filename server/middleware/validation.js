@@ -30,7 +30,7 @@ const validateCreateSale = [
   body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
   body('items.*.productId').notEmpty().withMessage('Product ID is required'),
   body('items.*.quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
-  body('paymentMethod').isIn(['CASH', 'MOBILE_MONEY', 'SPLIT_CASH_MOMO']).withMessage('Invalid payment method'),
+  body('paymentMethod').isIn(['CASH', 'CARD', 'MOBILE_MONEY', 'SPLIT_CASH_MOMO']).withMessage('Invalid payment method'),
   handleValidationErrors
 ];
 

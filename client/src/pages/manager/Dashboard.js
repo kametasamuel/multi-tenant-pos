@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { productsAPI, salesAPI, usersAPI, expensesAPI } from '../../api';
+import { productsAPI, salesAPI, usersAPI, expensesAPI, securityRequestsAPI } from '../../api';
 import {
   TrendingUp,
   TrendingDown,
@@ -123,11 +123,12 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       setLoading(true);
       const { startDate, endDate } = getDateRange();
 
-      const [salesRes, productsRes, staffRes, expensesRes] = await Promise.all([
+      const [salesRes, productsRes, staffRes, expensesRes, requestsRes] = await Promise.all([
         salesAPI.getAll({ startDate: startDate.toISOString(), endDate: endDate.toISOString() }),
         productsAPI.getAll(),
         usersAPI.getAll().catch(() => ({ data: { users: [] } })),
-        expensesAPI.getAll({ startDate: startDate.toISOString(), endDate: endDate.toISOString() }).catch(() => ({ data: { expenses: [] } }))
+        expensesAPI.getAll({ startDate: startDate.toISOString(), endDate: endDate.toISOString() }).catch(() => ({ data: { expenses: [] } })),
+        securityRequestsAPI.getAll({ status: 'PENDING' }).catch(() => ({ data: { requests: [] } }))
       ]);
 
       const sales = salesRes.data.sales || [];
@@ -135,6 +136,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       const products = productsRes.data.products || [];
       const staff = staffRes.data.users || [];
       const expenses = expensesRes.data.expenses || [];
+      const pendingRequests = requestsRes.data.requests || [];
 
       // Low stock items
       const lowStock = products.filter(p =>
@@ -239,7 +241,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
         totalExpenses,
         netProfit,
         todayOrders: completedSales.length,
-        pendingRequests: 0,
+        pendingRequests: pendingRequests.length,
         lowStockCount: lowStock.length,
         expiringCount: expiringProducts.length,
         expiredCount: expiredProducts.length,
