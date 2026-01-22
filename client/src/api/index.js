@@ -23,9 +23,25 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Get user info before clearing
+      const userStr = localStorage.getItem('user');
+      let redirectUrl = '/';
+
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          const slug = user.tenantSlug || (user.isSuperAdmin ? 'admin' : null);
+          if (slug) {
+            redirectUrl = `/${slug}/login`;
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      window.location.href = redirectUrl;
     }
     return Promise.reject(error);
   }

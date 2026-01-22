@@ -561,10 +561,10 @@ const Signup = () => {
           Check Status
         </button>
         <Link
-          to="/login"
+          to="/"
           className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
         >
-          Back to Login
+          Back to Home
         </Link>
       </div>
     </div>
@@ -674,10 +674,7 @@ const Signup = () => {
 
             {step < 4 && (
               <p className="text-center text-sm text-gray-500 mt-6">
-                Already have an account?{' '}
-                <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-                  Sign In
-                </Link>
+                Already have an account? Use your business URL to sign in.
               </p>
             )}
           </div>

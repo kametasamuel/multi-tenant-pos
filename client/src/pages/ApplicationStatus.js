@@ -194,9 +194,15 @@ const ApplicationStatus = () => {
                   Congratulations! Your business account is now active.
                   You can log in using the password you set during registration.
                 </p>
-                <Link to="/login" className="btn-login">
-                  Go to Login
-                </Link>
+                {application.slug ? (
+                  <Link to={`/${application.slug}/login`} className="btn-login">
+                    Go to Login
+                  </Link>
+                ) : (
+                  <p style={{ fontSize: '14px', marginTop: '8px' }}>
+                    Use your business URL to log in.
+                  </p>
+                )}
               </div>
             )}
 
@@ -224,7 +230,7 @@ const ApplicationStatus = () => {
             <Link to="/signup">Submit New Application</Link>
           </p>
           <p>
-            <Link to="/login">Back to Login</Link>
+            <Link to="/">Back to Home</Link>
           </p>
         </div>
       </div>

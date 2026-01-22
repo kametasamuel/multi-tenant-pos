@@ -91,7 +91,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Pending Applications */}
           <Link
-            to="/super-admin/applications?status=pending"
+            to="/admin/applications?status=pending"
             className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow group"
           >
             <div className="flex items-center justify-between mb-4">
@@ -106,7 +106,7 @@ const Dashboard = () => {
 
           {/* Active Tenants */}
           <Link
-            to="/super-admin/tenants?status=active"
+            to="/admin/tenants?status=active"
             className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow group"
           >
             <div className="flex items-center justify-between mb-4">
@@ -149,7 +149,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">Recent Applications</h2>
               <Link
-                to="/super-admin/applications"
+                to="/admin/applications"
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
                 View All
@@ -196,7 +196,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">Subscriptions Expiring Soon</h2>
               <Link
-                to="/super-admin/tenants"
+                to="/admin/tenants"
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
                 View All

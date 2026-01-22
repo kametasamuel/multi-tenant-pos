@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
@@ -23,8 +23,12 @@ const Layout = ({ children }) => {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { slug } = useParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Get tenant slug for navigation
+  const tenantSlug = slug || user?.tenantSlug || '';
 
   // Update time every second
   useEffect(() => {
@@ -34,7 +38,7 @@ const Layout = ({ children }) => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate(`/${tenantSlug}/login`);
   };
 
   const isActive = (path) => location.pathname === path;
@@ -42,27 +46,27 @@ const Layout = ({ children }) => {
   // Define nav links based on role
   const getNavLinks = () => {
     const links = [
-      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }
+      { path: `/${tenantSlug}/dashboard`, label: 'Dashboard', icon: LayoutDashboard }
     ];
 
     // Owner/Admin gets full access
     if (user?.role === 'OWNER' || user?.role === 'ADMIN') {
       links.push(
-        { path: '/inventory', label: 'Inventory', icon: Package },
-        { path: '/staff', label: 'Staff', icon: Users },
-        { path: '/reports', label: 'Reports', icon: BarChart3 },
-        { path: '/expenses', label: 'Expenses', icon: DollarSign },
-        { path: '/audit', label: 'Audit Log', icon: ClipboardList },
-        { path: '/settings', label: 'Settings', icon: Settings }
+        { path: `/${tenantSlug}/inventory`, label: 'Inventory', icon: Package },
+        { path: `/${tenantSlug}/staff`, label: 'Staff', icon: Users },
+        { path: `/${tenantSlug}/reports`, label: 'Reports', icon: BarChart3 },
+        { path: `/${tenantSlug}/expenses`, label: 'Expenses', icon: DollarSign },
+        { path: `/${tenantSlug}/audit`, label: 'Audit Log', icon: ClipboardList },
+        { path: `/${tenantSlug}/settings`, label: 'Settings', icon: Settings }
       );
     }
     // Manager gets limited access
     else if (user?.role === 'MANAGER') {
       links.push(
-        { path: '/inventory', label: 'Inventory', icon: Package },
-        { path: '/staff', label: 'Staff', icon: Users },
-        { path: '/reports', label: 'Reports', icon: BarChart3 },
-        { path: '/expenses', label: 'Expenses', icon: DollarSign }
+        { path: `/${tenantSlug}/inventory`, label: 'Inventory', icon: Package },
+        { path: `/${tenantSlug}/staff`, label: 'Staff', icon: Users },
+        { path: `/${tenantSlug}/reports`, label: 'Reports', icon: BarChart3 },
+        { path: `/${tenantSlug}/expenses`, label: 'Expenses', icon: DollarSign }
       );
     }
     // Cashier only sees POS

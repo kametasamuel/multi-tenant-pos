@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
@@ -26,10 +26,14 @@ const ManagerLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { slug } = useParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Get tenant slug for navigation
+  const tenantSlug = slug || user?.tenantSlug || '';
 
   // Update time every second
   useEffect(() => {
@@ -39,19 +43,19 @@ const ManagerLayout = ({ children }) => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate(`/${tenantSlug}/login`);
   };
 
   const isActive = (path) => location.pathname === path;
 
   const navLinks = [
-    { path: '/manager/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/manager/employees', label: 'Workers', icon: Users },
-    { path: '/manager/customers', label: 'Customers', icon: UserCheck },
-    { path: '/manager/sales', label: 'Shift Revenue', icon: BarChart3 },
-    { path: '/manager/inventory', label: 'Inventory', icon: Package },
-    { path: '/manager/requests', label: 'Security Requests', icon: Bell },
-    { path: '/manager/expenses', label: 'Expenses', icon: Wallet }
+    { path: `/${tenantSlug}/manager/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
+    { path: `/${tenantSlug}/manager/employees`, label: 'Workers', icon: Users },
+    { path: `/${tenantSlug}/manager/customers`, label: 'Customers', icon: UserCheck },
+    { path: `/${tenantSlug}/manager/sales`, label: 'Shift Revenue', icon: BarChart3 },
+    { path: `/${tenantSlug}/manager/inventory`, label: 'Inventory', icon: Package },
+    { path: `/${tenantSlug}/manager/requests`, label: 'Security Requests', icon: Bell },
+    { path: `/${tenantSlug}/manager/expenses`, label: 'Expenses', icon: Wallet }
   ];
 
   const bgClass = darkMode ? 'bg-slate-900' : 'bg-gray-50';
@@ -154,7 +158,7 @@ const ManagerLayout = ({ children }) => {
               <p className={`text-[10px] font-black uppercase ${mutedClass} px-4 tracking-widest leading-none mb-2`}>Quick Access</p>
             )}
             <Link
-              to="/manager/pos"
+              to={`/${tenantSlug}/manager/pos`}
               className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-xs font-black uppercase shadow-lg transition-colors bg-accent-500 text-white hover:bg-accent-600"
               title={sidebarCollapsed ? 'Launch POS' : ''}
             >
@@ -205,7 +209,7 @@ const ManagerLayout = ({ children }) => {
               <div className="mt-auto space-y-2">
                 <p className={`text-[10px] font-black uppercase ${mutedClass} px-4 tracking-widest leading-none mb-2`}>Quick Access</p>
                 <Link
-                  to="/manager/pos"
+                  to={`/${tenantSlug}/manager/pos`}
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-xs font-black uppercase shadow-lg bg-accent-500 text-white hover:bg-accent-600"
                 >

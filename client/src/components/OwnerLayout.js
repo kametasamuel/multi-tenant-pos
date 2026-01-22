@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBranch } from '../context/BranchContext';
 import {
@@ -35,6 +35,7 @@ const OwnerLayout = ({ children }) => {
   const { branches, currentBranch, switchBranch, switchToAllBranches, isAllBranches, getActiveBranches } = useBranch();
   const navigate = useNavigate();
   const location = useLocation();
+  const { slug } = useParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -42,12 +43,15 @@ const OwnerLayout = ({ children }) => {
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [showPOSBranchModal, setShowPOSBranchModal] = useState(false);
 
+  // Get tenant slug for navigation
+  const tenantSlug = slug || user?.tenantSlug || '';
+
   // Handle Launch POS click - show branch selector if in All Branches mode
   const handleLaunchPOS = () => {
     if (isAllBranches) {
       setShowPOSBranchModal(true);
     } else {
-      navigate('/owner/pos');
+      navigate(`/${tenantSlug}/owner/pos`);
     }
   };
 
@@ -56,7 +60,7 @@ const OwnerLayout = ({ children }) => {
     switchBranch(branch);
     setShowPOSBranchModal(false);
     setMobileMenuOpen(false);
-    navigate('/owner/pos');
+    navigate(`/${tenantSlug}/owner/pos`);
   };
 
   // Update time every second
@@ -78,24 +82,24 @@ const OwnerLayout = ({ children }) => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate(`/${tenantSlug}/login`);
   };
 
   const isActive = (path) => location.pathname === path;
 
   // Full navigation - Owner has access to everything
   const navLinks = [
-    { path: '/owner/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/owner/sales', label: 'Sales & Revenue', icon: BarChart3 },
-    { path: '/owner/inventory', label: 'Inventory', icon: Package },
-    { path: '/owner/staff', label: 'Staff', icon: Users },
-    { path: '/owner/customers', label: 'Customers', icon: UserCheck },
-    { path: '/owner/requests', label: 'Void Requests', icon: Bell },
-    { path: '/owner/expenses', label: 'Expenses', icon: Wallet },
-    { path: '/owner/activity', label: 'Activity Logs', icon: Activity },
-    { path: '/owner/reports', label: 'Reports', icon: FileText },
-    { path: '/owner/branches', label: 'Branches', icon: Building2 },
-    { path: '/owner/settings', label: 'Settings', icon: Settings }
+    { path: `/${tenantSlug}/owner/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
+    { path: `/${tenantSlug}/owner/sales`, label: 'Sales & Revenue', icon: BarChart3 },
+    { path: `/${tenantSlug}/owner/inventory`, label: 'Inventory', icon: Package },
+    { path: `/${tenantSlug}/owner/staff`, label: 'Staff', icon: Users },
+    { path: `/${tenantSlug}/owner/customers`, label: 'Customers', icon: UserCheck },
+    { path: `/${tenantSlug}/owner/requests`, label: 'Void Requests', icon: Bell },
+    { path: `/${tenantSlug}/owner/expenses`, label: 'Expenses', icon: Wallet },
+    { path: `/${tenantSlug}/owner/activity`, label: 'Activity Logs', icon: Activity },
+    { path: `/${tenantSlug}/owner/reports`, label: 'Reports', icon: FileText },
+    { path: `/${tenantSlug}/owner/branches`, label: 'Branches', icon: Building2 },
+    { path: `/${tenantSlug}/owner/settings`, label: 'Settings', icon: Settings }
   ];
 
   const bgClass = darkMode ? 'bg-slate-900' : 'bg-gray-50';
@@ -191,7 +195,7 @@ const OwnerLayout = ({ children }) => {
               </div>
               <div className={`px-4 py-2 border-t ${borderClass}`}>
                 <Link
-                  to="/owner/branches"
+                  to={`/${tenantSlug}/owner/branches`}
                   onClick={() => setBranchDropdownOpen(false)}
                   className={`text-xs ${darkMode ? 'text-amber-400' : 'text-slate-600'} hover:underline font-bold uppercase`}
                 >

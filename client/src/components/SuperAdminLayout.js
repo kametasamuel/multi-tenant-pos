@@ -31,16 +31,16 @@ const SuperAdminLayout = ({ children }) => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/admin/login');
   };
 
   const isActive = (path) => location.pathname === path;
 
   const navLinks = [
-    { path: '/super-admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/super-admin/applications', label: 'Applications', icon: FileText },
-    { path: '/super-admin/tenants', label: 'Tenants', icon: Building2 },
-    { path: '/super-admin/analytics', label: 'Analytics', icon: TrendingUp }
+    { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/admin/applications', label: 'Applications', icon: FileText },
+    { path: '/admin/tenants', label: 'Tenants', icon: Building2 },
+    { path: '/admin/analytics', label: 'Analytics', icon: TrendingUp }
   ];
 
   return (

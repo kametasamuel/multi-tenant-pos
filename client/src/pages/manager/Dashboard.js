@@ -687,7 +687,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-6 shadow-sm`}>
         <div className="flex items-center justify-between mb-6">
           <h2 className={`text-sm font-black uppercase tracking-tight ${textClass}`}>Recent Transactions</h2>
-          <Link to="/manager/sales" className="text-xs font-bold text-accent-500 flex items-center gap-1 hover:underline">
+          <Link to={`/${user?.tenantSlug}/manager/sales`} className="text-xs font-bold text-accent-500 flex items-center gap-1 hover:underline">
             View All <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
