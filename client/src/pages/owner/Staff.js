@@ -12,7 +12,9 @@ import {
   X,
   Building2,
   Download,
-  ChevronDown
+  ChevronDown,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, currentBranch, isAllBranches, branches = [] }) => {
@@ -34,6 +36,8 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
   const [newPassword, setNewPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   // Branch filter for drilling down when in "All Branches" mode
   const [branchFilter, setBranchFilter] = useState(null);
   const [showBranchDropdown, setShowBranchDropdown] = useState(false);
@@ -494,14 +498,24 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
                   </div>
                   <div>
                     <label className={`block text-xs font-bold uppercase ${mutedClass} mb-2`}>Password</label>
-                    <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${surfaceClass} ${textClass}`}
-                      placeholder="Min 6 characters"
-                      required
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        className={`w-full px-4 py-3 pr-12 rounded-xl border ${borderClass} ${surfaceClass} ${textClass}`}
+                        placeholder="Min 6 characters"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 ${mutedClass} hover:opacity-70`}
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
@@ -579,14 +593,24 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
                 <label className={`block text-xs font-bold uppercase ${mutedClass} mb-2`}>New Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${surfaceClass} ${textClass}`}
-                  placeholder="Min 6 characters"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className={`w-full px-4 py-3 pr-12 rounded-xl border ${borderClass} ${surfaceClass} ${textClass}`}
+                    placeholder="Min 6 characters"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 ${mutedClass} hover:opacity-70`}
+                    tabIndex={-1}
+                  >
+                    {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">

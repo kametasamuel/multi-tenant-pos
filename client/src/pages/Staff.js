@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usersAPI } from '../api';
+import { Eye, EyeOff } from 'lucide-react';
 import './Staff.css';
 
 const Staff = () => {
@@ -15,6 +16,8 @@ const Staff = () => {
   });
   const [resettingPassword, setResettingPassword] = useState(null);
   const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -133,13 +136,23 @@ const Staff = () => {
               </div>
               <div className="form-group">
                 <label>{editingUser ? 'New Password (leave blank to keep current)' : 'Password *'}</label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required={!editingUser}
-                  minLength={6}
-                />
+                <div className="password-input-wrapper">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required={!editingUser}
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
@@ -196,14 +209,24 @@ const Staff = () => {
             <h2>Reset Password for {resettingPassword.fullName}</h2>
             <div className="form-group">
               <label>New Password *</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={6}
-                autoFocus
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  tabIndex={-1}
+                >
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
             <div className="form-actions">
               <button

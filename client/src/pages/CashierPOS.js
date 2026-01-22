@@ -35,7 +35,8 @@ import {
   Eye,
   Clock,
   XCircle,
-  Calendar
+  Calendar,
+  Edit2
 } from 'lucide-react';
 
 const CashierPOS = ({
@@ -99,6 +100,11 @@ const CashierPOS = ({
   const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
   const [savingCustomer, setSavingCustomer] = useState(false);
   const customerInputRef = useRef(null);
+
+  // Customer edit modal state
+  const [showCustomerEditModal, setShowCustomerEditModal] = useState(false);
+  const [editCustomerData, setEditCustomerData] = useState({ name: '', phone: '', email: '' });
+  const [updatingCustomer, setUpdatingCustomer] = useState(false);
 
   // Modals
   const [showConfirm, setShowConfirm] = useState(false);
@@ -309,6 +315,38 @@ const CashierPOS = ({
     setSelectedCustomer(null);
     setCustomerName('');
     setCustomerSuggestions([]);
+  };
+
+  const openEditCustomerModal = () => {
+    if (selectedCustomer) {
+      setEditCustomerData({
+        name: selectedCustomer.name || '',
+        phone: selectedCustomer.phone || '',
+        email: selectedCustomer.email || ''
+      });
+      setShowCustomerEditModal(true);
+    }
+  };
+
+  const handleUpdateCustomer = async () => {
+    if (!editCustomerData.name.trim()) {
+      showToast('Customer name is required');
+      return;
+    }
+
+    setUpdatingCustomer(true);
+    try {
+      const response = await customersAPI.update(selectedCustomer.id, editCustomerData);
+      const updatedCustomer = response.data.customer;
+      setSelectedCustomer(updatedCustomer);
+      setCustomerName(updatedCustomer.name);
+      setShowCustomerEditModal(false);
+      showToast('Customer updated');
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Failed to update customer');
+    } finally {
+      setUpdatingCustomer(false);
+    }
   };
 
   const handleCreateCustomer = async () => {
@@ -1213,12 +1251,21 @@ const CashierPOS = ({
                     <div className="flex-1 relative">
                       <User className={`absolute left-3 ${selectedCustomer ? 'top-2.5' : 'top-1/2 -translate-y-1/2'} ${mutedClass} w-3.5 h-3.5`} />
                       {selectedCustomer ? (
-                        // Show selected customer with name and phone
-                        <div className={`w-full ${bgClass} border ${borderClass} rounded-lg py-1.5 pl-9 pr-8 min-h-[32px]`}>
-                          <p className={`text-xs font-bold ${textClass}`}>{selectedCustomer.name}</p>
-                          {selectedCustomer.phone && (
-                            <p className={`text-[9px] ${mutedClass}`}>{selectedCustomer.phone}</p>
-                          )}
+                        // Show selected customer with name and phone - clickable to edit
+                        <div className={`w-full ${bgClass} border ${borderClass} rounded-lg py-1.5 pl-9 pr-16 min-h-[32px]`}>
+                          <button
+                            onClick={openEditCustomerModal}
+                            className={`text-left w-full hover:opacity-70 transition-opacity`}
+                            title="Click to edit customer"
+                          >
+                            <p className={`text-xs font-bold ${textClass} flex items-center gap-1`}>
+                              {selectedCustomer.name}
+                              <Edit2 className={`w-3 h-3 ${mutedClass}`} />
+                            </p>
+                            {selectedCustomer.phone && (
+                              <p className={`text-[9px] ${mutedClass}`}>{selectedCustomer.phone}</p>
+                            )}
+                          </button>
                           <button
                             onClick={clearCustomer}
                             className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-negative-500"
@@ -2097,6 +2144,81 @@ const CashierPOS = ({
                 className={`flex-1 py-2.5 sm:py-3 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase shadow-lg disabled:opacity-50`}
               >
                 {savingCustomer ? 'Saving...' : 'Add'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Edit Modal */}
+      {showCustomerEditModal && selectedCustomer && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className={`${surfaceClass} w-full max-w-sm sm:max-w-md rounded-2xl sm:rounded-3xl shadow-2xl animate-fade-in overflow-hidden max-h-[90vh] flex flex-col`}>
+            <div className={`px-4 sm:px-6 py-3 sm:py-4 border-b ${borderClass} flex items-center justify-between shrink-0`}>
+              <h2 className={`text-base sm:text-lg font-black uppercase ${textClass}`}>Edit Customer</h2>
+              <button
+                onClick={() => setShowCustomerEditModal(false)}
+                className={`p-1.5 ${mutedClass} hover:text-negative-500 rounded-lg transition-colors`}
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </div>
+            <div className="p-4 sm:p-6 space-y-3 sm:space-y-4 overflow-y-auto flex-1">
+              <div>
+                <label className={`block text-[10px] font-bold uppercase mb-1.5 ${mutedClass}`}>
+                  Name <span className="text-negative-500">*</span>
+                </label>
+                <div className="relative">
+                  <User className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedClass}`} />
+                  <input
+                    type="text"
+                    value={editCustomerData.name}
+                    onChange={(e) => setEditCustomerData({ ...editCustomerData, name: e.target.value })}
+                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-accent-500 ${textClass}`}
+                    placeholder="Customer name"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={`block text-[10px] font-bold uppercase mb-1.5 ${mutedClass}`}>Phone</label>
+                <div className="relative">
+                  <Phone className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedClass}`} />
+                  <input
+                    type="tel"
+                    value={editCustomerData.phone}
+                    onChange={(e) => setEditCustomerData({ ...editCustomerData, phone: e.target.value })}
+                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-accent-500 ${textClass}`}
+                    placeholder="+1 234 567 8900"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={`block text-[10px] font-bold uppercase mb-1.5 ${mutedClass}`}>Email</label>
+                <div className="relative">
+                  <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedClass}`} />
+                  <input
+                    type="email"
+                    value={editCustomerData.email}
+                    onChange={(e) => setEditCustomerData({ ...editCustomerData, email: e.target.value })}
+                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-accent-500 ${textClass}`}
+                    placeholder="customer@example.com"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className={`px-4 sm:px-6 py-3 sm:py-4 border-t ${borderClass} flex gap-2 sm:gap-3 shrink-0`}>
+              <button
+                onClick={() => setShowCustomerEditModal(false)}
+                className={`flex-1 py-2.5 sm:py-3 border ${borderClass} rounded-lg sm:rounded-xl font-bold text-[9px] sm:text-[10px] uppercase ${mutedClass} ${surfaceClass}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateCustomer}
+                disabled={updatingCustomer}
+                className={`flex-1 py-2.5 sm:py-3 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase shadow-lg disabled:opacity-50`}
+              >
+                {updatingCustomer ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
