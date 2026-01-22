@@ -33,8 +33,9 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  login: (username, password) => api.post('/auth/login', { username, password }),
-  getMe: () => api.get('/auth/me')
+  login: (username, password, tenantSlug) => api.post('/auth/login', { username, password, tenantSlug }),
+  getMe: () => api.get('/auth/me'),
+  getTenantBySlug: (slug) => api.get(`/auth/tenant/${slug}`)
 };
 
 // Products API

@@ -26,6 +26,7 @@ enum BusinessType {
 model Tenant {
   id                String       @id @default(uuid())
   businessName      String       @unique
+  slug              String?      @unique // URL slug for tenant (e.g., "trim" for smartpos.com/trim)
   businessType      BusinessType @default(RETAIL)
   businessLogo      String?
   currency          String       @default("USD") // Currency code (USD, GHS, NGN, KES, etc.)
@@ -356,6 +357,7 @@ model TenantApplication {
 
   // Status tracking
   status            ApplicationStatus @default(PENDING)
+  slug              String?           // URL slug assigned by super admin on approval
   rejectionReason   String?
   reviewedBy        String?
   reviewedAt        DateTime?

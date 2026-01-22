@@ -9,14 +9,69 @@ const { JWT_SECRET } = require('../middleware/auth');
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Get tenant by slug (public - for displaying tenant info on login page)
+router.get('/tenant/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+
+    // Check for admin route
+    if (slug === 'admin') {
+      return res.json({
+        tenant: {
+          id: 'super-admin',
+          slug: 'admin',
+          businessName: 'Smart POS Admin',
+          businessLogo: null,
+          isSuperAdmin: true
+        }
+      });
+    }
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        slug: true,
+        businessName: true,
+        businessLogo: true,
+        isActive: true,
+        subscriptionEnd: true
+      }
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ error: 'Business not found' });
+    }
+
+    if (!tenant.isActive) {
+      return res.status(403).json({ error: 'This business account has been deactivated' });
+    }
+
+    if (tenant.subscriptionEnd < new Date()) {
+      return res.status(403).json({ error: 'This business subscription has expired' });
+    }
+
+    res.json({
+      tenant: {
+        id: tenant.id,
+        slug: tenant.slug,
+        businessName: tenant.businessName,
+        businessLogo: tenant.businessLogo
+      }
+    });
+  } catch (error) {
+    console.error('Get tenant by slug error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Login
 router.post('/login', validateLogin, async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, tenantSlug } = req.body;
 
-    // Find all users by username (case-insensitive search across all tenants)
-    // Multiple tenants can have users with the same username
-    const users = await prisma.user.findMany({
+    // Build the user query
+    const userQuery = {
       where: {
         username: {
           equals: username,
@@ -35,7 +90,28 @@ router.post('/login', validateLogin, async (req, res) => {
       orderBy: {
         isSuperAdmin: 'desc' // Check super admin first
       }
-    });
+    };
+
+    // If tenantSlug is provided, restrict to that tenant (unless it's 'admin' for super admin)
+    if (tenantSlug && tenantSlug !== 'admin') {
+      // Find the tenant by slug
+      const tenant = await prisma.tenant.findUnique({
+        where: { slug: tenantSlug }
+      });
+
+      if (!tenant) {
+        return res.status(401).json({ error: 'Invalid business or credentials' });
+      }
+
+      // Add tenant filter to query
+      userQuery.where.tenantId = tenant.id;
+    } else if (tenantSlug === 'admin') {
+      // Only look for super admins
+      userQuery.where.isSuperAdmin = true;
+    }
+
+    // Find users by username
+    const users = await prisma.user.findMany(userQuery);
 
     if (users.length === 0) {
       return res.status(401).json({ error: 'Invalid username or password' });
@@ -104,6 +180,7 @@ router.post('/login', validateLogin, async (req, res) => {
         role: user.role,
         tenantId: user.tenantId,
         tenantName: user.tenant?.businessName || 'Super Admin',
+        tenantSlug: user.tenant?.slug || (isSuperAdmin ? 'admin' : null),
         isSuperAdmin: isSuperAdmin,
         currency: user.tenant?.currency || 'USD',
         currencySymbol: user.tenant?.currencySymbol || '$',
@@ -140,6 +217,7 @@ router.get('/me', authenticate, async (req, res) => {
           select: {
             businessName: true,
             businessLogo: true,
+            slug: true,
             subscriptionEnd: true,
             currency: true,
             currencySymbol: true,
@@ -159,6 +237,7 @@ router.get('/me', authenticate, async (req, res) => {
     res.json({ user: {
       ...user,
       tenantName: user.tenant?.businessName || 'Super Admin',
+      tenantSlug: user.tenant?.slug || (user.isSuperAdmin ? 'admin' : null),
       currency: user.tenant?.currency || 'USD',
       currencySymbol: user.tenant?.currencySymbol || '$',
       taxRate: user.tenant?.taxRate || 0,

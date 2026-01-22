@@ -170,11 +170,71 @@ router.get('/applications/:id', async (req, res) => {
   }
 });
 
+// GET /api/super-admin/check-slug/:slug - Check if slug is available
+router.get('/check-slug/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+
+    // Validate slug format (lowercase alphanumeric with hyphens, 3-30 chars)
+    const slugRegex = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/;
+    if (!slugRegex.test(slug)) {
+      return res.json({
+        available: false,
+        error: 'Slug must be 3-30 characters, lowercase letters, numbers, and hyphens only (no hyphens at start/end)'
+      });
+    }
+
+    // Reserved slugs that cannot be used
+    const reservedSlugs = ['admin', 'super-admin', 'api', 'login', 'signup', 'dashboard', 'app', 'www'];
+    if (reservedSlugs.includes(slug)) {
+      return res.json({ available: false, error: 'This slug is reserved and cannot be used' });
+    }
+
+    // Check if slug exists
+    const existingTenant = await prisma.tenant.findUnique({
+      where: { slug }
+    });
+
+    res.json({ available: !existingTenant });
+  } catch (error) {
+    console.error('Check slug error:', error);
+    res.status(500).json({ error: 'Failed to check slug availability' });
+  }
+});
+
 // POST /api/super-admin/applications/:id/approve - Approve and create tenant
 router.post('/applications/:id/approve', validateApproval, async (req, res) => {
   try {
     const { id } = req.params;
-    const { subscriptionMonths } = req.body;
+    const { subscriptionMonths, slug } = req.body;
+
+    // Validate slug is required
+    if (!slug || typeof slug !== 'string') {
+      return res.status(400).json({ error: 'URL slug is required' });
+    }
+
+    // Validate slug format
+    const slugRegex = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/;
+    if (!slugRegex.test(slug)) {
+      return res.status(400).json({
+        error: 'Slug must be 3-30 characters, lowercase letters, numbers, and hyphens only (no hyphens at start/end)'
+      });
+    }
+
+    // Check reserved slugs
+    const reservedSlugs = ['admin', 'super-admin', 'api', 'login', 'signup', 'dashboard', 'app', 'www'];
+    if (reservedSlugs.includes(slug)) {
+      return res.status(400).json({ error: 'This slug is reserved and cannot be used' });
+    }
+
+    // Check if slug is available
+    const existingSlug = await prisma.tenant.findUnique({
+      where: { slug }
+    });
+
+    if (existingSlug) {
+      return res.status(400).json({ error: 'This URL slug is already in use' });
+    }
 
     // Get application
     const application = await prisma.tenantApplication.findUnique({
@@ -210,10 +270,11 @@ router.post('/applications/:id/approve', validateApproval, async (req, res) => {
 
     // Use transaction to create tenant, admin user, main branch, and update application
     const result = await prisma.$transaction(async (tx) => {
-      // Create tenant
+      // Create tenant with slug
       const tenant = await tx.tenant.create({
         data: {
           businessName: application.businessName,
+          slug: slug,
           businessLogo: application.businessLogo,
           subscriptionStart: new Date(),
           subscriptionEnd,
@@ -274,7 +335,9 @@ router.post('/applications/:id/approve', validateApproval, async (req, res) => {
       tenant: {
         id: result.tenant.id,
         businessName: result.tenant.businessName,
-        subscriptionEnd: result.tenant.subscriptionEnd
+        slug: result.tenant.slug,
+        subscriptionEnd: result.tenant.subscriptionEnd,
+        loginUrl: `/${result.tenant.slug}/login`
       },
       credentials: {
         username: result.adminUser.username,
@@ -354,6 +417,7 @@ router.get('/tenants', async (req, res) => {
         select: {
           id: true,
           businessName: true,
+          slug: true,
           businessLogo: true,
           subscriptionStart: true,
           subscriptionEnd: true,
