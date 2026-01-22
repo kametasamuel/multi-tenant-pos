@@ -295,7 +295,7 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
               {/* Combined Void Requests Alert - Clickable */}
               {totalVoidAlerts > 0 && (
                 <div
-                  onClick={() => navigate('/owner/requests')}
+                  onClick={() => navigate(`/${user?.tenantSlug}/owner/requests`)}
                   className="flex items-center justify-between gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
@@ -318,7 +318,7 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
               {/* Low Stock Alert - Clickable to Inventory with filter */}
               {alerts.lowStockCount > 0 && (
                 <div
-                  onClick={() => navigate('/owner/inventory', { state: { filter: 'lowStock' } })}
+                  onClick={() => navigate(`/${user?.tenantSlug}/owner/inventory`, { state: { filter: 'lowStock' } })}
                   className="flex items-center justify-between gap-3 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
@@ -335,7 +335,7 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
               {/* Out of Stock Alert - Clickable to Inventory with filter */}
               {alerts.outOfStockCount > 0 && (
                 <div
-                  onClick={() => navigate('/owner/inventory', { state: { filter: 'outOfStock' } })}
+                  onClick={() => navigate(`/${user?.tenantSlug}/owner/inventory`, { state: { filter: 'outOfStock' } })}
                   className="flex items-center justify-between gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
@@ -352,7 +352,7 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
               {/* Expiring Soon Alert - Clickable to Inventory with filter */}
               {alerts.expiringSoonCount > 0 && (
                 <div
-                  onClick={() => navigate('/owner/inventory', { state: { filter: 'expiringSoon' } })}
+                  onClick={() => navigate(`/${user?.tenantSlug}/owner/inventory`, { state: { filter: 'expiringSoon' } })}
                   className="flex items-center justify-between gap-3 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
@@ -369,7 +369,7 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
               {/* Expired Alert - Clickable to Inventory with filter */}
               {alerts.expiredCount > 0 && (
                 <div
-                  onClick={() => navigate('/owner/inventory', { state: { filter: 'expired' } })}
+                  onClick={() => navigate(`/${user?.tenantSlug}/owner/inventory`, { state: { filter: 'expired' } })}
                   className="flex items-center justify-between gap-3 p-4 bg-red-100 dark:bg-red-900/30 rounded-xl cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors group"
                 >
                   <div className="flex items-center gap-3">

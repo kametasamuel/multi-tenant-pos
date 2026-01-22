@@ -379,7 +379,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
         {/* Total Sales Card */}
         <div
-          onClick={() => navigate('/manager/sales')}
+          onClick={() => navigate(`/${user?.tenantSlug}/manager/sales`)}
           className={`${surfaceClass} border ${borderClass} p-5 sm:p-6 rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-accent-500 hover:shadow-xl group`}
         >
           <div className="flex items-center gap-2 mb-2">
@@ -392,7 +392,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
 
         {/* Gross Profit Card */}
         <div
-          onClick={() => navigate('/manager/sales')}
+          onClick={() => navigate(`/${user?.tenantSlug}/manager/sales`)}
           className={`${surfaceClass} border ${borderClass} p-5 sm:p-6 rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-positive-500 hover:shadow-xl group`}
         >
           <div className="flex items-center gap-2 mb-2">
@@ -409,7 +409,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
 
         {/* Expenses Card */}
         <div
-          onClick={() => navigate('/manager/expenses')}
+          onClick={() => navigate(`/${user?.tenantSlug}/manager/expenses`)}
           className={`${surfaceClass} border ${borderClass} p-5 sm:p-6 rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-negative-500 hover:shadow-xl group`}
         >
           <div className="flex items-center gap-2 mb-2">
@@ -437,7 +437,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Pending Authorizations Card */}
         <div
-          onClick={() => navigate('/manager/requests')}
+          onClick={() => navigate(`/${user?.tenantSlug}/manager/requests`)}
           className={`${surfaceClass} border ${borderClass} p-6 rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-negative-500 hover:shadow-xl group`}
         >
           <div className="flex items-center justify-between">
@@ -454,7 +454,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
 
         {/* Inventory Alerts Card */}
         <div
-          onClick={() => navigate('/manager/inventory', { state: { filter: 'lowStock' } })}
+          onClick={() => navigate(`/${user?.tenantSlug}/manager/inventory`, { state: { filter: 'lowStock' } })}
           className={`${surfaceClass} border ${borderClass} p-6 rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-warning-500 hover:shadow-xl group`}
         >
           <div className="flex items-center justify-between">
@@ -476,7 +476,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
           {/* Expiring Soon Alert */}
           {dashboardData.expiringCount > 0 && (
             <div
-              onClick={() => navigate('/manager/inventory', { state: { filter: 'expiringSoon' } })}
+              onClick={() => navigate(`/${user?.tenantSlug}/manager/inventory`, { state: { filter: 'expiringSoon' } })}
               className={`${surfaceClass} border border-yellow-500/50 p-5 rounded-[28px] cursor-pointer hover:border-yellow-500 transition-colors`}
             >
               <div className="flex items-center gap-3 mb-4">
@@ -507,7 +507,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
           {/* Expired Products Alert */}
           {dashboardData.expiredCount > 0 && (
             <div
-              onClick={() => navigate('/manager/inventory', { state: { filter: 'expired' } })}
+              onClick={() => navigate(`/${user?.tenantSlug}/manager/inventory`, { state: { filter: 'expired' } })}
               className={`${surfaceClass} border border-negative-500/50 p-5 rounded-[28px] cursor-pointer hover:border-negative-500 transition-colors`}
             >
               <div className="flex items-center gap-3 mb-4">
