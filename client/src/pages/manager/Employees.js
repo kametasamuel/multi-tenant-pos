@@ -47,9 +47,9 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       case 'OWNER':
         return darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-700';
       case 'MANAGER':
-        return darkMode ? 'bg-indigo-900/30 text-indigo-400' : 'bg-indigo-100 text-indigo-700';
+        return darkMode ? 'bg-accent-900/30 text-accent-400' : 'bg-accent-100 text-accent-700';
       case 'CASHIER':
-        return darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700';
+        return darkMode ? 'bg-positive-900/30 text-positive-400' : 'bg-positive-100 text-positive-700';
       default:
         return darkMode ? 'bg-slate-700 text-slate-300' : 'bg-gray-100 text-gray-700';
     }
@@ -75,7 +75,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-600"></div>
       </div>
     );
   }
@@ -100,13 +100,13 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
         </div>
         <div className={`${surfaceClass} border ${borderClass} rounded-xl p-4`}>
           <p className={`text-[10px] font-bold uppercase ${mutedClass}`}>Managers</p>
-          <p className={`text-2xl font-black text-indigo-500`}>
+          <p className={`text-2xl font-black text-accent-500`}>
             {employees.filter(e => e.role === 'MANAGER').length}
           </p>
         </div>
         <div className={`${surfaceClass} border ${borderClass} rounded-xl p-4`}>
           <p className={`text-[10px] font-bold uppercase ${mutedClass}`}>Cashiers</p>
-          <p className={`text-2xl font-black text-green-500`}>
+          <p className={`text-2xl font-black text-positive-500`}>
             {employees.filter(e => e.role === 'CASHIER').length}
           </p>
         </div>
@@ -127,7 +127,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by name, phone, or email..."
-            className={`w-full ${bgClass} border ${borderClass} rounded-xl py-3 pl-11 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 ${textClass}`}
+            className={`w-full ${bgClass} border ${borderClass} rounded-xl py-3 pl-11 pr-4 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20 ${textClass}`}
           />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0">
@@ -138,7 +138,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
               className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase whitespace-nowrap transition-all ${
                 filterRole === role
                   ? darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'
-                  : `${surfaceClass} border ${borderClass} ${mutedClass} hover:border-indigo-500`
+                  : `${surfaceClass} border ${borderClass} ${mutedClass} hover:border-accent-500`
               }`}
             >
               {role}
@@ -163,13 +163,13 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                 {/* Employee Card - Clickable Header */}
                 <div
                   onClick={() => setExpandedEmployee(isExpanded ? null : employee.id)}
-                  className={`${surfaceClass} border ${isExpanded ? 'border-indigo-500 rounded-t-2xl border-b-0' : `${borderClass} rounded-2xl`} p-4 sm:p-5 cursor-pointer hover:border-indigo-300 transition-colors`}
+                  className={`${surfaceClass} border ${isExpanded ? 'border-accent-500 rounded-t-2xl border-b-0' : `${borderClass} rounded-2xl`} p-4 sm:p-5 cursor-pointer hover:border-accent-300 transition-colors`}
                 >
                   <div className="flex items-center gap-4">
                     {/* Avatar */}
                     <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-lg font-black shrink-0 ${
                       employee.isActive
-                        ? darkMode ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-700'
+                        ? darkMode ? 'bg-accent-900/50 text-accent-300' : 'bg-accent-100 text-accent-700'
                         : darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-200 text-gray-500'
                     }`}>
                       {getInitials(employee.fullName)}
@@ -185,7 +185,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                           {employee.role}
                         </span>
                         {!employee.isActive && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-red-100 text-red-600">
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-red-100 text-negative-600">
                             Inactive
                           </span>
                         )}
@@ -209,7 +209,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                 {/* Expanded Details */}
                 {isExpanded && (
                   <div
-                    className={`${surfaceClass} border border-indigo-500 border-t-0 rounded-b-2xl p-5 ${darkMode ? 'bg-slate-800/50' : 'bg-indigo-50/30'}`}
+                    className={`${surfaceClass} border border-accent-500 border-t-0 rounded-b-2xl p-5 ${darkMode ? 'bg-slate-800/50' : 'bg-accent-50/30'}`}
                   >
                     <div className="grid sm:grid-cols-2 gap-4">
                       {/* Contact Info */}
@@ -293,14 +293,14 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
                               {employee.isActive ? (
-                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                <CheckCircle className="w-4 h-4 text-positive-500" />
                               ) : (
-                                <XCircle className="w-4 h-4 text-red-500" />
+                                <XCircle className="w-4 h-4 text-negative-500" />
                               )}
                             </div>
                             <div>
                               <p className={`text-[10px] ${mutedClass}`}>Status</p>
-                              <p className={`text-sm font-bold ${employee.isActive ? 'text-green-500' : 'text-red-500'}`}>
+                              <p className={`text-sm font-bold ${employee.isActive ? 'text-positive-500' : 'text-negative-500'}`}>
                                 {employee.isActive ? 'Active' : 'Inactive'}
                               </p>
                             </div>

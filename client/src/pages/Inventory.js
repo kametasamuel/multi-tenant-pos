@@ -263,7 +263,7 @@ const Inventory = () => {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <span className={`text-sm font-medium ${
-                            profit(product) >= 0 ? 'text-green-600' : 'text-red-600'
+                            profit(product) >= 0 ? 'text-positive-600' : 'text-negative-600'
                           }`}>
                             {profitMargin(product)}%
                           </span>
@@ -277,7 +277,7 @@ const Inventory = () => {
                               onChange={(e) => handleStockUpdate(product, e.target.value)}
                               className={`w-20 text-center px-2 py-1 border rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 ${
                                 product.stockQuantity <= product.lowStockThreshold
-                                  ? 'border-red-300 bg-red-50 text-red-700'
+                                  ? 'border-negative-300 bg-negative-50 text-negative-700'
                                   : 'border-gray-300 text-gray-900'
                               }`}
                             />
@@ -296,7 +296,7 @@ const Inventory = () => {
                             </button>
                             <button
                               onClick={() => handleDelete(product.id)}
-                              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              className="p-2 text-gray-500 hover:text-negative-600 hover:bg-negative-50 rounded-lg transition-colors"
                               title="Delete"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -339,7 +339,7 @@ const Inventory = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 sm:col-span-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Name <span className="text-red-500">*</span>
+                    Name <span className="text-negative-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -352,7 +352,7 @@ const Inventory = () => {
                 </div>
                 <div className="col-span-2 sm:col-span-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Category <span className="text-red-500">*</span>
+                    Category <span className="text-negative-500">*</span>
                   </label>
                   <select
                     value={formData.category}
@@ -394,7 +394,7 @@ const Inventory = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Cost Price <span className="text-red-500">*</span>
+                    Cost Price <span className="text-negative-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -412,7 +412,7 @@ const Inventory = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Selling Price <span className="text-red-500">*</span>
+                    Selling Price <span className="text-negative-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>

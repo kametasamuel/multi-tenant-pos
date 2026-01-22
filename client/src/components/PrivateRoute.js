@@ -2,8 +2,8 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const PrivateRoute = ({ children, requireAdmin = false, requireSuperAdmin = false }) => {
-  const { user, loading, isAdmin, isSuperAdmin } = useAuth();
+const PrivateRoute = ({ children, requireAdmin = false, requireOwner = false, requireSuperAdmin = false }) => {
+  const { user, loading, isAdmin, isOwner, isSuperAdmin } = useAuth();
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -15,6 +15,11 @@ const PrivateRoute = ({ children, requireAdmin = false, requireSuperAdmin = fals
 
   // Super admin only route
   if (requireSuperAdmin && !isSuperAdmin()) {
+    return <Navigate to="/dashboard" />;
+  }
+
+  // Owner only route (OWNER or ADMIN role)
+  if (requireOwner && !isOwner()) {
     return <Navigate to="/dashboard" />;
   }
 

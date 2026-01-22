@@ -37,12 +37,15 @@ model Tenant {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  users     User[]
-  products  Product[]
-  sales     Sale[]
-  expenses  Expense[]
-  customers Customer[]
-  auditLogs AuditLog[]
+  users             User[]
+  products          Product[]
+  sales             Sale[]
+  expenses          Expense[]
+  customers         Customer[]
+  auditLogs         AuditLog[]
+  securityRequests  SecurityRequest[]
+  branches          Branch[]
+  branchRequests    BranchRequest[]
 
   @@map("tenants")
 }
@@ -57,15 +60,22 @@ model User {
   isActive     Boolean  @default(true)
   isSuperAdmin Boolean  @default(false)
   tenantId     String
+  branchId     String?  // Optional branch assignment
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  sales        Sale[]
-  expenses     Expense[]
-  auditLogs    AuditLog[]
-  
+
+  tenant                  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                  Branch?           @relation(fields: [branchId], references: [id])
+  sales                   Sale[]
+  expenses                Expense[]
+  auditLogs               AuditLog[]
+  requestsMade            SecurityRequest[] @relation("RequestsMade")
+  requestsReviewed        SecurityRequest[] @relation("RequestsReviewed")
+  branchRequestsMade      BranchRequest[]   @relation("BranchRequestsMade")
+  branchRequestsReviewed  BranchRequest[]   @relation("BranchRequestsReviewed")
+
   @@unique([username, tenantId]) // Username unique per tenant
+  @@index([branchId])
   @@map("users")
 }
 
@@ -82,20 +92,25 @@ model Product {
   name        String
   description String?
   category    ProductCategory @default(PRODUCT)
+  customCategory String?       // Custom category tag (e.g., "Hair Products", "Drinks")
   barcode     String?
-  costPrice   Float
+  costPrice   Float    @default(0)
   sellingPrice Float
   stockQuantity Int    @default(0)
   lowStockThreshold Int @default(10)
+  expiryDate  DateTime?        // Product expiry date (optional)
   isActive    Boolean  @default(true)
   tenantId    String
+  branchId    String?          // Branch that owns this product
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch      Branch?  @relation(fields: [branchId], references: [id])
   saleItems   SaleItem[]
-  
+
   @@index([tenantId, name])
+  @@index([branchId])
   @@map("products")
 }
 
@@ -138,16 +153,20 @@ model Sale {
   cashierId   String
   customerId  String?
   tenantId    String
+  branchId    String?  // Optional branch assignment
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  cashier     User     @relation(fields: [cashierId], references: [id])
-  customer    Customer? @relation(fields: [customerId], references: [id])
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  items       SaleItem[]
+  cashier           User              @relation(fields: [cashierId], references: [id])
+  customer          Customer?         @relation(fields: [customerId], references: [id])
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch            Branch?           @relation(fields: [branchId], references: [id])
+  items             SaleItem[]
+  securityRequests  SecurityRequest[]
 
   @@index([tenantId, createdAt])
   @@index([cashierId, createdAt])
+  @@index([branchId])
   @@map("sales")
 }
 
@@ -182,13 +201,16 @@ model Expense {
   category    String   // e.g., "Rent", "Electricity", "Internet", "Petty Cash"
   recordedBy  String   // User ID who recorded it
   tenantId    String
+  branchId    String?  // Branch where expense was recorded
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   recorder    User     @relation(fields: [recordedBy], references: [id])
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+
   @@index([tenantId, createdAt])
+  @@index([branchId])
   @@map("expenses")
 }
 
@@ -199,14 +221,114 @@ model AuditLog {
   description String?
   userId      String
   tenantId    String
+  branchId    String?  // Branch where action occurred
   metadata    String?  // JSON string for additional data
   createdAt   DateTime @default(now())
 
   user        User     @relation(fields: [userId], references: [id])
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch      Branch?  @relation(fields: [branchId], references: [id])
 
   @@index([tenantId, createdAt])
+  @@index([branchId])
   @@map("audit_logs")
+}
+
+// Security Request Type enum
+enum SecurityRequestType {
+  VOID
+  REVIEW
+}
+
+// Security Request Status enum
+enum SecurityRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Security Requests: Void and review requests from cashiers to managers
+model SecurityRequest {
+  id            String                @id @default(uuid())
+  type          SecurityRequestType
+  status        SecurityRequestStatus @default(PENDING)
+  reason        String                // Reason provided by requester
+  saleId        String?               // Related sale (for void requests)
+  itemName      String                // Item or transaction description
+  amount        Float                 @default(0)
+  requesterId   String                // User who made the request
+  reviewerId    String?               // Manager who reviewed the request
+  reviewedAt    DateTime?
+  tenantId      String
+  branchId      String?               // Branch where request was made
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  requester     User                  @relation("RequestsMade", fields: [requesterId], references: [id])
+  reviewer      User?                 @relation("RequestsReviewed", fields: [reviewerId], references: [id])
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sale          Sale?                 @relation(fields: [saleId], references: [id])
+  branch        Branch?               @relation(fields: [branchId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([requesterId])
+  @@index([branchId])
+  @@map("security_requests")
+}
+
+// Branch: Physical business locations
+model Branch {
+  id          String   @id @default(uuid())
+  name        String
+  address     String?
+  phone       String?
+  isActive    Boolean  @default(true)
+  isMain      Boolean  @default(false)
+  tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users             User[]
+  sales             Sale[]
+  products          Product[]
+  expenses          Expense[]
+  auditLogs         AuditLog[]
+  securityRequests  SecurityRequest[]
+
+  @@index([tenantId])
+  @@map("branches")
+}
+
+// Branch Request Status enum
+enum BranchRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Branch Requests: Owner requests for new branches, reviewed by super admin
+model BranchRequest {
+  id              String              @id @default(uuid())
+  branchName      String
+  address         String?
+  phone           String?
+  reason          String
+  status          BranchRequestStatus @default(PENDING)
+  requesterId     String
+  reviewerId      String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  tenantId        String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  requester       User     @relation("BranchRequestsMade", fields: [requesterId], references: [id])
+  reviewer        User?    @relation("BranchRequestsReviewed", fields: [reviewerId], references: [id])
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("branch_requests")
 }
 
 // Application Status enum

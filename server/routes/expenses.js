@@ -9,7 +9,10 @@ const prisma = new PrismaClient();
 // Create expense
 router.post('/', authenticate, validateCreateExpense, async (req, res) => {
   try {
-    const { description, amount, category } = req.body;
+    const { description, amount, category, branchId } = req.body;
+
+    // Use provided branchId or fall back to user's branch
+    const expenseBranchId = branchId || req.branchId || null;
 
     const expense = await prisma.expense.create({
       data: {
@@ -17,7 +20,8 @@ router.post('/', authenticate, validateCreateExpense, async (req, res) => {
         amount,
         category,
         recordedBy: req.user.id,
-        tenantId: req.tenantId
+        tenantId: req.tenantId,
+        branchId: expenseBranchId
       },
       include: {
         recorder: {
@@ -25,7 +29,31 @@ router.post('/', authenticate, validateCreateExpense, async (req, res) => {
             fullName: true,
             username: true
           }
+        },
+        branch: {
+          select: {
+            id: true,
+            name: true
+          }
         }
+      }
+    });
+
+    // Log expense creation
+    await prisma.auditLog.create({
+      data: {
+        action: 'expense_created',
+        description: `Expense logged: ${description} - ${category} (${amount})`,
+        userId: req.user.id,
+        tenantId: req.tenantId,
+        branchId: expenseBranchId,
+        metadata: JSON.stringify({
+          expenseId: expense.id,
+          amount,
+          category,
+          description,
+          branchId: expenseBranchId
+        })
       }
     });
 
@@ -39,7 +67,7 @@ router.post('/', authenticate, validateCreateExpense, async (req, res) => {
 // Get all expenses
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { startDate, endDate, category } = req.query;
+    const { startDate, endDate, category, branchId } = req.query;
 
     const where = {
       tenantId: req.tenantId
@@ -55,6 +83,13 @@ router.get('/', authenticate, async (req, res) => {
       where.category = category;
     }
 
+    // Branch filtering: Managers see only their branch, Owners can filter or see all
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      where.branchId = req.branchId;
+    } else if (branchId) {
+      where.branchId = branchId;
+    }
+
     const expenses = await prisma.expense.findMany({
       where,
       include: {
@@ -62,6 +97,12 @@ router.get('/', authenticate, async (req, res) => {
           select: {
             fullName: true,
             username: true
+          }
+        },
+        branch: {
+          select: {
+            id: true,
+            name: true
           }
         }
       },
@@ -78,17 +119,27 @@ router.get('/', authenticate, async (req, res) => {
 // Get single expense
 router.get('/:id', authenticate, async (req, res) => {
   try {
+    const where = {
+      id: req.params.id,
+      tenantId: req.tenantId
+    };
+
+    // Managers can only see their branch's expenses
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      where.branchId = req.branchId;
+    }
+
     const expense = await prisma.expense.findFirst({
-      where: {
-        id: req.params.id,
-        tenantId: req.tenantId
-      },
+      where,
       include: {
         recorder: {
           select: {
             fullName: true,
             username: true
           }
+        },
+        branch: {
+          select: { id: true, name: true }
         }
       }
     });

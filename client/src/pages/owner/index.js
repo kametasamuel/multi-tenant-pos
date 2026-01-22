@@ -1,0 +1,11 @@
+export { default as OwnerDashboard } from './Dashboard';
+export { default as OwnerSales } from './Sales';
+export { default as OwnerInventory } from './Inventory';
+export { default as OwnerStaff } from './Staff';
+export { default as OwnerCustomers } from './Customers';
+export { default as OwnerRequests } from './Requests';
+export { default as OwnerExpenses } from './Expenses';
+export { default as OwnerActivityLogs } from './ActivityLogs';
+export { default as OwnerReports } from './Reports';
+export { default as OwnerBranches } from './Branches';
+export { default as OwnerSettings } from './Settings';

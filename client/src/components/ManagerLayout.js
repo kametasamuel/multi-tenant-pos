@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -16,7 +16,10 @@ import {
   Moon,
   ChevronLeft,
   ChevronRight,
-  Users
+  Users,
+  UserCheck,
+  Calendar,
+  Clock
 } from 'lucide-react';
 
 const ManagerLayout = ({ children }) => {
@@ -26,6 +29,13 @@ const ManagerLayout = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -36,7 +46,8 @@ const ManagerLayout = ({ children }) => {
 
   const navLinks = [
     { path: '/manager/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/manager/employees', label: 'Employees', icon: Users },
+    { path: '/manager/employees', label: 'Workers', icon: Users },
+    { path: '/manager/customers', label: 'Customers', icon: UserCheck },
     { path: '/manager/sales', label: 'Shift Revenue', icon: BarChart3 },
     { path: '/manager/inventory', label: 'Inventory', icon: Package },
     { path: '/manager/requests', label: 'Security Requests', icon: Bell },
@@ -65,20 +76,36 @@ const ManagerLayout = ({ children }) => {
           </div>
           <div className="hidden sm:block">
             <h1 className={`text-base sm:text-lg font-black tracking-tighter uppercase ${textClass}`}>Branch Manager</h1>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-500">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-accent-500">
               {user?.tenantName} • Operational Hub
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
+          {/* Date/Time Display */}
+          <div className={`hidden md:flex items-center gap-3 px-4 py-2 ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} rounded-xl`}>
+            <div className="flex items-center gap-1.5">
+              <Calendar className={`w-3.5 h-3.5 ${mutedClass}`} />
+              <span className={`text-[10px] font-bold uppercase ${textClass}`}>
+                {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+            <div className={`w-px h-4 ${borderClass}`}></div>
+            <div className="flex items-center gap-1.5">
+              <Clock className={`w-3.5 h-3.5 ${mutedClass}`} />
+              <span className={`text-[10px] font-bold uppercase ${textClass}`}>
+                {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </div>
+          </div>
           <button
             onClick={() => setDarkMode(!darkMode)}
             className={`w-8 h-8 sm:w-10 sm:h-10 border ${borderClass} rounded-xl flex items-center justify-center ${surfaceClass} ${textClass} transition-all`}
           >
             {darkMode ? <Sun className="w-4 h-4 sm:w-5 sm:h-5" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-indigo-500 bg-slate-100 overflow-hidden">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-accent-500 bg-slate-100 overflow-hidden">
             <div className={`w-full h-full ${darkMode ? 'bg-slate-700' : 'bg-slate-200'} flex items-center justify-center text-xs font-bold`}>
               {user?.fullName?.charAt(0) || 'M'}
             </div>
@@ -124,19 +151,19 @@ const ManagerLayout = ({ children }) => {
 
           <div className="mt-auto space-y-2">
             {!sidebarCollapsed && (
-              <p className={`text-[10px] font-black uppercase ${mutedClass} px-4 tracking-widest leading-none mb-2`}>Emergency</p>
+              <p className={`text-[10px] font-black uppercase ${mutedClass} px-4 tracking-widest leading-none mb-2`}>Quick Access</p>
             )}
             <Link
               to="/manager/pos"
-              className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-xs font-black uppercase bg-indigo-500 text-white shadow-lg hover:bg-indigo-600 transition-colors"
-              title={sidebarCollapsed ? 'Launch Terminal' : ''}
+              className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-xs font-black uppercase shadow-lg transition-colors bg-accent-500 text-white hover:bg-accent-600"
+              title={sidebarCollapsed ? 'Launch POS' : ''}
             >
               <Monitor className="w-4 h-4 shrink-0" />
-              {!sidebarCollapsed && <span>Launch Terminal</span>}
+              {!sidebarCollapsed && <span>Launch POS</span>}
             </Link>
             <button
               onClick={handleLogout}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-xs font-bold uppercase ${mutedClass} hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors`}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-xs font-bold uppercase ${mutedClass} hover:text-negative-500 hover:bg-negative-50 dark:hover:bg-red-900/20 transition-colors`}
               title={sidebarCollapsed ? 'Logout' : ''}
             >
               <LogOut className="w-4 h-4 shrink-0" />
@@ -176,18 +203,18 @@ const ManagerLayout = ({ children }) => {
               </nav>
 
               <div className="mt-auto space-y-2">
-                <p className={`text-[10px] font-black uppercase ${mutedClass} px-4 tracking-widest leading-none mb-2`}>Emergency</p>
+                <p className={`text-[10px] font-black uppercase ${mutedClass} px-4 tracking-widest leading-none mb-2`}>Quick Access</p>
                 <Link
                   to="/manager/pos"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-xs font-black uppercase bg-indigo-500 text-white shadow-lg"
+                  className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-xs font-black uppercase shadow-lg bg-accent-500 text-white hover:bg-accent-600"
                 >
                   <Monitor className="w-4 h-4" />
-                  <span>Launch Terminal</span>
+                  <span>Launch POS</span>
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-xs font-bold uppercase ${mutedClass} hover:text-red-500`}
+                  className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-xs font-bold uppercase ${mutedClass} hover:text-negative-500`}
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Logout</span>
@@ -197,8 +224,8 @@ const ManagerLayout = ({ children }) => {
           </div>
         )}
 
-        {/* Main Content */}
-        <main className={`flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 ${bgClass}`} style={{ scrollbarWidth: 'thin' }}>
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10" style={{ scrollbarWidth: 'thin' }}>
           {React.cloneElement(children, { darkMode, surfaceClass, textClass, mutedClass, borderClass, bgClass })}
         </main>
       </div>

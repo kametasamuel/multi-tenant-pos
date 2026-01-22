@@ -208,7 +208,7 @@ router.post('/applications/:id/approve', validateApproval, async (req, res) => {
     const subscriptionEnd = new Date();
     subscriptionEnd.setMonth(subscriptionEnd.getMonth() + parseInt(subscriptionMonths));
 
-    // Use transaction to create tenant, admin user, and update application
+    // Use transaction to create tenant, admin user, main branch, and update application
     const result = await prisma.$transaction(async (tx) => {
       // Create tenant
       const tenant = await tx.tenant.create({
@@ -221,16 +221,29 @@ router.post('/applications/:id/approve', validateApproval, async (req, res) => {
         }
       });
 
-      // Create admin user
+      // Create main branch for the tenant using business details from signup
+      const mainBranch = await tx.branch.create({
+        data: {
+          name: application.businessName,
+          address: application.businessAddress,
+          phone: application.businessPhone,
+          isMain: true,
+          isActive: true,
+          tenantId: tenant.id
+        }
+      });
+
+      // Create admin user assigned to main branch
       const adminUser = await tx.user.create({
         data: {
           username: baseUsername,
           password: application.password, // Already hashed
           fullName: application.ownerFullName,
-          role: 'ADMIN',
+          role: 'OWNER',
           isActive: true,
           isSuperAdmin: false,
-          tenantId: tenant.id
+          tenantId: tenant.id,
+          branchId: mainBranch.id
         }
       });
 
@@ -244,7 +257,7 @@ router.post('/applications/:id/approve', validateApproval, async (req, res) => {
         }
       });
 
-      return { tenant, adminUser };
+      return { tenant, adminUser, mainBranch };
     });
 
     // Log audit
@@ -931,6 +944,177 @@ router.get('/analytics/anomalies', async (req, res) => {
   } catch (error) {
     console.error('Anomalies detection error:', error);
     res.status(500).json({ error: 'Failed to detect anomalies' });
+  }
+});
+
+// ============ BRANCH REQUEST MANAGEMENT ============
+
+// GET /api/super-admin/branch-requests - Get all branch requests
+router.get('/branch-requests', async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = status ? { status: status.toUpperCase() } : {};
+
+    const [requests, total] = await Promise.all([
+      prisma.branchRequest.findMany({
+        where,
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+        include: {
+          requester: {
+            select: { id: true, fullName: true, username: true }
+          },
+          reviewer: {
+            select: { id: true, fullName: true, username: true }
+          },
+          tenant: {
+            select: { id: true, businessName: true }
+          }
+        }
+      }),
+      prisma.branchRequest.count({ where })
+    ]);
+
+    res.json({
+      requests,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Get branch requests error:', error);
+    res.status(500).json({ error: 'Failed to get branch requests' });
+  }
+});
+
+// POST /api/super-admin/branch-requests/:id/approve - Approve branch request
+router.post('/branch-requests/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const request = await prisma.branchRequest.findUnique({
+      where: { id },
+      include: { tenant: true }
+    });
+
+    if (!request) {
+      return res.status(404).json({ error: 'Branch request not found' });
+    }
+
+    if (request.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Request has already been processed' });
+    }
+
+    // Check if branch name already exists for this tenant
+    const existingBranch = await prisma.branch.findFirst({
+      where: {
+        tenantId: request.tenantId,
+        name: { equals: request.branchName, mode: 'insensitive' }
+      }
+    });
+
+    if (existingBranch) {
+      return res.status(400).json({ error: 'A branch with this name already exists for this tenant' });
+    }
+
+    // Use transaction to create branch and update request
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the branch
+      const branch = await tx.branch.create({
+        data: {
+          name: request.branchName,
+          address: request.address,
+          phone: request.phone,
+          isMain: false,
+          isActive: true,
+          tenantId: request.tenantId
+        }
+      });
+
+      // Update request status
+      await tx.branchRequest.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          reviewerId: req.user.id,
+          reviewedAt: new Date()
+        }
+      });
+
+      return { branch };
+    });
+
+    // Log audit
+    await logAudit(
+      req.user.tenantId,
+      req.user.id,
+      'branch_request_approved',
+      `Approved branch request: ${request.branchName} for ${request.tenant.businessName}`,
+      { requestId: id, branchId: result.branch.id, tenantId: request.tenantId }
+    );
+
+    res.json({
+      message: 'Branch request approved successfully',
+      branch: result.branch
+    });
+  } catch (error) {
+    console.error('Approve branch request error:', error);
+    res.status(500).json({ error: 'Failed to approve branch request' });
+  }
+});
+
+// POST /api/super-admin/branch-requests/:id/reject - Reject branch request
+router.post('/branch-requests/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    if (!reason || reason.trim().length < 10) {
+      return res.status(400).json({ error: 'Rejection reason must be at least 10 characters' });
+    }
+
+    const request = await prisma.branchRequest.findUnique({
+      where: { id },
+      include: { tenant: true }
+    });
+
+    if (!request) {
+      return res.status(404).json({ error: 'Branch request not found' });
+    }
+
+    if (request.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Request has already been processed' });
+    }
+
+    await prisma.branchRequest.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        rejectionReason: reason,
+        reviewerId: req.user.id,
+        reviewedAt: new Date()
+      }
+    });
+
+    // Log audit
+    await logAudit(
+      req.user.tenantId,
+      req.user.id,
+      'branch_request_rejected',
+      `Rejected branch request: ${request.branchName} for ${request.tenant.businessName}`,
+      { requestId: id, tenantId: request.tenantId, reason }
+    );
+
+    res.json({ message: 'Branch request rejected successfully' });
+  } catch (error) {
+    console.error('Reject branch request error:', error);
+    res.status(500).json({ error: 'Failed to reject branch request' });
   }
 });
 

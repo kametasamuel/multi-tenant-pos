@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -14,7 +14,9 @@ import {
   Settings,
   DollarSign,
   TrendingUp,
-  ShoppingCart
+  ShoppingCart,
+  Calendar,
+  Clock
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -22,6 +24,13 @@ const Layout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -106,6 +115,22 @@ const Layout = ({ children }) => {
 
             {/* User Menu */}
             <div className="hidden md:flex items-center gap-4">
+              {/* Date/Time Display */}
+              <div className="flex items-center gap-3 px-4 py-2 bg-gray-100 rounded-xl">
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="text-[10px] font-bold uppercase text-gray-700">
+                    {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                <div className="w-px h-4 bg-gray-300"></div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="text-[10px] font-bold uppercase text-gray-700">
+                    {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                </div>
+              </div>
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-900">{user?.fullName}</p>
                 <p className="text-xs text-gray-500">{user?.role}</p>
@@ -163,7 +188,7 @@ const Layout = ({ children }) => {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-negative-600 hover:bg-negative-50 rounded-lg transition-colors"
                 >
                   <LogOut className="w-5 h-5" />
                   Logout

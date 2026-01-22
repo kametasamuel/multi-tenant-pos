@@ -64,6 +64,19 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    try {
+      const response = await authAPI.getMe();
+      const updatedUser = response.data.user;
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      return updatedUser;
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+      return null;
+    }
+  };
+
   const isAdmin = () => user?.role === 'ADMIN' || user?.role === 'OWNER' || user?.isSuperAdmin;
   const isOwner = () => user?.role === 'OWNER' || user?.role === 'ADMIN';
   const isManager = () => user?.role === 'MANAGER';
@@ -76,6 +89,7 @@ export const AuthProvider = ({ children }) => {
     token,
     login,
     logout,
+    refreshUser,
     isAdmin,
     isOwner,
     isManager,

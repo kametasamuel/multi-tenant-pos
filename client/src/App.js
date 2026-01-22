@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { BranchProvider } from './context/BranchContext';
 import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
 import SuperAdminLayout from './components/SuperAdminLayout';
@@ -20,19 +21,34 @@ import SuperAdminApplications from './pages/superadmin/Applications';
 import SuperAdminTenants from './pages/superadmin/Tenants';
 import SuperAdminAnalytics from './pages/superadmin/Analytics';
 import ManagerLayout from './components/ManagerLayout';
+import OwnerLayout from './components/OwnerLayout';
 import {
   ManagerDashboard,
   ManagerEmployees,
+  ManagerCustomers,
   ManagerSales,
   ManagerInventory,
   ManagerRequests,
   ManagerExpenses
 } from './pages/manager';
+import {
+  OwnerDashboard,
+  OwnerSales,
+  OwnerInventory,
+  OwnerStaff,
+  OwnerCustomers,
+  OwnerRequests,
+  OwnerExpenses,
+  OwnerActivityLogs,
+  OwnerReports,
+  OwnerBranches,
+  OwnerSettings
+} from './pages/owner';
 import './App.css';
 
 // Role-based Dashboard component
 const RoleBasedDashboard = () => {
-  const { user, isCashier, isManager } = useAuth();
+  const { user, isCashier, isManager, isOwner } = useAuth();
 
   // Cashiers get the POS interface
   if (isCashier()) {
@@ -44,7 +60,12 @@ const RoleBasedDashboard = () => {
     return <Navigate to="/manager/dashboard" replace />;
   }
 
-  // Owner, Admin get the analytics dashboard
+  // Owners get redirected to owner dashboard
+  if (isOwner()) {
+    return <Navigate to="/owner/dashboard" replace />;
+  }
+
+  // Fallback to regular dashboard
   return (
     <Layout>
       <Dashboard />
@@ -53,7 +74,7 @@ const RoleBasedDashboard = () => {
 };
 
 const AppRoutes = () => {
-  const { user, loading, isSuperAdmin, isCashier, isManager } = useAuth();
+  const { user, loading, isSuperAdmin, isCashier, isManager, isOwner } = useAuth();
 
   if (loading) {
     return (
@@ -67,6 +88,7 @@ const AppRoutes = () => {
   const getDefaultRedirect = () => {
     if (!user) return '/login';
     if (isSuperAdmin()) return '/super-admin/dashboard';
+    if (isOwner()) return '/owner/dashboard';
     if (isManager()) return '/manager/dashboard';
     return '/dashboard';
   };
@@ -145,6 +167,16 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/manager/customers"
+        element={
+          <PrivateRoute>
+            <ManagerLayout>
+              <ManagerCustomers />
+            </ManagerLayout>
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/manager/sales"
         element={
           <PrivateRoute>
@@ -188,7 +220,155 @@ const AppRoutes = () => {
         path="/manager/pos"
         element={
           <PrivateRoute>
-            <CashierPOS />
+            <ManagerLayout>
+              <CashierPOS managerView={true} />
+            </ManagerLayout>
+          </PrivateRoute>
+        }
+      />
+
+      {/* Owner routes - wrapped in BranchProvider */}
+      <Route
+        path="/owner/dashboard"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerDashboard />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/sales"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerSales />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/inventory"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerInventory />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/staff"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerStaff />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/customers"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerCustomers />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/requests"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerRequests />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/expenses"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerExpenses />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/activity"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerActivityLogs />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/reports"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerReports />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/branches"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerBranches />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/settings"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <OwnerSettings />
+              </OwnerLayout>
+            </BranchProvider>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/owner/pos"
+        element={
+          <PrivateRoute requireOwner>
+            <BranchProvider>
+              <OwnerLayout>
+                <CashierPOS managerView={true} />
+              </OwnerLayout>
+            </BranchProvider>
           </PrivateRoute>
         }
       />

@@ -187,7 +187,7 @@ const Signup = () => {
       {/* Business Name */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          Business Name <span className="text-red-500">*</span>
+          Business Name <span className="text-negative-500">*</span>
         </label>
         <div className="relative">
           <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -198,17 +198,17 @@ const Signup = () => {
             onChange={handleChange}
             placeholder="Your Business Name"
             className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
-              errors.businessName ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              errors.businessName ? 'border-negative-500 bg-negative-50' : 'border-gray-300'
             }`}
           />
         </div>
-        {errors.businessName && <p className="mt-1 text-sm text-red-500">{errors.businessName}</p>}
+        {errors.businessName && <p className="mt-1 text-sm text-negative-500">{errors.businessName}</p>}
       </div>
 
       {/* Business Type */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-3">
-          Business Type <span className="text-red-500">*</span>
+          Business Type <span className="text-negative-500">*</span>
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {businessTypes.map((type) => {
@@ -233,13 +233,13 @@ const Signup = () => {
             );
           })}
         </div>
-        {errors.businessType && <p className="mt-2 text-sm text-red-500">{errors.businessType}</p>}
+        {errors.businessType && <p className="mt-2 text-sm text-negative-500">{errors.businessType}</p>}
       </div>
 
       {/* Business Email */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          Business Email <span className="text-red-500">*</span>
+          Business Email <span className="text-negative-500">*</span>
         </label>
         <div className="relative">
           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -250,11 +250,11 @@ const Signup = () => {
             onChange={handleChange}
             placeholder="business@example.com"
             className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
-              errors.businessEmail ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              errors.businessEmail ? 'border-negative-500 bg-negative-50' : 'border-gray-300'
             }`}
           />
         </div>
-        {errors.businessEmail && <p className="mt-1 text-sm text-red-500">{errors.businessEmail}</p>}
+        {errors.businessEmail && <p className="mt-1 text-sm text-negative-500">{errors.businessEmail}</p>}
       </div>
 
       {/* Business Phone */}
@@ -305,7 +305,7 @@ const Signup = () => {
       {/* Full Name */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          Full Name <span className="text-red-500">*</span>
+          Full Name <span className="text-negative-500">*</span>
         </label>
         <div className="relative">
           <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -316,17 +316,17 @@ const Signup = () => {
             onChange={handleChange}
             placeholder="John Doe"
             className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
-              errors.ownerFullName ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              errors.ownerFullName ? 'border-negative-500 bg-negative-50' : 'border-gray-300'
             }`}
           />
         </div>
-        {errors.ownerFullName && <p className="mt-1 text-sm text-red-500">{errors.ownerFullName}</p>}
+        {errors.ownerFullName && <p className="mt-1 text-sm text-negative-500">{errors.ownerFullName}</p>}
       </div>
 
       {/* Owner Email */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          Email <span className="text-red-500">*</span>
+          Email <span className="text-negative-500">*</span>
         </label>
         <div className="relative">
           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -337,11 +337,11 @@ const Signup = () => {
             onChange={handleChange}
             placeholder="owner@example.com"
             className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
-              errors.ownerEmail ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              errors.ownerEmail ? 'border-negative-500 bg-negative-50' : 'border-gray-300'
             }`}
           />
         </div>
-        {errors.ownerEmail && <p className="mt-1 text-sm text-red-500">{errors.ownerEmail}</p>}
+        {errors.ownerEmail && <p className="mt-1 text-sm text-negative-500">{errors.ownerEmail}</p>}
       </div>
 
       {/* Owner Phone */}
@@ -365,7 +365,7 @@ const Signup = () => {
       {/* Password */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          Password <span className="text-red-500">*</span>
+          Password <span className="text-negative-500">*</span>
         </label>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -376,17 +376,17 @@ const Signup = () => {
             onChange={handleChange}
             placeholder="Min 6 chars, with upper, lower, number"
             className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
-              errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              errors.password ? 'border-negative-500 bg-negative-50' : 'border-gray-300'
             }`}
           />
         </div>
-        {errors.password && <p className="mt-1 text-sm text-red-500">{errors.password}</p>}
+        {errors.password && <p className="mt-1 text-sm text-negative-500">{errors.password}</p>}
       </div>
 
       {/* Confirm Password */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          Confirm Password <span className="text-red-500">*</span>
+          Confirm Password <span className="text-negative-500">*</span>
         </label>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -397,11 +397,11 @@ const Signup = () => {
             onChange={handleChange}
             placeholder="Re-enter your password"
             className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors ${
-              errors.confirmPassword ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              errors.confirmPassword ? 'border-negative-500 bg-negative-50' : 'border-gray-300'
             }`}
           />
         </div>
-        {errors.confirmPassword && <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>}
+        {errors.confirmPassword && <p className="mt-1 text-sm text-negative-500">{errors.confirmPassword}</p>}
       </div>
     </div>
   );
@@ -432,7 +432,7 @@ const Signup = () => {
               <button
                 type="button"
                 onClick={() => { setLogoFile(null); setLogoPreview(null); }}
-                className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm text-negative-600 hover:bg-negative-50 rounded-lg transition-colors"
               >
                 Remove
               </button>
@@ -506,8 +506,8 @@ const Signup = () => {
 
   const renderStep4 = () => (
     <div className="text-center space-y-6">
-      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-        <Check className="w-8 h-8 text-green-600" />
+      <div className="w-16 h-16 bg-positive-100 rounded-full flex items-center justify-center mx-auto">
+        <Check className="w-8 h-8 text-positive-600" />
       </div>
       <div>
         <h3 className="text-xl font-semibold text-gray-900 mb-2">Application Submitted!</h3>
@@ -523,7 +523,7 @@ const Signup = () => {
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             title="Copy to clipboard"
           >
-            {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+            {copied ? <Check className="w-4 h-4 text-positive-600" /> : <Copy className="w-4 h-4" />}
           </button>
         </div>
       </div>
@@ -551,11 +551,11 @@ const Signup = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-accent-50 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-8 text-center">
+          <div className="bg-gradient-to-r from-blue-600 to-accent-600 px-6 py-8 text-center">
             <h1 className="text-2xl font-bold text-white mb-1">Smart POS</h1>
             <p className="text-blue-100">Business Registration</p>
           </div>
@@ -596,7 +596,7 @@ const Signup = () => {
           {/* Form Content */}
           <div className="p-6">
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <div className="mb-6 p-4 bg-negative-50 border border-negative-200 rounded-lg text-negative-700 text-sm">
                 {error}
               </div>
             )}

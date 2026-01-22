@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { productsAPI, salesAPI, customersAPI } from '../api';
+import { productsAPI, salesAPI, customersAPI, usersAPI, securityRequestsAPI } from '../api';
 import {
   Search,
   Sun,
@@ -9,6 +9,7 @@ import {
   Layers,
   LogOut,
   User,
+  Users,
   UserPlus,
   ShoppingBag,
   Trash2,
@@ -33,15 +34,27 @@ import {
   Bell,
   Eye,
   Clock,
-  XCircle
+  XCircle,
+  Calendar
 } from 'lucide-react';
 
-const CashierPOS = () => {
+const CashierPOS = ({
+  embedded = false,
+  managerView = false,
+  darkMode: externalDarkMode,
+  surfaceClass: externalSurfaceClass,
+  textClass: externalTextClass,
+  mutedClass: externalMutedClass,
+  borderClass: externalBorderClass,
+  bgClass: externalBgClass
+}) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // State
-  const [darkMode, setDarkMode] = useState(false);
+  // State - use external dark mode if in manager view, otherwise use internal state
+  const [internalDarkMode, setInternalDarkMode] = useState(false);
+  const darkMode = managerView ? externalDarkMode : internalDarkMode;
+  const setDarkMode = managerView ? () => {} : setInternalDarkMode;
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState([]);
@@ -57,6 +70,9 @@ const CashierPOS = () => {
   // Low stock and sales state
   const [lowStockItems, setLowStockItems] = useState([]);
   const [todaySales, setTodaySales] = useState([]);
+
+  // Workers/Stylists state
+  const [workers, setWorkers] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
   const [sendingRequest, setSendingRequest] = useState(false);
   // Request tracking: { saleId: { type: 'void'|'review', status: 'pending'|'approved', reason: '' } }
@@ -66,7 +82,8 @@ const CashierPOS = () => {
   const [requestModalData, setRequestModalData] = useState({ sale: null, type: '', reason: '' });
 
   // Payment flow state
-  const [paymentStep, setPaymentStep] = useState('select'); // select, amount, confirm
+  const [paymentStep, setPaymentStep] = useState('orderType'); // orderType, select, amount, confirm
+  const [orderType, setOrderType] = useState('Walk-in');
   const [isSplitPayment, setIsSplitPayment] = useState(false);
   const [selectedMethods, setSelectedMethods] = useState([]); // For split payment
   const [paymentAmounts, setPaymentAmounts] = useState({}); // { Cash: 100, Momo: 50 }
@@ -87,19 +104,32 @@ const CashierPOS = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmData, setConfirmData] = useState({ title: '', message: '', onConfirm: null });
   const [toast, setToast] = useState({ show: false, message: '' });
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
+
+  // Date/Time
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Currency from tenant settings
   const currencySymbol = user?.currencySymbol || '$';
 
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     loadProducts();
     loadTodaySales();
+    loadWorkers();
+    loadSecurityRequests();
   }, []);
 
   // Check for low stock items when products load
   useEffect(() => {
     const lowStock = products.filter(p =>
-      p.category === 'PRODUCT' && p.stockQuantity <= (p.reorderLevel || 10)
+      p.category === 'PRODUCT' && p.stockQuantity <= (p.lowStockThreshold || 10)
     );
     setLowStockItems(lowStock);
   }, [products]);
@@ -131,11 +161,13 @@ const CashierPOS = () => {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      // ownSalesOnly=true ensures each user only sees their own sales
       const response = await salesAPI.getAll({
-        startDate: today.toISOString()
+        startDate: today.toISOString(),
+        ownSalesOnly: 'true'
       });
       setTodaySales(response.data.sales || []);
-      // Update stats
+      // Update stats - only from own sales
       const sales = response.data.sales || [];
       const completedSales = sales.filter(s => s.paymentStatus === 'completed');
       setStats({
@@ -144,6 +176,40 @@ const CashierPOS = () => {
       });
     } catch (error) {
       console.error('Error loading sales:', error);
+    }
+  };
+
+  const loadWorkers = async () => {
+    try {
+      const response = await usersAPI.getAll();
+      // Filter only active workers (cashiers) for stylist selection
+      const activeWorkers = (response.data.users || []).filter(u => u.isActive);
+      setWorkers(activeWorkers);
+    } catch (error) {
+      console.error('Error loading workers:', error);
+    }
+  };
+
+  // Load security requests for the user's sales
+  const loadSecurityRequests = async () => {
+    try {
+      const response = await securityRequestsAPI.getAll();
+      const requests = response.data.securityRequests || [];
+      // Convert to map by saleId for easy lookup
+      const requestMap = {};
+      requests.forEach(req => {
+        if (req.saleId) {
+          requestMap[req.saleId] = {
+            id: req.id,
+            type: req.type.toLowerCase(),
+            status: req.status.toLowerCase(),
+            reason: req.reason
+          };
+        }
+      });
+      setSaleRequests(requestMap);
+    } catch (error) {
+      console.error('Error loading security requests:', error);
     }
   };
 
@@ -162,13 +228,19 @@ const CashierPOS = () => {
 
     setSendingRequest(true);
     try {
-      // In a real app, this would create a notification/request in the database
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
+      const response = await securityRequestsAPI.create({
+        type: requestModalData.type.toUpperCase(),
+        reason: requestModalData.reason,
+        saleId: requestModalData.sale.id,
+        itemName: `Transaction #${requestModalData.sale.transactionNumber?.slice(-8) || requestModalData.sale.id.slice(-8)}`,
+        amount: requestModalData.sale.finalAmount
+      });
 
-      // Update request tracking with reason
+      // Update request tracking with the new request
       setSaleRequests(prev => ({
         ...prev,
         [requestModalData.sale.id]: {
+          id: response.data.securityRequest.id,
           type: requestModalData.type.toLowerCase(),
           status: 'pending',
           reason: requestModalData.reason
@@ -179,28 +251,8 @@ const CashierPOS = () => {
       setRequestModalData({ sale: null, type: '', reason: '' });
       showToast(`${requestModalData.type} request sent to manager`);
     } catch (error) {
+      console.error('Submit request error:', error);
       showToast('Failed to send request');
-    } finally {
-      setSendingRequest(false);
-    }
-  };
-
-  // Cancel a pending request
-  const cancelRequest = async (saleId) => {
-    setSendingRequest(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 300)); // Simulate API call
-
-      // Remove request from tracking
-      setSaleRequests(prev => {
-        const newRequests = { ...prev };
-        delete newRequests[saleId];
-        return newRequests;
-      });
-
-      showToast('Request cancelled');
-    } catch (error) {
-      showToast('Failed to cancel request');
     } finally {
       setSendingRequest(false);
     }
@@ -339,6 +391,13 @@ const CashierPOS = () => {
     });
   };
 
+  // Update stylist for a cart item (service only)
+  const updateStylist = (index, worker) => {
+    setCart(prev => prev.map((item, i) =>
+      i === index ? { ...item, stylist: worker } : item
+    ));
+  };
+
   const getCartTotal = () => {
     const subtotal = cart.reduce((sum, item) => sum + (item.sellingPrice * item.qty), 0);
     const tax = subtotal * (user?.taxRate || 0);
@@ -399,7 +458,8 @@ const CashierPOS = () => {
   const showPayment = () => {
     if (cart.length === 0) return;
     // Reset payment state
-    setPaymentStep('select');
+    setPaymentStep('orderType');
+    setOrderType('Walk-in');
     setIsSplitPayment(false);
     setSelectedMethods([]);
     setPaymentAmounts({});
@@ -483,6 +543,8 @@ const CashierPOS = () => {
     if (paymentStep === 'amount') {
       setPaymentStep('select');
       setAmountTendered('');
+    } else if (paymentStep === 'select') {
+      setPaymentStep('orderType');
     } else {
       setSidebarView('cart');
     }
@@ -516,7 +578,8 @@ const CashierPOS = () => {
           productId: item.id,
           quantity: item.qty,
           unitPrice: item.sellingPrice,
-          discount: 0
+          discount: 0,
+          stylistId: item.stylist?.id || null
         })),
         paymentMethod: methodMap[primaryMethod] || 'CASH',
         customerId: selectedCustomer?.id || null,
@@ -538,6 +601,7 @@ const CashierPOS = () => {
         invoiceNo: response.data.sale.transactionNumber,
         date: new Date().toLocaleDateString(),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        orderType: orderType,
         isSplitPayment,
         method: isSplitPayment ? null : selectedPayment,
         payments: isSplitPayment ? paymentAmounts : { [selectedPayment]: tendered },
@@ -586,24 +650,65 @@ const CashierPOS = () => {
     return `${currencySymbol} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  // Theme classes
-  const bgClass = darkMode ? 'bg-slate-900' : 'bg-gray-50';
-  const surfaceClass = darkMode ? 'bg-slate-800' : 'bg-white';
-  const textClass = darkMode ? 'text-white' : 'text-gray-900';
-  const mutedClass = darkMode ? 'text-slate-400' : 'text-gray-500';
-  const borderClass = darkMode ? 'border-slate-700' : 'border-gray-200';
+  // Generate receipt data from a sale for reprinting
+  const generateReceiptFromSale = (sale) => {
+    const saleDate = new Date(sale.createdAt);
+    const items = (sale.items || []).map(item => ({
+      name: item.product?.name || 'Item',
+      qty: item.quantity,
+      sellingPrice: item.unitPrice || item.product?.sellingPrice || 0,
+      stylist: item.worker || null
+    }));
+
+    const subtotal = items.reduce((sum, item) => sum + (item.sellingPrice * item.qty), 0);
+    const isSplitPayment = sale.paymentMethod?.includes('_') || false;
+
+    return {
+      invoiceNo: sale.transactionNumber || sale.id.slice(-8),
+      date: saleDate.toLocaleDateString(),
+      time: saleDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      orderType: sale.orderType || 'Walk-in',
+      isSplitPayment,
+      method: sale.paymentMethod?.replace('_', ' + ') || 'Cash',
+      payments: isSplitPayment
+        ? sale.paymentMethod.split('_').reduce((acc, m) => ({ ...acc, [m]: sale.finalAmount / sale.paymentMethod.split('_').length }), {})
+        : { [sale.paymentMethod || 'Cash']: sale.amountPaid || sale.finalAmount },
+      items,
+      customer: sale.customer || null,
+      subtotal,
+      total: sale.finalAmount,
+      amountTendered: sale.amountPaid || sale.finalAmount,
+      change: (sale.amountPaid || sale.finalAmount) - sale.finalAmount,
+      cashier: sale.user?.fullName || user?.fullName
+    };
+  };
+
+  // Open receipt modal for reprinting
+  const openReceiptModal = (sale) => {
+    const receipt = generateReceiptFromSale(sale);
+    setReceiptData(receipt);
+    setShowReceiptModal(true);
+  };
+
+  // Theme classes - use external classes when in manager view
+  const bgClass = managerView && externalBgClass ? externalBgClass : (darkMode ? 'bg-slate-900' : 'bg-gray-50');
+  const surfaceClass = managerView && externalSurfaceClass ? externalSurfaceClass : (darkMode ? 'bg-slate-800' : 'bg-white');
+  const textClass = managerView && externalTextClass ? externalTextClass : (darkMode ? 'text-white' : 'text-gray-900');
+  const mutedClass = managerView && externalMutedClass ? externalMutedClass : (darkMode ? 'text-slate-400' : 'text-gray-500');
+  const borderClass = managerView && externalBorderClass ? externalBorderClass : (darkMode ? 'border-slate-700' : 'border-gray-200');
 
   if (loading) {
     return (
-      <div className={`h-screen flex items-center justify-center ${bgClass}`}>
+      <div className={`${embedded || managerView ? 'h-full' : 'h-screen'} flex items-center justify-center ${bgClass}`}>
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className={`h-screen overflow-hidden flex flex-col ${bgClass} ${textClass}`}>
-      {/* Header */}
+    <div className={`${embedded || managerView ? 'h-full' : 'h-screen'} overflow-hidden flex flex-col ${bgClass} ${textClass}`}>
+      {/* Header - Hidden when embedded or in manager view */}
+      {!embedded && !managerView && (
       <header className={`h-16 sm:h-20 ${surfaceClass} border-b ${borderClass} flex items-center justify-between px-4 sm:px-8 lg:px-12 shrink-0 z-50`}>
         <div className="flex items-center gap-3 sm:gap-5">
           <div className={`w-8 h-8 sm:w-10 sm:h-10 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl flex items-center justify-center shadow-lg`}>
@@ -625,20 +730,36 @@ const CashierPOS = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search menu..."
-              className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold ${textClass}`}
+              className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-accent-500/20 text-sm font-semibold ${textClass}`}
             />
           </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
+          {/* Date/Time Display */}
+          <div className={`hidden lg:flex items-center gap-3 px-4 py-2 ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} rounded-xl`}>
+            <div className="flex items-center gap-1.5">
+              <Calendar className={`w-3.5 h-3.5 ${mutedClass}`} />
+              <span className={`text-[10px] font-bold uppercase ${textClass}`}>
+                {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+            <div className={`w-px h-4 ${borderClass}`}></div>
+            <div className="flex items-center gap-1.5">
+              <Clock className={`w-3.5 h-3.5 ${mutedClass}`} />
+              <span className={`text-[10px] font-bold uppercase ${textClass}`}>
+                {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </div>
+          </div>
           {/* Low Stock Alert Button */}
           <button
             onClick={() => setView(view === 'lowStock' ? 'menu' : 'lowStock')}
-            className={`relative w-8 h-8 sm:w-10 sm:h-10 border ${borderClass} rounded-xl flex items-center justify-center ${view === 'lowStock' ? 'bg-orange-500 text-white border-orange-500' : surfaceClass} ${textClass} transition-all`}
+            className={`relative w-8 h-8 sm:w-10 sm:h-10 border ${borderClass} rounded-xl flex items-center justify-center ${view === 'lowStock' ? 'bg-warning-500 text-white border-warning-500' : surfaceClass} ${textClass} transition-all`}
           >
-            <AlertTriangle className={`w-4 h-4 sm:w-5 sm:h-5 ${lowStockItems.length > 0 && view !== 'lowStock' ? 'text-orange-500' : ''}`} />
+            <AlertTriangle className={`w-4 h-4 sm:w-5 sm:h-5 ${lowStockItems.length > 0 && view !== 'lowStock' ? 'text-warning-500' : ''}`} />
             {lowStockItems.length > 0 && (
-              <span className={`absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 ${darkMode ? 'border-slate-800' : 'border-white'}`}>
+              <span className={`absolute -top-1.5 -right-1.5 bg-warning-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 ${darkMode ? 'border-slate-800' : 'border-white'}`}>
                 {lowStockItems.length}
               </span>
             )}
@@ -662,30 +783,62 @@ const CashierPOS = () => {
           </button>
           <button
             onClick={() => openConfirm('End Session?', 'This will log you out.', handleLogout)}
-            className={`w-8 h-8 sm:w-10 sm:h-10 border ${borderClass} rounded-xl flex items-center justify-center ${textClass} hover:text-red-500`}
+            className={`w-8 h-8 sm:w-10 sm:h-10 border ${borderClass} rounded-xl flex items-center justify-center ${textClass} hover:text-negative-500`}
           >
             <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
       </header>
+      )}
 
       {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden p-3 sm:p-6 lg:px-16 gap-4 sm:gap-8">
+      <div className={`flex flex-1 overflow-hidden ${embedded ? 'p-2 gap-2' : managerView ? 'p-2 sm:p-4 gap-3 sm:gap-6' : 'p-3 sm:p-6 lg:px-16 gap-4 sm:gap-8'}`}>
         {/* Products Grid */}
         <main className="flex-1 overflow-y-auto pr-2 sm:pr-6" style={{ scrollbarWidth: 'thin' }}>
           {view === 'menu' ? (
             <>
-              {/* Mobile Search */}
-              <div className="md:hidden mb-4">
-                <div className="relative">
-                  <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${mutedClass} w-4 h-4`} />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search..."
-                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-11 pr-4 focus:outline-none text-sm font-semibold ${textClass}`}
-                  />
+              {/* Search and Quick Actions - Mobile or Manager View */}
+              <div className={`${managerView ? 'block' : 'md:hidden'} mb-4`}>
+                <div className="flex gap-2 items-center">
+                  <div className="relative flex-1">
+                    <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${mutedClass} w-4 h-4`} />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search menu..."
+                      className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-accent-500/20 text-sm font-semibold ${textClass}`}
+                    />
+                  </div>
+                  {/* Quick Actions for Manager View */}
+                  {managerView && (
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => setView(view === 'lowStock' ? 'menu' : 'lowStock')}
+                        className={`relative w-9 h-9 border ${borderClass} rounded-xl flex items-center justify-center ${view === 'lowStock' ? 'bg-warning-500 text-white border-warning-500' : surfaceClass} ${textClass} transition-all`}
+                        title="Low Stock Alerts"
+                      >
+                        <AlertTriangle className={`w-4 h-4 ${lowStockItems.length > 0 && view !== 'lowStock' ? 'text-warning-500' : ''}`} />
+                        {lowStockItems.length > 0 && (
+                          <span className={`absolute -top-1 -right-1 bg-warning-500 text-white text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center`}>
+                            {lowStockItems.length}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setView(view === 'held' ? 'menu' : 'held')}
+                        className={`relative w-9 h-9 border ${borderClass} rounded-xl flex items-center justify-center ${view === 'held' ? 'bg-accent-500 text-white border-accent-500' : surfaceClass} ${textClass} transition-all`}
+                        title="Held Orders"
+                      >
+                        <Layers className="w-4 h-4" />
+                        {heldOrders.length > 0 && (
+                          <span className={`absolute -top-1 -right-1 bg-accent-500 text-white text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center`}>
+                            {heldOrders.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -698,7 +851,7 @@ const CashierPOS = () => {
                     className={`px-4 sm:px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
                       activeCategory === cat
                         ? `${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} shadow-md`
-                        : `${surfaceClass} border ${borderClass} ${mutedClass} hover:text-indigo-500`
+                        : `${surfaceClass} border ${borderClass} ${mutedClass} hover:text-accent-500`
                     }`}
                   >
                     {cat === 'PRODUCT' ? 'Products' : cat === 'SERVICE' ? 'Services' : cat}
@@ -707,18 +860,18 @@ const CashierPOS = () => {
               </div>
 
               {/* Products */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6 pb-10">
+              <div className={`grid ${managerView ? 'grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6'} pb-10`}>
                 {filteredProducts.map((product) => (
                   <div
                     key={product.id}
                     onClick={() => addToCart(product)}
-                    className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-3xl p-3 sm:p-5 cursor-pointer hover:border-indigo-500 hover:shadow-xl transition-all group`}
+                    className={`${surfaceClass} border ${borderClass} ${managerView ? 'rounded-xl p-2.5 sm:p-4' : 'rounded-2xl sm:rounded-3xl p-3 sm:p-5'} cursor-pointer hover:border-accent-500 hover:shadow-xl transition-all group`}
                   >
                     <div className={`aspect-square ${bgClass} rounded-xl sm:rounded-2xl mb-2 sm:mb-3 flex items-center justify-center`}>
                       {product.category === 'SERVICE' ? (
-                        <Scissors className={`w-6 h-6 sm:w-7 sm:h-7 ${mutedClass} group-hover:text-indigo-500`} />
+                        <Scissors className={`w-6 h-6 sm:w-7 sm:h-7 ${mutedClass} group-hover:text-accent-500`} />
                       ) : (
-                        <Package className={`w-6 h-6 sm:w-7 sm:h-7 ${mutedClass} group-hover:text-indigo-500`} />
+                        <Package className={`w-6 h-6 sm:w-7 sm:h-7 ${mutedClass} group-hover:text-accent-500`} />
                       )}
                     </div>
                     <h3 className={`font-bold text-[10px] sm:text-xs uppercase tracking-tight mb-1 ${textClass} truncate`}>
@@ -743,7 +896,7 @@ const CashierPOS = () => {
                 <h2 className={`text-xl font-black uppercase tracking-tighter ${textClass}`}>Held Orders</h2>
                 <button
                   onClick={() => setView('menu')}
-                  className="text-xs font-bold text-indigo-500 underline"
+                  className="text-xs font-bold text-accent-500 underline"
                 >
                   Back to Menu
                 </button>
@@ -779,12 +932,12 @@ const CashierPOS = () => {
             <div>
               <div className="flex justify-between items-center mb-6">
                 <h2 className={`text-xl font-black uppercase tracking-tighter ${textClass}`}>
-                  <AlertTriangle className="w-5 h-5 inline mr-2 text-orange-500" />
+                  <AlertTriangle className="w-5 h-5 inline mr-2 text-warning-500" />
                   Low Stock Items
                 </h2>
                 <button
                   onClick={() => setView('menu')}
-                  className="text-xs font-bold text-indigo-500 underline"
+                  className="text-xs font-bold text-accent-500 underline"
                 >
                   Back to Menu
                 </button>
@@ -792,7 +945,7 @@ const CashierPOS = () => {
               <div className="space-y-3">
                 {lowStockItems.length === 0 ? (
                   <div className={`${surfaceClass} border ${borderClass} rounded-xl p-8 text-center`}>
-                    <CheckCircle className={`w-8 h-8 mx-auto mb-2 text-green-500`} />
+                    <CheckCircle className={`w-8 h-8 mx-auto mb-2 text-positive-500`} />
                     <p className={`text-sm ${mutedClass}`}>All items are well stocked</p>
                   </div>
                 ) : (
@@ -808,7 +961,7 @@ const CashierPOS = () => {
                         </div>
                         <div className={`px-2 py-1 rounded-lg text-[10px] font-bold ${
                           item.stockQuantity === 0
-                            ? 'bg-red-100 text-red-600'
+                            ? 'bg-negative-100 text-negative-600'
                             : item.stockQuantity <= 5
                             ? 'bg-orange-100 text-orange-600'
                             : 'bg-yellow-100 text-yellow-600'
@@ -822,7 +975,7 @@ const CashierPOS = () => {
                         </div>
                         <button
                           onClick={() => notifyManagerLowStock(item)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-orange-600 transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-warning-500 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-orange-600 transition-colors"
                         >
                           <Bell className="w-3 h-3" />
                           Notify Manager
@@ -838,12 +991,12 @@ const CashierPOS = () => {
             <div>
               <div className="flex justify-between items-center mb-6">
                 <h2 className={`text-xl font-black uppercase tracking-tighter ${textClass}`}>
-                  <Clock className="w-5 h-5 inline mr-2 text-indigo-500" />
+                  <Clock className="w-5 h-5 inline mr-2 text-accent-500" />
                   Today's Sales
                 </h2>
                 <button
                   onClick={() => setView('menu')}
-                  className="text-xs font-bold text-indigo-500 underline"
+                  className="text-xs font-bold text-accent-500 underline"
                 >
                   Back to Menu
                 </button>
@@ -864,7 +1017,7 @@ const CashierPOS = () => {
                         {/* Sale Header - Clickable */}
                         <div
                           onClick={() => setSelectedSale(isExpanded ? null : sale)}
-                          className={`${surfaceClass} border ${isExpanded ? 'border-indigo-500 rounded-t-xl border-b-0' : `${borderClass} rounded-xl`} p-4 cursor-pointer hover:border-indigo-300 transition-colors`}
+                          className={`${surfaceClass} border ${isExpanded ? 'border-accent-500 rounded-t-xl border-b-0' : `${borderClass} rounded-xl`} p-4 cursor-pointer hover:border-accent-300 transition-colors`}
                         >
                           <div className="flex justify-between items-center">
                             <div>
@@ -876,7 +1029,7 @@ const CashierPOS = () => {
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className={`text-sm font-black ${sale.paymentStatus === 'voided' ? 'text-red-500 line-through' : 'text-indigo-500'}`}>
+                              <div className={`text-sm font-black ${sale.paymentStatus === 'voided' ? 'text-negative-500 line-through' : 'text-accent-500'}`}>
                                 {formatCurrency(sale.finalAmount)}
                               </div>
                               <div className={`text-[9px] ${mutedClass} capitalize`}>
@@ -888,23 +1041,23 @@ const CashierPOS = () => {
                           {/* Status Badges */}
                           <div className="mt-2 flex flex-wrap gap-1">
                             {sale.paymentStatus === 'voided' && (
-                              <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[8px] font-bold rounded uppercase">
+                              <span className="px-2 py-0.5 bg-negative-100 text-negative-600 text-[8px] font-bold rounded uppercase">
                                 Voided
                               </span>
                             )}
                             {request?.status === 'pending' && (
                               <span className={`px-2 py-0.5 text-[8px] font-bold rounded uppercase flex items-center gap-1 ${
-                                request.type === 'void' ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'
+                                request.type === 'void' ? 'bg-negative-100 text-negative-600' : 'bg-accent-100 text-accent-600'
                               }`}>
                                 <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-                                  request.type === 'void' ? 'bg-red-500' : 'bg-indigo-500'
+                                  request.type === 'void' ? 'bg-negative-500' : 'bg-accent-500'
                                 }`}></span>
                                 {request.type === 'void' ? 'Void' : 'Review'} Pending
                               </span>
                             )}
                             {request?.status === 'approved' && (
                               <span className={`px-2 py-0.5 text-[8px] font-bold rounded uppercase ${
-                                request.type === 'void' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                request.type === 'void' ? 'bg-negative-100 text-negative-600' : 'bg-green-100 text-positive-600'
                               }`}>
                                 {request.type === 'void' ? 'Void' : 'Review'} Approved
                               </span>
@@ -916,7 +1069,7 @@ const CashierPOS = () => {
                         {isExpanded && (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className={`${surfaceClass} border border-indigo-500 border-t-0 rounded-b-xl p-4 ${darkMode ? 'bg-slate-800/50' : 'bg-indigo-50/30'}`}
+                            className={`${surfaceClass} border border-accent-500 border-t-0 rounded-b-xl p-4 ${darkMode ? 'bg-slate-800/50' : 'bg-accent-50/30'}`}
                           >
                             {/* Items */}
                             <div className={`border-t border-b ${borderClass} py-2 mb-3`}>
@@ -928,10 +1081,19 @@ const CashierPOS = () => {
                               ))}
                             </div>
 
-                            <div className="flex justify-between items-center mb-4">
+                            <div className="flex justify-between items-center mb-3">
                               <span className={`text-xs font-bold ${mutedClass}`}>Total</span>
-                              <span className={`text-lg font-black text-indigo-500`}>{formatCurrency(sale.finalAmount)}</span>
+                              <span className={`text-lg font-black text-accent-500`}>{formatCurrency(sale.finalAmount)}</span>
                             </div>
+
+                            {/* Reprint Receipt Button */}
+                            <button
+                              onClick={() => openReceiptModal(sale)}
+                              className={`w-full flex items-center justify-center gap-2 py-2.5 mb-3 ${surfaceClass} border ${borderClass} rounded-lg text-[9px] font-bold uppercase hover:border-accent-500 transition-colors ${textClass}`}
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              Reprint Receipt
+                            </button>
 
                             {/* Action Buttons - Based on request status */}
                             {(() => {
@@ -940,7 +1102,7 @@ const CashierPOS = () => {
                               // If already voided
                               if (isVoided) {
                                 return (
-                                  <div className={`py-3 rounded-lg text-center ${darkMode ? 'bg-red-900/30' : 'bg-red-100'} text-red-600`}>
+                                  <div className={`py-3 rounded-lg text-center ${darkMode ? 'bg-red-900/30' : 'bg-negative-100'} text-negative-600`}>
                                     <XCircle className="w-4 h-4 inline mr-2" />
                                     <span className="text-[10px] font-bold uppercase">This sale has been voided</span>
                                   </div>
@@ -952,8 +1114,8 @@ const CashierPOS = () => {
                                 return (
                                   <div className={`py-3 rounded-lg text-center ${
                                     request.type === 'void'
-                                      ? darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-600'
-                                      : darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-600'
+                                      ? darkMode ? 'bg-red-900/30 text-negative-400' : 'bg-negative-100 text-negative-600'
+                                      : darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-positive-600'
                                   }`}>
                                     <CheckCircle className="w-4 h-4 inline mr-2" />
                                     <span className="text-[10px] font-bold uppercase">
@@ -966,43 +1128,32 @@ const CashierPOS = () => {
                               // If request is pending
                               if (request?.status === 'pending') {
                                 return (
-                                  <div className="space-y-2">
-                                    <div className={`py-3 px-3 rounded-lg ${
-                                      request.type === 'void' ? 'bg-red-50 border border-red-200' : 'bg-indigo-50 border border-indigo-200'
-                                    } ${darkMode ? (request.type === 'void' ? 'bg-red-900/20 border-red-800' : 'bg-indigo-900/20 border-indigo-800') : ''}`}>
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2">
-                                          <div className={`w-2 h-2 rounded-full animate-pulse ${
-                                            request.type === 'void' ? 'bg-red-500' : 'bg-indigo-500'
-                                          }`}></div>
-                                          <span className={`text-[10px] font-bold ${
-                                            request.type === 'void' ? 'text-red-600' : 'text-indigo-600'
-                                          }`}>
-                                            {request.type === 'void' ? 'Void' : 'Review'} Request Pending
-                                          </span>
-                                        </div>
-                                        <Clock className={`w-3.5 h-3.5 ${
-                                          request.type === 'void' ? 'text-red-400' : 'text-indigo-400'
-                                        }`} />
+                                  <div className={`py-3 px-3 rounded-lg ${
+                                    request.type === 'void' ? 'bg-negative-50 border border-negative-200' : 'bg-accent-50 border border-accent-200'
+                                  } ${darkMode ? (request.type === 'void' ? 'bg-red-900/20 border-negative-800' : 'bg-accent-900/20 border-accent-800') : ''}`}>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full animate-pulse ${
+                                          request.type === 'void' ? 'bg-negative-500' : 'bg-accent-500'
+                                        }`}></div>
+                                        <span className={`text-[10px] font-bold ${
+                                          request.type === 'void' ? 'text-negative-600' : 'text-accent-600'
+                                        }`}>
+                                          {request.type === 'void' ? 'Void' : 'Review'} Request Pending
+                                        </span>
                                       </div>
-                                      {request.reason && (
-                                        <p className={`text-[9px] ${request.type === 'void' ? 'text-red-600' : 'text-indigo-600'} italic`}>
-                                          "{request.reason}"
-                                        </p>
-                                      )}
+                                      <Clock className={`w-3.5 h-3.5 ${
+                                        request.type === 'void' ? 'text-negative-400' : 'text-accent-400'
+                                      }`} />
                                     </div>
-                                    <button
-                                      onClick={() => cancelRequest(sale.id)}
-                                      disabled={sendingRequest}
-                                      className={`w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[9px] font-bold uppercase transition-colors ${
-                                        request.type === 'void'
-                                          ? 'bg-red-500 text-white hover:bg-red-600'
-                                          : 'bg-indigo-500 text-white hover:bg-indigo-600'
-                                      }`}
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                      Cancel {request.type === 'void' ? 'Void' : 'Review'} Request
-                                    </button>
+                                    {request.reason && (
+                                      <p className={`text-[9px] ${request.type === 'void' ? 'text-negative-600' : 'text-accent-600'} italic`}>
+                                        "{request.reason}"
+                                      </p>
+                                    )}
+                                    <p className={`text-[8px] ${mutedClass} mt-2 text-center`}>
+                                      Awaiting manager approval
+                                    </p>
                                   </div>
                                 );
                               }
@@ -1013,7 +1164,7 @@ const CashierPOS = () => {
                                   <button
                                     onClick={() => openRequestModal(sale, 'Void')}
                                     disabled={sendingRequest}
-                                    className="flex items-center justify-center gap-1.5 py-2.5 bg-red-500 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-red-600 transition-colors"
+                                    className="flex items-center justify-center gap-1.5 py-2.5 bg-negative-500 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-negative-600 transition-colors"
                                   >
                                     <XCircle className="w-3.5 h-3.5" />
                                     Void Request
@@ -1021,7 +1172,7 @@ const CashierPOS = () => {
                                   <button
                                     onClick={() => openRequestModal(sale, 'Review')}
                                     disabled={sendingRequest}
-                                    className="flex items-center justify-center gap-1.5 py-2.5 bg-indigo-500 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-indigo-600 transition-colors"
+                                    className="flex items-center justify-center gap-1.5 py-2.5 bg-accent-500 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-accent-600 transition-colors"
                                   >
                                     <Eye className="w-3.5 h-3.5" />
                                     Review Request
@@ -1041,19 +1192,19 @@ const CashierPOS = () => {
         </main>
 
         {/* Sidebar - Right Panel with special font styling */}
-        <aside className="w-full sm:w-[320px] lg:w-[360px] flex flex-col gap-4 shrink-0 min-h-0 overflow-hidden" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+        <aside className={`w-full ${managerView ? 'sm:w-[280px] lg:w-[320px]' : 'sm:w-[320px] lg:w-[360px]'} flex flex-col gap-4 shrink-0 min-h-0 overflow-hidden`} style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}>
           {/* Stats Card - Clickable to show today's sales */}
           <div
             onClick={() => setView(view === 'sales' ? 'menu' : 'sales')}
-            className={`${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-2xl p-4 shadow-lg flex justify-around items-center shrink-0 cursor-pointer hover:opacity-90 transition-opacity ${view === 'sales' ? 'ring-2 ring-indigo-500' : ''}`}
+            className={`${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-2xl p-4 shadow-lg flex justify-around items-center shrink-0 cursor-pointer hover:opacity-90 transition-opacity ${view === 'sales' ? 'ring-2 ring-accent-500' : ''}`}
           >
             <div className="text-center">
-              <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">Orders</p>
+              <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">Customers Served</p>
               <p className="text-lg font-black">{stats.orders}</p>
             </div>
             <div className={`h-6 w-px ${darkMode ? 'bg-black/10' : 'bg-white/10'}`}></div>
             <div className="text-center">
-              <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">Sales</p>
+              <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">Today's Sales</p>
               <p className="text-lg font-black">{formatCurrency(stats.revenue)}</p>
             </div>
           </div>
@@ -1076,7 +1227,7 @@ const CashierPOS = () => {
                           )}
                           <button
                             onClick={clearCustomer}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-negative-500"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -1091,18 +1242,21 @@ const CashierPOS = () => {
                           onFocus={() => customerSuggestions.length > 0 && setShowSuggestions(true)}
                           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                           placeholder="Search by name or phone..."
-                          className={`w-full ${bgClass} border ${borderClass} rounded-lg py-1.5 pl-9 pr-8 text-xs font-bold focus:outline-none focus:border-indigo-500 ${textClass}`}
+                          className={`w-full ${bgClass} border ${borderClass} rounded-lg py-1.5 pl-9 pr-8 text-xs font-bold focus:outline-none focus:border-accent-500 ${textClass}`}
                         />
                       )}
 
                       {/* Suggestions Dropdown */}
                       {showSuggestions && customerSuggestions.length > 0 && !selectedCustomer && (
-                        <div className={`absolute top-full left-0 right-0 mt-1 ${surfaceClass} border ${borderClass} rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto`}>
+                        <div
+                          className={`absolute top-full left-0 right-0 mt-1 ${surfaceClass} border ${borderClass} rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto`}
+                          onMouseDown={(e) => e.preventDefault()}
+                        >
                           {customerSuggestions.map((customer) => (
-                            <button
+                            <div
                               key={customer.id}
                               onClick={() => selectCustomer(customer)}
-                              className={`w-full px-3 py-2.5 text-left hover:bg-indigo-50 ${darkMode ? 'hover:bg-slate-700' : ''} transition-colors border-b ${borderClass} last:border-b-0`}
+                              className={`w-full px-3 py-2.5 text-left hover:bg-accent-50 ${darkMode ? 'hover:bg-slate-700' : ''} transition-colors border-b ${borderClass} last:border-b-0 cursor-pointer`}
                             >
                               <div className="flex justify-between items-start">
                                 <div>
@@ -1116,10 +1270,10 @@ const CashierPOS = () => {
                                 </div>
                                 <div className="text-right">
                                   <p className={`text-[9px] ${mutedClass}`}>{customer.visitCount || 0} visits</p>
-                                  <p className={`text-[9px] text-indigo-500 font-bold`}>{formatCurrency(customer.totalSpent || 0)}</p>
+                                  <p className={`text-[9px] text-accent-500 font-bold`}>{formatCurrency(customer.totalSpent || 0)}</p>
                                 </div>
                               </div>
-                            </button>
+                            </div>
                           ))}
                         </div>
                       )}
@@ -1135,9 +1289,9 @@ const CashierPOS = () => {
                   {selectedCustomer && (
                     <div className={`mt-2 pt-2 border-t ${borderClass} flex items-center justify-between`}>
                       <p className={`text-[9px] ${mutedClass}`}>
-                        <span className="font-bold text-indigo-500">{selectedCustomer.visitCount || 0}</span> visits
+                        <span className="font-bold text-accent-500">{selectedCustomer.visitCount || 0}</span> visits
                       </p>
-                      <p className={`text-[9px] font-bold text-indigo-500`}>
+                      <p className={`text-[9px] font-bold text-accent-500`}>
                         {formatCurrency(selectedCustomer.totalSpent || 0)} spent
                       </p>
                     </div>
@@ -1147,7 +1301,14 @@ const CashierPOS = () => {
                 {/* Cart Container - Takes remaining space */}
                 <div className={`${surfaceClass} border ${borderClass} rounded-2xl p-4 sm:p-5 flex-1 flex flex-col shadow-sm min-h-0 overflow-hidden`}>
                   {/* Fixed Header */}
-                  <h3 className={`text-xs font-black uppercase tracking-tight mb-3 ${textClass}`}>Active Cart</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className={`text-xs font-black uppercase tracking-tight ${textClass}`}>Active Cart</h3>
+                    {cart.length > 0 && (
+                      <span className={`text-[10px] font-bold ${mutedClass} bg-accent-100 ${darkMode ? 'bg-accent-900/50 text-accent-300' : 'text-accent-600'} px-2 py-0.5 rounded-full`}>
+                        {cart.reduce((sum, item) => sum + item.qty, 0)} items
+                      </span>
+                    )}
+                  </div>
 
                   {/* Scrollable Cart Items */}
                   <div className="flex-1 overflow-y-auto min-h-0 pr-1" style={{ scrollbarWidth: 'thin' }}>
@@ -1159,39 +1320,60 @@ const CashierPOS = () => {
                     ) : (
                       <div className="space-y-1">
                         {cart.map((item, idx) => (
-                          <div key={idx} className={`flex justify-between items-center group py-2 border-b ${borderClass} last:border-0`}>
-                            <div className="flex-1">
-                              <h4 className={`text-[10px] font-bold uppercase ${textClass}`}>{item.name}</h4>
-                              <p className={`text-[9px] font-bold ${mutedClass}`}>
-                                {formatCurrency(item.sellingPrice)}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
+                          <div key={idx} className={`group py-2 border-b ${borderClass} last:border-0`}>
+                            <div className="flex justify-between items-center">
+                              <div className="flex-1">
+                                <h4 className={`text-[10px] font-bold uppercase ${textClass}`}>{item.name}</h4>
+                                <p className={`text-[9px] font-bold ${mutedClass}`}>
+                                  {formatCurrency(item.sellingPrice)}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => updateQty(idx, -1)}
+                                    className={`w-6 h-6 rounded-md ${bgClass} border ${borderClass} flex items-center justify-center hover:border-accent-500`}
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </button>
+                                  <span className={`w-6 text-center text-[11px] font-black ${textClass}`}>{item.qty}</span>
+                                  <button
+                                    onClick={() => updateQty(idx, 1)}
+                                    className={`w-6 h-6 rounded-md ${bgClass} border ${borderClass} flex items-center justify-center hover:border-accent-500`}
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                <span className={`text-[11px] font-black ${textClass} w-16 text-right`}>
+                                  {formatCurrency(item.sellingPrice * item.qty)}
+                                </span>
                                 <button
-                                  onClick={() => updateQty(idx, -1)}
-                                  className={`w-6 h-6 rounded-md ${bgClass} border ${borderClass} flex items-center justify-center hover:border-indigo-500`}
+                                  onClick={() => removeFromCart(idx)}
+                                  className={`${mutedClass} hover:text-negative-500 opacity-0 group-hover:opacity-100 transition-opacity`}
                                 >
-                                  <Minus className="w-3 h-3" />
-                                </button>
-                                <span className={`w-6 text-center text-[11px] font-black ${textClass}`}>{item.qty}</span>
-                                <button
-                                  onClick={() => updateQty(idx, 1)}
-                                  className={`w-6 h-6 rounded-md ${bgClass} border ${borderClass} flex items-center justify-center hover:border-indigo-500`}
-                                >
-                                  <Plus className="w-3 h-3" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-                              <span className={`text-[11px] font-black ${textClass} w-16 text-right`}>
-                                {formatCurrency(item.sellingPrice * item.qty)}
-                              </span>
-                              <button
-                                onClick={() => removeFromCart(idx)}
-                                className={`${mutedClass} hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity`}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
                             </div>
+                            {/* Stylist Selection for Services */}
+                            {item.category === 'SERVICE' && workers.length > 0 && (
+                              <div className="mt-1.5 flex items-center gap-2">
+                                <Users className={`w-3 h-3 ${mutedClass}`} />
+                                <select
+                                  value={item.stylist?.id || ''}
+                                  onChange={(e) => {
+                                    const worker = workers.find(w => w.id === e.target.value);
+                                    updateStylist(idx, worker || null);
+                                  }}
+                                  className={`flex-1 text-[9px] py-1 px-2 rounded-md ${bgClass} border ${borderClass} ${textClass} focus:outline-none focus:border-accent-500`}
+                                >
+                                  <option value="">Select stylist...</option>
+                                  {workers.map(w => (
+                                    <option key={w.id} value={w.id}>{w.fullName}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1202,7 +1384,7 @@ const CashierPOS = () => {
                   <div className={`pt-3 mt-3 border-t ${borderClass}`}>
                     <div className="flex justify-between items-end">
                       <span className={`text-[10px] font-black uppercase ${mutedClass} leading-none`}>Due Total</span>
-                      <span className="text-xl sm:text-2xl font-black text-indigo-500 leading-none">
+                      <span className="text-xl sm:text-2xl font-black text-accent-500 leading-none">
                         {formatCurrency(getCartTotal())}
                       </span>
                     </div>
@@ -1214,7 +1396,7 @@ const CashierPOS = () => {
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => openConfirm('Clear cart?', 'This will remove all items.', clearCart)}
-                      className={`py-3 border border-red-200 rounded-xl text-red-500 font-bold text-[10px] uppercase hover:bg-red-50 ${surfaceClass}`}
+                      className={`py-3 border border-negative-200 rounded-xl text-negative-500 font-bold text-[10px] uppercase hover:bg-negative-50 ${surfaceClass}`}
                     >
                       Cancel
                     </button>
@@ -1241,16 +1423,58 @@ const CashierPOS = () => {
                   onClick={goBackPayment}
                   className={`text-xs font-bold ${mutedClass} mb-4 flex items-center gap-2`}
                 >
-                  ← {paymentStep === 'amount' ? 'Back to Methods' : 'Back to Cart'}
+                  ← {paymentStep === 'amount' ? 'Back to Methods' : paymentStep === 'select' ? 'Back to Order Type' : 'Back to Cart'}
                 </button>
 
                 {/* Total Display */}
                 <div className="mb-4">
                   <h2 className={`text-lg font-black uppercase mb-1 ${textClass}`}>
-                    {paymentStep === 'select' ? 'Select Payment' : 'Enter Amount'}
+                    {paymentStep === 'orderType' ? 'Order Type' : paymentStep === 'select' ? 'Select Payment' : 'Enter Amount'}
                   </h2>
-                  <p className="text-indigo-500 font-black text-2xl">{formatCurrency(getCartTotal())}</p>
+                  <p className="text-accent-500 font-black text-2xl">{formatCurrency(getCartTotal())}</p>
                 </div>
+
+                {/* Step 0: Select Order Type */}
+                {paymentStep === 'orderType' && (
+                  <div className="flex-1 overflow-y-auto">
+                    <p className={`text-[10px] font-bold ${mutedClass} mb-3`}>Select the type of order</p>
+                    <div className="space-y-2">
+                      {[
+                        { id: 'Walk-in', label: 'Walk-in', desc: 'Customer at location' },
+                        { id: 'Delivery', label: 'Delivery', desc: 'Order for delivery' },
+                        { id: 'Pickup', label: 'Pickup', desc: 'Customer will pick up' },
+                        { id: 'Out-service', label: 'Out-service', desc: 'Service outside location' }
+                      ].map(({ id, label, desc }) => (
+                        <button
+                          key={id}
+                          onClick={() => setOrderType(id)}
+                          className={`w-full p-3 border rounded-xl text-left transition-all ${
+                            orderType === id
+                              ? 'border-accent-500 bg-accent-50 ' + (darkMode ? 'bg-accent-900/30' : '')
+                              : `${borderClass} hover:border-accent-300`
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className={`font-bold text-xs ${textClass}`}>{label}</span>
+                              <p className={`text-[9px] ${mutedClass}`}>{desc}</p>
+                            </div>
+                            {orderType === id && (
+                              <CheckCircle className="w-4 h-4 text-accent-500" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => setPaymentStep('select')}
+                      className={`w-full mt-4 py-3.5 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl font-black text-[10px] uppercase`}
+                    >
+                      Continue to Payment
+                    </button>
+                  </div>
+                )}
 
                 {/* Step 1: Select Payment Method */}
                 {paymentStep === 'select' && (
@@ -1266,7 +1490,7 @@ const CashierPOS = () => {
                             onChange={toggleSplitPayment}
                             className="sr-only"
                           />
-                          <div className={`w-10 h-5 rounded-full transition-colors ${isSplitPayment ? 'bg-indigo-500' : darkMode ? 'bg-slate-600' : 'bg-gray-300'}`}>
+                          <div className={`w-10 h-5 rounded-full transition-colors ${isSplitPayment ? 'bg-accent-500' : darkMode ? 'bg-slate-600' : 'bg-gray-300'}`}>
                             <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform mt-0.5 ${isSplitPayment ? 'translate-x-5 ml-0.5' : 'translate-x-0.5'}`}></div>
                           </div>
                         </div>
@@ -1276,32 +1500,32 @@ const CashierPOS = () => {
                       )}
                     </div>
 
-                    {/* Payment Methods */}
-                    <div className="space-y-3">
+                    {/* Payment Methods - Compact Cards */}
+                    <div className="space-y-2">
                       {[
                         { id: 'Cash', label: 'Cash', icon: Banknote },
-                        { id: 'Card', label: 'Debit/Credit Card', icon: CreditCard },
+                        { id: 'Card', label: 'Card', icon: CreditCard },
                         { id: 'Momo', label: 'Mobile Money', icon: Smartphone }
                       ].map(({ id, label, icon: Icon }) => (
                         <button
                           key={id}
                           onClick={() => isSplitPayment ? toggleMethod(id) : selectSingleMethod(id)}
-                          className={`w-full p-4 border rounded-2xl flex items-center gap-4 transition-all ${
+                          className={`w-full p-2.5 border rounded-xl flex items-center gap-3 transition-all ${
                             isSplitPayment && selectedMethods.includes(id)
-                              ? 'border-indigo-500 bg-indigo-50'
-                              : `${borderClass} hover:bg-indigo-50 hover:border-indigo-500`
-                          } group`}
+                              ? 'border-accent-500 bg-accent-50'
+                              : `${borderClass} hover:bg-accent-50 hover:border-accent-500`
+                          } ${darkMode && isSplitPayment && selectedMethods.includes(id) ? 'bg-accent-900/30' : ''} group`}
                         >
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
                             isSplitPayment && selectedMethods.includes(id)
-                              ? 'bg-indigo-500 text-white'
-                              : `${bgClass} group-hover:bg-indigo-500 group-hover:text-white`
+                              ? 'bg-accent-500 text-white'
+                              : `${bgClass} group-hover:bg-accent-500 group-hover:text-white`
                           }`}>
-                            <Icon className="w-5 h-5" />
+                            <Icon className="w-4 h-4" />
                           </div>
-                          <span className={`font-bold text-sm flex-1 text-left ${textClass}`}>{label}</span>
+                          <span className={`font-bold text-xs flex-1 text-left ${textClass}`}>{label}</span>
                           {isSplitPayment && selectedMethods.includes(id) && (
-                            <CheckCircle className="w-5 h-5 text-indigo-500" />
+                            <CheckCircle className="w-4 h-4 text-accent-500" />
                           )}
                         </button>
                       ))}
@@ -1311,7 +1535,7 @@ const CashierPOS = () => {
                     {isSplitPayment && selectedMethods.length >= 2 && (
                       <button
                         onClick={proceedToSplitAmount}
-                        className="w-full mt-4 py-3.5 bg-indigo-500 text-white rounded-xl font-black text-[10px] uppercase hover:bg-indigo-600 transition-colors"
+                        className="w-full mt-4 py-3.5 bg-accent-500 text-white rounded-xl font-black text-[10px] uppercase hover:bg-accent-600 transition-colors"
                       >
                         Continue with {selectedMethods.length} Methods
                       </button>
@@ -1324,50 +1548,50 @@ const CashierPOS = () => {
                   <div className="flex-1 flex flex-col min-h-0">
                     <div className="flex-1 overflow-y-auto space-y-4">
                       {isSplitPayment ? (
-                        // Split Payment Amount Inputs
+                        // Split Payment Amount Inputs - Compact
                         <>
-                          {selectedMethods.map((method) => {
-                            const Icon = method === 'Cash' ? Banknote : method === 'Card' ? CreditCard : Smartphone;
-                            return (
-                              <div key={method} className={`p-4 rounded-xl border ${borderClass}`}>
-                                <div className="flex items-center gap-3 mb-3">
-                                  <div className={`w-8 h-8 ${bgClass} rounded-lg flex items-center justify-center`}>
-                                    <Icon className="w-4 h-4" />
+                          <div className={`p-3 rounded-xl border ${borderClass} space-y-2`}>
+                            {selectedMethods.map((method) => {
+                              const Icon = method === 'Cash' ? Banknote : method === 'Card' ? CreditCard : Smartphone;
+                              return (
+                                <div key={method} className="flex items-center gap-2">
+                                  <div className={`w-7 h-7 ${bgClass} rounded-lg flex items-center justify-center shrink-0`}>
+                                    <Icon className="w-3.5 h-3.5" />
                                   </div>
-                                  <span className={`text-sm font-bold ${textClass}`}>{method}</span>
+                                  <span className={`text-xs font-bold ${textClass} w-12 shrink-0`}>{method}</span>
+                                  <div className="relative flex-1">
+                                    <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${mutedClass}`}>
+                                      {currencySymbol}
+                                    </span>
+                                    <input
+                                      type="number"
+                                      value={paymentAmounts[method] || ''}
+                                      onChange={(e) => updateSplitAmount(method, e.target.value)}
+                                      placeholder="0.00"
+                                      className={`w-full ${bgClass} border ${borderClass} rounded-lg py-2 pl-7 pr-3 text-sm font-bold focus:outline-none focus:border-accent-500 ${textClass}`}
+                                    />
+                                  </div>
                                 </div>
-                                <div className="relative">
-                                  <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${mutedClass}`}>
-                                    {currencySymbol}
-                                  </span>
-                                  <input
-                                    type="number"
-                                    value={paymentAmounts[method] || ''}
-                                    onChange={(e) => updateSplitAmount(method, e.target.value)}
-                                    placeholder="0.00"
-                                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-3 pl-10 pr-4 text-lg font-bold focus:outline-none focus:border-indigo-500 ${textClass}`}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
 
-                          {/* Split Payment Summary */}
-                          <div className={`p-4 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                            <div className="flex justify-between mb-2">
-                              <span className={`text-xs font-bold ${mutedClass}`}>Split Total</span>
-                              <span className={`text-sm font-black ${getSplitTotal() >= getCartTotal() ? 'text-green-500' : 'text-red-500'}`}>
+                          {/* Split Payment Summary - Compact */}
+                          <div className={`p-3 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                            <div className="flex justify-between items-center">
+                              <span className={`text-[10px] font-bold ${mutedClass}`}>Split Total</span>
+                              <span className={`text-sm font-black ${getSplitTotal() >= getCartTotal() ? 'text-positive-500' : 'text-negative-500'}`}>
                                 {formatCurrency(getSplitTotal())}
                               </span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className={`text-xs font-bold ${mutedClass}`}>Required</span>
-                              <span className={`text-sm font-black ${textClass}`}>{formatCurrency(getCartTotal())}</span>
+                            <div className="flex justify-between items-center mt-1">
+                              <span className={`text-[10px] font-bold ${mutedClass}`}>Required</span>
+                              <span className={`text-xs font-bold ${textClass}`}>{formatCurrency(getCartTotal())}</span>
                             </div>
                             {getSplitTotal() > getCartTotal() && (
-                              <div className={`flex justify-between mt-2 pt-2 border-t ${borderClass}`}>
-                                <span className={`text-xs font-bold ${mutedClass}`}>Change</span>
-                                <span className="text-sm font-black text-green-500">
+                              <div className={`flex justify-between items-center mt-2 pt-2 border-t ${borderClass}`}>
+                                <span className={`text-[10px] font-bold text-positive-600`}>Change</span>
+                                <span className="text-sm font-black text-positive-500">
                                   {formatCurrency(getSplitTotal() - getCartTotal())}
                                 </span>
                               </div>
@@ -1401,9 +1625,9 @@ const CashierPOS = () => {
                                 autoFocus
                                 className={`w-full ${bgClass} border-2 ${
                                   amountTendered && parseFloat(amountTendered) >= getCartTotal()
-                                    ? 'border-green-500'
+                                    ? 'border-positive-500'
                                     : borderClass
-                                } rounded-xl py-4 pl-12 pr-4 text-2xl font-black focus:outline-none focus:border-indigo-500 ${textClass}`}
+                                } rounded-xl py-4 pl-12 pr-4 text-2xl font-black focus:outline-none focus:border-accent-500 ${textClass}`}
                               />
                             </div>
                           </div>
@@ -1422,7 +1646,7 @@ const CashierPOS = () => {
                                 <button
                                   key={amount}
                                   onClick={() => setAmountTendered(amount.toString())}
-                                  className={`py-2.5 px-3 border ${borderClass} rounded-xl text-xs font-bold ${textClass} hover:border-indigo-500 hover:bg-indigo-50 transition-colors`}
+                                  className={`py-2.5 px-3 border ${borderClass} rounded-xl text-xs font-bold ${textClass} hover:border-accent-500 hover:bg-accent-50 transition-colors`}
                                 >
                                   {formatCurrency(amount)}
                                 </button>
@@ -1437,7 +1661,7 @@ const CashierPOS = () => {
                                 <span className={`text-xs font-bold uppercase ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
                                   Change to Give
                                 </span>
-                                <span className={`text-2xl font-black ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                                <span className={`text-2xl font-black ${darkMode ? 'text-green-400' : 'text-positive-600'}`}>
                                   {formatCurrency(getChange())}
                                 </span>
                               </div>
@@ -1445,8 +1669,8 @@ const CashierPOS = () => {
                           )}
 
                           {amountTendered && parseFloat(amountTendered) < getCartTotal() && (
-                            <div className={`p-3 rounded-xl bg-red-50 border border-red-200 ${darkMode ? 'bg-red-900/20 border-red-800' : ''}`}>
-                              <p className={`text-xs font-bold ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                            <div className={`p-3 rounded-xl bg-negative-50 border border-negative-200 ${darkMode ? 'bg-red-900/20 border-negative-800' : ''}`}>
+                              <p className={`text-xs font-bold ${darkMode ? 'text-negative-400' : 'text-negative-600'}`}>
                                 Amount is less than total by {formatCurrency(getCartTotal() - parseFloat(amountTendered))}
                               </p>
                             </div>
@@ -1462,7 +1686,7 @@ const CashierPOS = () => {
                         disabled={!isPaymentValid() || processingPayment}
                         className={`w-full py-4 rounded-xl font-black text-sm uppercase transition-all flex items-center justify-center gap-2 ${
                           isPaymentValid() && !processingPayment
-                            ? 'bg-green-500 text-white hover:bg-green-600 shadow-lg'
+                            ? 'bg-positive-500 text-white hover:bg-green-600 shadow-lg'
                             : `${darkMode ? 'bg-slate-700 text-slate-500' : 'bg-gray-200 text-gray-400'} cursor-not-allowed`
                         }`}
                       >
@@ -1485,114 +1709,129 @@ const CashierPOS = () => {
             )}
 
             {sidebarView === 'receipt' && lastReceipt && (
-              <div className={`${surfaceClass} border ${borderClass} rounded-2xl p-6 flex flex-1 flex-col shadow-sm overflow-hidden`}>
+              <div className={`${surfaceClass} border ${borderClass} rounded-2xl p-4 flex flex-1 flex-col shadow-sm overflow-hidden`}>
                 <div className="flex-1 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
-                  <div className="text-center mb-6">
-                    <h1 className={`text-md font-black uppercase leading-none ${textClass}`}>{user?.tenantName}</h1>
-                    <p className={`text-[9px] font-bold ${mutedClass} uppercase tracking-tighter`}>
-                      Receipt
-                    </p>
+                  {/* Header - Business Info */}
+                  <div className="text-center mb-3">
+                    <h1 className={`text-sm font-black uppercase leading-tight ${textClass}`}>{user?.tenantName}</h1>
+                    <p className={`text-[8px] ${mutedClass} mt-0.5`}>{user?.tenant?.address || 'Business Address'}</p>
+                    <p className={`text-[8px] ${mutedClass}`}>Tel: {user?.tenant?.phone || '0000-000-000'}</p>
                   </div>
-                  <div className={`border-t border-b border-dashed ${borderClass} py-4 mb-4`}>
-                    <div className="flex justify-between text-[10px] mb-1 font-bold">
-                      <span className={mutedClass}>Invoice No:</span>
-                      <span>{lastReceipt.invoiceNo}</span>
+
+                  {/* Receipt Title */}
+                  <div className={`text-center py-2 border-y border-dashed ${borderClass} mb-3`}>
+                    <p className={`text-xs font-black uppercase tracking-wide ${textClass}`}>Sales Receipt</p>
+                  </div>
+
+                  {/* Transaction Details */}
+                  <div className={`text-[9px] space-y-0.5 mb-3`}>
+                    <div className="flex justify-between font-medium">
+                      <span className={mutedClass}>Served by:</span>
+                      <span className={textClass}>{user?.fullName}</span>
                     </div>
-                    <div className="flex justify-between text-[10px] mb-1 font-bold">
+                    <div className="flex justify-between font-medium">
                       <span className={mutedClass}>Date:</span>
-                      <span>{lastReceipt.date} {lastReceipt.time}</span>
+                      <span className={textClass}>{lastReceipt.date} {lastReceipt.time}</span>
                     </div>
-                    <div className="flex justify-between text-[10px] mb-1 font-bold">
-                      <span className={mutedClass}>Cashier:</span>
-                      <span>{user?.fullName}</span>
+                    <div className="flex justify-between font-medium">
+                      <span className={mutedClass}>Order Type:</span>
+                      <span className={textClass}>{lastReceipt.orderType || 'Walk-in'}</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span className={mutedClass}>Invoice #:</span>
+                      <span className={`font-bold ${textClass}`}>{lastReceipt.invoiceNo}</span>
                     </div>
                     {lastReceipt.customer && (
-                      <div className="flex justify-between text-[10px] font-bold">
+                      <div className="flex justify-between font-medium">
                         <span className={mutedClass}>Customer:</span>
-                        <span>{lastReceipt.customer.name}</span>
+                        <span className={textClass}>{lastReceipt.customer.name}</span>
                       </div>
                     )}
                   </div>
-                  <table className="w-full text-[10px] mb-4">
-                    <thead className={`border-b ${borderClass}`}>
-                      <tr className={`${mutedClass} uppercase text-left`}>
-                        <th className="py-2">Item</th>
-                        <th className="py-2 text-center">Qty</th>
-                        <th className="py-2 text-right">Price</th>
+
+                  {/* Items Table */}
+                  <table className="w-full text-[9px] mb-3">
+                    <thead>
+                      <tr className={`border-y border-dashed ${borderClass} ${mutedClass} uppercase`}>
+                        <th className="py-1.5 text-left w-6">Qty</th>
+                        <th className="py-1.5 text-left">Description</th>
+                        <th className="py-1.5 text-right w-14">Price</th>
+                        <th className="py-1.5 text-right w-16">Amount</th>
                       </tr>
                     </thead>
                     <tbody>
                       {lastReceipt.items.map((item, idx) => (
-                        <tr key={idx} className={`border-b ${borderClass}`}>
-                          <td className="py-2">{item.name}</td>
-                          <td className="py-2 text-center">{item.qty}</td>
-                          <td className="py-2 text-right">{formatCurrency(item.sellingPrice * item.qty)}</td>
+                        <tr key={idx} className={`border-b border-dotted ${borderClass}`}>
+                          <td className="py-1.5 text-left">{item.qty}</td>
+                          <td className="py-1.5 text-left">
+                            <span className={textClass}>{item.name}</span>
+                            {item.stylist && (
+                              <span className={`block text-[7px] ${mutedClass}`}>by {item.stylist.fullName}</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 text-right">{formatCurrency(item.sellingPrice)}</td>
+                          <td className="py-1.5 text-right font-medium">{formatCurrency(item.sellingPrice * item.qty)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
 
-                  {/* Totals Section */}
-                  <div className={`space-y-1 py-3 border-t border-dashed ${borderClass}`}>
-                    <div className="flex justify-between text-[10px] font-bold">
-                      <span className={mutedClass}>Subtotal</span>
-                      <span>{formatCurrency(lastReceipt.subtotal)}</span>
+                  {/* Totals */}
+                  <div className={`border-t border-dashed ${borderClass} pt-2 space-y-1`}>
+                    <div className="flex justify-between text-[9px] font-medium">
+                      <span className={mutedClass}>Gross Total:</span>
+                      <span className={textClass}>{formatCurrency(lastReceipt.subtotal)}</span>
                     </div>
-                    <div className={`flex justify-between text-sm font-black pt-1`}>
-                      <span className="uppercase">Total</span>
-                      <span className="text-indigo-500">{formatCurrency(lastReceipt.total)}</span>
+                    <div className="flex justify-between text-[10px] font-black">
+                      <span className={textClass}>Net Total:</span>
+                      <span className="text-accent-600">{formatCurrency(lastReceipt.total)}</span>
                     </div>
                   </div>
 
-                  {/* Payment Details Section */}
-                  <div className={`py-3 border-t border-dashed ${borderClass}`}>
-                    <p className={`text-[9px] font-bold uppercase ${mutedClass} mb-2`}>Payment Details</p>
-
-                    {/* Payment Method(s) */}
-                    {lastReceipt.payments && Object.entries(lastReceipt.payments).map(([method, amount]) => (
-                      <div key={method} className="flex justify-between text-[10px] font-bold mb-1">
-                        <span className="flex items-center gap-2">
-                          {method === 'Cash' && <Banknote className="w-3 h-3" />}
-                          {method === 'Card' && <CreditCard className="w-3 h-3" />}
-                          {method === 'Momo' && <Smartphone className="w-3 h-3" />}
-                          {method}
-                          {lastReceipt.isSplitPayment && <span className={`text-[8px] ${mutedClass}`}>(split)</span>}
-                        </span>
-                        <span>{formatCurrency(parseFloat(amount) || 0)}</span>
-                      </div>
-                    ))}
-
-                    {/* Amount Tendered */}
-                    <div className={`flex justify-between text-[10px] font-bold mt-2 pt-2 border-t ${borderClass}`}>
-                      <span className={mutedClass}>Amount Tendered</span>
-                      <span>{formatCurrency(lastReceipt.amountTendered)}</span>
+                  {/* Payment Info */}
+                  <div className={`border-t border-dashed ${borderClass} mt-2 pt-2 space-y-1`}>
+                    <div className="flex justify-between text-[9px] font-medium">
+                      <span className={mutedClass}>Amount Paid:</span>
+                      <span className={textClass}>{formatCurrency(lastReceipt.amountTendered)}</span>
                     </div>
-
-                    {/* Change */}
                     {lastReceipt.change > 0 && (
-                      <div className="flex justify-between text-sm font-black mt-1">
-                        <span className="text-green-600">Change</span>
-                        <span className="text-green-600">{formatCurrency(lastReceipt.change)}</span>
+                      <div className="flex justify-between text-[9px] font-bold">
+                        <span className="text-positive-600">Change:</span>
+                        <span className="text-positive-600">{formatCurrency(lastReceipt.change)}</span>
                       </div>
                     )}
+                    <div className="flex justify-between text-[9px] font-medium">
+                      <span className={mutedClass}>Payment:</span>
+                      <span className={textClass}>
+                        {lastReceipt.isSplitPayment
+                          ? Object.keys(lastReceipt.payments).join(' + ')
+                          : lastReceipt.method}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Thank You Message */}
-                  <div className={`text-center py-4 border-t border-dashed ${borderClass}`}>
-                    <p className={`text-[10px] font-bold ${textClass}`}>Thank you for your purchase!</p>
-                    <p className={`text-[9px] ${mutedClass}`}>Please come again</p>
+                  {/* Thank You */}
+                  <div className={`text-center py-3 mt-2 border-t border-dashed ${borderClass}`}>
+                    <p className={`text-[9px] font-bold ${textClass}`}>Thank you for your patronage!</p>
+                    <p className={`text-[8px] ${mutedClass}`}>We appreciate your business</p>
+                  </div>
+
+                  {/* Footer */}
+                  <div className={`text-center pt-2 border-t ${borderClass}`}>
+                    <p className={`text-[7px] ${mutedClass}`}>Software by Kameta Samuel</p>
+                    <p className={`text-[7px] ${mutedClass}`}>+233 24 000 0000</p>
                   </div>
                 </div>
-                <div className={`mt-4 pt-4 border-t ${borderClass} space-y-2`}>
+                <div className={`mt-3 pt-3 border-t ${borderClass} space-y-2`}>
                   <button
-                    onClick={() => showToast('Printing...')}
-                    className={`w-full py-3 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2`}
+                    onClick={() => window.print()}
+                    className={`w-full py-2.5 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2`}
                   >
                     <Printer className="w-4 h-4" /> Print Receipt
                   </button>
                   <button
                     onClick={newTransaction}
-                    className="w-full py-2.5 text-indigo-500 font-bold text-[10px] uppercase text-center"
+                    className="w-full py-2 text-accent-500 font-bold text-[10px] uppercase text-center"
                   >
                     New Transaction
                   </button>
@@ -1607,7 +1846,7 @@ const CashierPOS = () => {
       {toast.show && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
           <div className="bg-slate-900 text-white px-8 py-3.5 rounded-2xl shadow-2xl flex items-center gap-4 border border-white/10 animate-fade-in">
-            <CheckCircle className="w-5 h-5 text-green-500" />
+            <CheckCircle className="w-5 h-5 text-positive-500" />
             <span className="font-bold text-[10px] uppercase tracking-wider">{toast.message}</span>
           </div>
         </div>
@@ -1618,7 +1857,7 @@ const CashierPOS = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className={`${surfaceClass} w-full max-w-sm rounded-3xl p-10 shadow-2xl text-center animate-fade-in`}>
             <div className={`w-16 h-16 ${bgClass} rounded-full flex items-center justify-center mx-auto mb-6`}>
-              <HelpCircle className="w-8 h-8 text-indigo-500" />
+              <HelpCircle className="w-8 h-8 text-accent-500" />
             </div>
             <h2 className={`text-lg font-black uppercase ${textClass} mb-2`}>{confirmData.title}</h2>
             <p className={`text-xs ${mutedClass} font-medium mb-8`}>{confirmData.message}</p>
@@ -1648,9 +1887,9 @@ const CashierPOS = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className={`${surfaceClass} w-full max-w-md rounded-3xl shadow-2xl animate-fade-in overflow-hidden`}>
             <div className={`px-6 py-4 border-b ${borderClass} flex items-center justify-between ${
-              requestModalData.type === 'Void' ? 'bg-red-50' : 'bg-indigo-50'
-            } ${darkMode ? (requestModalData.type === 'Void' ? 'bg-red-900/20' : 'bg-indigo-900/20') : ''}`}>
-              <h2 className={`text-lg font-black uppercase ${requestModalData.type === 'Void' ? 'text-red-600' : 'text-indigo-600'}`}>
+              requestModalData.type === 'Void' ? 'bg-negative-50' : 'bg-accent-50'
+            } ${darkMode ? (requestModalData.type === 'Void' ? 'bg-red-900/20' : 'bg-accent-900/20') : ''}`}>
+              <h2 className={`text-lg font-black uppercase ${requestModalData.type === 'Void' ? 'text-negative-600' : 'text-accent-600'}`}>
                 {requestModalData.type === 'Void' ? (
                   <><XCircle className="w-5 h-5 inline mr-2" />Void Request</>
                 ) : (
@@ -1662,7 +1901,7 @@ const CashierPOS = () => {
                   setShowRequestModal(false);
                   setRequestModalData({ sale: null, type: '', reason: '' });
                 }}
-                className={`p-2 ${mutedClass} hover:text-red-500 rounded-lg transition-colors`}
+                className={`p-2 ${mutedClass} hover:text-negative-500 rounded-lg transition-colors`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1679,7 +1918,7 @@ const CashierPOS = () => {
                       {new Date(requestModalData.sale.createdAt).toLocaleString()}
                     </p>
                   </div>
-                  <p className={`text-lg font-black text-indigo-500`}>
+                  <p className={`text-lg font-black text-accent-500`}>
                     {formatCurrency(requestModalData.sale.finalAmount)}
                   </p>
                 </div>
@@ -1688,7 +1927,7 @@ const CashierPOS = () => {
               {/* Reason Input */}
               <div className="mb-6">
                 <label className={`block text-[10px] font-bold uppercase mb-2 ${mutedClass}`}>
-                  Reason for {requestModalData.type} Request <span className="text-red-500">*</span>
+                  Reason for {requestModalData.type} Request <span className="text-negative-500">*</span>
                 </label>
                 <textarea
                   value={requestModalData.reason}
@@ -1698,7 +1937,7 @@ const CashierPOS = () => {
                     : 'e.g., Price discrepancy, Need approval for discount...'
                   }
                   rows={4}
-                  className={`w-full ${bgClass} border ${borderClass} rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-indigo-500 ${textClass} resize-none`}
+                  className={`w-full ${bgClass} border ${borderClass} rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-accent-500 ${textClass} resize-none`}
                 />
               </div>
 
@@ -1719,8 +1958,8 @@ const CashierPOS = () => {
                   className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase transition-colors flex items-center justify-center gap-2 ${
                     requestModalData.reason.trim() && !sendingRequest
                       ? requestModalData.type === 'Void'
-                        ? 'bg-red-500 text-white hover:bg-red-600'
-                        : 'bg-indigo-500 text-white hover:bg-indigo-600'
+                        ? 'bg-negative-500 text-white hover:bg-negative-600'
+                        : 'bg-accent-500 text-white hover:bg-accent-600'
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
@@ -1747,7 +1986,7 @@ const CashierPOS = () => {
               <h2 className={`text-lg font-black uppercase ${textClass}`}>New Customer</h2>
               <button
                 onClick={() => setShowCustomerModal(false)}
-                className={`p-2 ${mutedClass} hover:text-red-500 rounded-lg transition-colors`}
+                className={`p-2 ${mutedClass} hover:text-negative-500 rounded-lg transition-colors`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1755,7 +1994,7 @@ const CashierPOS = () => {
             <div className="p-6 space-y-4">
               <div>
                 <label className={`block text-[10px] font-bold uppercase mb-1.5 ${mutedClass}`}>
-                  Name <span className="text-red-500">*</span>
+                  Name <span className="text-negative-500">*</span>
                 </label>
                 <div className="relative">
                   <User className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedClass}`} />
@@ -1763,7 +2002,7 @@ const CashierPOS = () => {
                     type="text"
                     value={newCustomer.name}
                     onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-indigo-500 ${textClass}`}
+                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-accent-500 ${textClass}`}
                     placeholder="Customer name"
                   />
                 </div>
@@ -1776,7 +2015,7 @@ const CashierPOS = () => {
                     type="tel"
                     value={newCustomer.phone}
                     onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-indigo-500 ${textClass}`}
+                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-accent-500 ${textClass}`}
                     placeholder="+1 234 567 8900"
                   />
                 </div>
@@ -1789,7 +2028,7 @@ const CashierPOS = () => {
                     type="email"
                     value={newCustomer.email}
                     onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
-                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-indigo-500 ${textClass}`}
+                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-accent-500 ${textClass}`}
                     placeholder="customer@example.com"
                   />
                 </div>
@@ -1802,7 +2041,7 @@ const CashierPOS = () => {
                     value={newCustomer.address}
                     onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
                     rows="2"
-                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-indigo-500 ${textClass} resize-none`}
+                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-accent-500 ${textClass} resize-none`}
                     placeholder="Street, City"
                   />
                 </div>
@@ -1815,7 +2054,7 @@ const CashierPOS = () => {
                     value={newCustomer.notes}
                     onChange={(e) => setNewCustomer({ ...newCustomer, notes: e.target.value })}
                     rows="2"
-                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-indigo-500 ${textClass} resize-none`}
+                    className={`w-full ${bgClass} border ${borderClass} rounded-xl py-2.5 pl-10 pr-4 text-sm font-semibold focus:outline-none focus:border-accent-500 ${textClass} resize-none`}
                     placeholder="Special notes..."
                   />
                 </div>
@@ -1840,6 +2079,147 @@ const CashierPOS = () => {
         </div>
       )}
 
+      {/* Receipt Reprint Modal */}
+      {showReceiptModal && receiptData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`${surfaceClass} rounded-2xl w-full max-w-sm shadow-2xl animate-fade-in max-h-[90vh] flex flex-col`}>
+            {/* Modal Header */}
+            <div className={`px-5 py-4 border-b ${borderClass} flex justify-between items-center`}>
+              <h3 className={`text-sm font-black uppercase ${textClass}`}>Receipt</h3>
+              <button
+                onClick={() => setShowReceiptModal(false)}
+                className={`p-1.5 rounded-lg ${mutedClass} hover:${textClass} hover:bg-slate-100`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Receipt Content */}
+            <div className="flex-1 overflow-y-auto p-5" style={{ scrollbarWidth: 'thin' }}>
+              {/* Header - Business Info */}
+              <div className="text-center mb-3">
+                <h1 className={`text-sm font-black uppercase leading-tight ${textClass}`}>{user?.tenantName}</h1>
+                <p className={`text-[8px] ${mutedClass} mt-0.5`}>{user?.tenant?.address || 'Business Address'}</p>
+                <p className={`text-[8px] ${mutedClass}`}>Tel: {user?.tenant?.phone || '0000-000-000'}</p>
+              </div>
+
+              {/* Receipt Title */}
+              <div className={`text-center py-2 border-y border-dashed ${borderClass} mb-3`}>
+                <p className={`text-xs font-black uppercase tracking-wide ${textClass}`}>Sales Receipt</p>
+              </div>
+
+              {/* Transaction Details */}
+              <div className={`text-[9px] space-y-0.5 mb-3`}>
+                <div className="flex justify-between font-medium">
+                  <span className={mutedClass}>Served by:</span>
+                  <span className={textClass}>{receiptData.cashier || user?.fullName}</span>
+                </div>
+                <div className="flex justify-between font-medium">
+                  <span className={mutedClass}>Date:</span>
+                  <span className={textClass}>{receiptData.date} {receiptData.time}</span>
+                </div>
+                <div className="flex justify-between font-medium">
+                  <span className={mutedClass}>Order Type:</span>
+                  <span className={textClass}>{receiptData.orderType || 'Walk-in'}</span>
+                </div>
+                <div className="flex justify-between font-medium">
+                  <span className={mutedClass}>Invoice #:</span>
+                  <span className={`font-bold ${textClass}`}>{receiptData.invoiceNo}</span>
+                </div>
+                {receiptData.customer && (
+                  <div className="flex justify-between font-medium">
+                    <span className={mutedClass}>Customer:</span>
+                    <span className={textClass}>{receiptData.customer.name}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Items Table */}
+              <table className="w-full text-[9px] mb-3">
+                <thead>
+                  <tr className={`border-y border-dashed ${borderClass} ${mutedClass} uppercase`}>
+                    <th className="py-1.5 text-left w-6">Qty</th>
+                    <th className="py-1.5 text-left">Description</th>
+                    <th className="py-1.5 text-right w-14">Price</th>
+                    <th className="py-1.5 text-right w-16">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receiptData.items.map((item, idx) => (
+                    <tr key={idx} className={`border-b border-dotted ${borderClass}`}>
+                      <td className="py-1.5 text-left">{item.qty}</td>
+                      <td className="py-1.5 text-left">
+                        <span className={textClass}>{item.name}</span>
+                        {item.stylist && (
+                          <span className={`block text-[7px] ${mutedClass}`}>by {item.stylist.fullName}</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-right">{formatCurrency(item.sellingPrice)}</td>
+                      <td className="py-1.5 text-right font-medium">{formatCurrency(item.sellingPrice * item.qty)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Totals */}
+              <div className={`border-t border-dashed ${borderClass} pt-2 space-y-1`}>
+                <div className="flex justify-between text-[9px] font-medium">
+                  <span className={mutedClass}>Gross Total:</span>
+                  <span className={textClass}>{formatCurrency(receiptData.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-[10px] font-black">
+                  <span className={textClass}>Net Total:</span>
+                  <span className="text-accent-600">{formatCurrency(receiptData.total)}</span>
+                </div>
+              </div>
+
+              {/* Payment Info */}
+              <div className={`border-t border-dashed ${borderClass} mt-2 pt-2 space-y-1`}>
+                <div className="flex justify-between text-[9px] font-medium">
+                  <span className={mutedClass}>Amount Paid:</span>
+                  <span className={textClass}>{formatCurrency(receiptData.amountTendered)}</span>
+                </div>
+                {receiptData.change > 0 && (
+                  <div className="flex justify-between text-[9px] font-bold">
+                    <span className="text-positive-600">Change:</span>
+                    <span className="text-positive-600">{formatCurrency(receiptData.change)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-[9px] font-medium">
+                  <span className={mutedClass}>Payment:</span>
+                  <span className={textClass}>{receiptData.method}</span>
+                </div>
+              </div>
+
+              {/* Thank You */}
+              <div className={`text-center py-3 mt-2 border-t border-dashed ${borderClass}`}>
+                <p className={`text-[9px] font-bold ${textClass}`}>Thank you for your patronage!</p>
+                <p className={`text-[8px] ${mutedClass}`}>We appreciate your business</p>
+              </div>
+
+              {/* Footer */}
+              <div className={`text-center pt-2 border-t ${borderClass}`}>
+                <p className={`text-[7px] ${mutedClass}`}>Software by Kameta Samuel</p>
+                <p className={`text-[7px] ${mutedClass}`}>+233 24 000 0000</p>
+              </div>
+            </div>
+
+            {/* Modal Footer - Print Button */}
+            <div className={`px-5 py-4 border-t ${borderClass}`}>
+              <button
+                onClick={() => {
+                  window.print();
+                  setShowReceiptModal(false);
+                }}
+                className={`w-full py-3 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2`}
+              >
+                <Printer className="w-4 h-4" /> Print Receipt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes fade-in {
           from { opacity: 0; transform: scale(0.95); }
@@ -1847,6 +2227,30 @@ const CashierPOS = () => {
         }
         .animate-fade-in {
           animation: fade-in 0.2s ease-out;
+        }
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .fixed.inset-0 {
+            position: absolute;
+            background: white !important;
+          }
+          .fixed.inset-0 > div {
+            visibility: visible;
+            position: absolute;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+            max-width: 300px;
+            box-shadow: none !important;
+          }
+          .fixed.inset-0 > div * {
+            visibility: visible;
+          }
+          .fixed.inset-0 button {
+            display: none !important;
+          }
         }
       `}</style>
     </div>

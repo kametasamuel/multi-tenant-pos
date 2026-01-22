@@ -90,6 +90,7 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
           cashierId,
           customerId: customerId || null,
           tenantId: req.tenantId,
+          branchId: req.branchId || null, // Tag sale with user's branch
           items: {
             create: saleItemsData
           }
@@ -148,8 +149,9 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
     await logAudit(req.tenantId, cashierId, 'sale_created', `Sale created: ${transactionNumber}`, {
       saleId: sale.id,
       finalAmount,
-      paymentMethod
-    });
+      paymentMethod,
+      branchId: req.branchId
+    }, req.branchId);
 
     res.status(201).json({ sale });
   } catch (error) {
@@ -158,22 +160,41 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
   }
 });
 
-// Get all sales (Admin sees all, Cashier sees own)
+// Get all sales (filtered by role and parameters)
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { startDate, endDate, cashierId } = req.query;
-    
+    const { startDate, endDate, cashierId, ownSalesOnly, branchId, page = 1, limit = 100 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
     const where = {
       tenantId: req.tenantId
     };
 
-    // Cashiers can only see their own sales
+    // Cashiers always see only their own sales
+    // Managers see only their branch's sales (unless viewing POS with ownSalesOnly)
+    // Owners/Admins see all tenant sales (can filter by branchId)
     if (req.user.role === 'CASHIER') {
       where.cashierId = req.user.id;
+    } else if (ownSalesOnly === 'true') {
+      // When using POS terminal, see only their own sales
+      where.cashierId = req.user.id;
+    } else if (req.user.role === 'MANAGER' && req.branchId) {
+      // Managers see only their branch's sales
+      where.branchId = req.branchId;
+      if (cashierId) {
+        where.cashierId = cashierId;
+      }
+    } else if (branchId) {
+      // Owner/Admin filtering by specific branch
+      where.branchId = branchId;
+      if (cashierId) {
+        where.cashierId = cashierId;
+      }
     } else if (cashierId) {
-      // Admin can filter by cashier
+      // Admin can filter by specific cashier
       where.cashierId = cashierId;
     }
+    // If none of above, admin/owner sees all tenant sales (for reports/oversight)
 
     if (startDate || endDate) {
       where.createdAt = {};
@@ -181,26 +202,45 @@ router.get('/', authenticate, async (req, res) => {
       if (endDate) where.createdAt.lte = new Date(endDate);
     }
 
-    const sales = await prisma.sale.findMany({
-      where,
-      include: {
-        items: {
-          include: {
-            product: true
+    const [sales, total] = await Promise.all([
+      prisma.sale.findMany({
+        where,
+        include: {
+          items: {
+            include: {
+              product: true
+            }
+          },
+          cashier: {
+            select: {
+              fullName: true,
+              username: true,
+              branchId: true
+            }
+          },
+          branch: {
+            select: {
+              id: true,
+              name: true
+            }
           }
         },
-        cashier: {
-          select: {
-            fullName: true,
-            username: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100 // Limit to recent 100
-    });
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit)
+      }),
+      prisma.sale.count({ where })
+    ]);
 
-    res.json({ sales });
+    res.json({
+      sales,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
   } catch (error) {
     console.error('Get sales error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -218,6 +258,9 @@ router.get('/:id', authenticate, async (req, res) => {
     // Cashiers can only see their own sales
     if (req.user.role === 'CASHIER') {
       where.cashierId = req.user.id;
+    } else if (req.user.role === 'MANAGER' && req.branchId) {
+      // Managers can only see their branch's sales
+      where.branchId = req.branchId;
     }
 
     const sale = await prisma.sale.findFirst({
@@ -233,6 +276,9 @@ router.get('/:id', authenticate, async (req, res) => {
             fullName: true,
             username: true
           }
+        },
+        branch: {
+          select: { id: true, name: true }
         }
       }
     });
@@ -293,8 +339,9 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
 
     await logAudit(req.tenantId, req.user.id, 'sale_voided', `Voided sale: ${sale.transactionNumber}`, {
       saleId: sale.id,
-      originalAmount: sale.finalAmount
-    });
+      originalAmount: sale.finalAmount,
+      branchId: sale.branchId
+    }, sale.branchId);
 
     res.json({ message: 'Sale voided successfully' });
   } catch (error) {

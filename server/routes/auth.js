@@ -24,7 +24,13 @@ router.post('/login', validateLogin, async (req, res) => {
         }
       },
       include: {
-        tenant: true
+        tenant: true,
+        branch: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       },
       orderBy: {
         isSuperAdmin: 'desc' // Check super admin first
@@ -84,7 +90,8 @@ router.post('/login', validateLogin, async (req, res) => {
         action: 'user_login',
         description: `User ${user.username} logged in`,
         userId: user.id,
-        tenantId: user.tenantId
+        tenantId: user.tenantId,
+        branchId: user.branchId
       }
     });
 
@@ -97,7 +104,12 @@ router.post('/login', validateLogin, async (req, res) => {
         role: user.role,
         tenantId: user.tenantId,
         tenantName: user.tenant?.businessName || 'Super Admin',
-        isSuperAdmin: isSuperAdmin
+        isSuperAdmin: isSuperAdmin,
+        currency: user.tenant?.currency || 'USD',
+        currencySymbol: user.tenant?.currencySymbol || '$',
+        taxRate: user.tenant?.taxRate || 0,
+        branchId: user.branchId,
+        branchName: user.branch?.name || null
       }
     });
   } catch (error) {
@@ -123,12 +135,21 @@ router.get('/me', authenticate, async (req, res) => {
         fullName: true,
         role: true,
         tenantId: true,
+        branchId: true,
         tenant: {
           select: {
             businessName: true,
             businessLogo: true,
             subscriptionEnd: true,
-            currencySymbol: true
+            currency: true,
+            currencySymbol: true,
+            taxRate: true
+          }
+        },
+        branch: {
+          select: {
+            id: true,
+            name: true
           }
         },
         isSuperAdmin: true
@@ -138,7 +159,11 @@ router.get('/me', authenticate, async (req, res) => {
     res.json({ user: {
       ...user,
       tenantName: user.tenant?.businessName || 'Super Admin',
-      currencySymbol: user.tenant?.currencySymbol || '$'
+      currency: user.tenant?.currency || 'USD',
+      currencySymbol: user.tenant?.currencySymbol || '$',
+      taxRate: user.tenant?.taxRate || 0,
+      branchId: user.branchId,
+      branchName: user.branch?.name || null
     } });
   } catch (error) {
     console.error('Get user error:', error);

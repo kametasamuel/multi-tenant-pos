@@ -8,8 +8,8 @@ const prisma = new PrismaClient();
 // Get dashboard summary (Admin only)
 router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
-    
+    const { startDate, endDate, branchId } = req.query;
+
     const dateFilter = {};
     if (startDate || endDate) {
       dateFilter.createdAt = {};
@@ -17,12 +17,21 @@ router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
       if (endDate) dateFilter.createdAt.lte = new Date(endDate);
     }
 
+    // Build branch filter - Managers see only their branch, Owners can filter or see all
+    const branchFilter = {};
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      branchFilter.branchId = req.branchId;
+    } else if (branchId) {
+      branchFilter.branchId = branchId;
+    }
+
     // Total sales
     const totalSales = await prisma.sale.aggregate({
       where: {
         tenantId: req.tenantId,
         paymentStatus: 'completed',
-        ...dateFilter
+        ...dateFilter,
+        ...branchFilter
       },
       _sum: {
         finalAmount: true
@@ -33,7 +42,8 @@ router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
     const totalExpenses = await prisma.expense.aggregate({
       where: {
         tenantId: req.tenantId,
-        ...dateFilter
+        ...dateFilter,
+        ...branchFilter
       },
       _sum: {
         amount: true
@@ -50,7 +60,8 @@ router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
       where: {
         tenantId: req.tenantId,
         paymentStatus: 'completed',
-        ...dateFilter
+        ...dateFilter,
+        ...branchFilter
       }
     });
 

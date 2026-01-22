@@ -43,16 +43,18 @@ const authenticate = async (req, res, next) => {
 
     req.user = user;
     req.tenantId = user.tenantId;
+    req.branchId = user.branchId; // User's assigned branch
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
 
-// Check if user has admin role
+// Check if user has admin/manager role (ADMIN, OWNER, or MANAGER)
 const requireAdmin = (req, res, next) => {
   const isSuperAdmin = req.user.isSuperAdmin === true;
-  if (req.user.role !== 'ADMIN' && !isSuperAdmin) {
+  const allowedRoles = ['ADMIN', 'OWNER', 'MANAGER'];
+  if (!allowedRoles.includes(req.user.role) && !isSuperAdmin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
@@ -66,8 +68,28 @@ const requireSuperAdmin = (req, res, next) => {
   next();
 };
 
+// Check if user is owner (OWNER or ADMIN role)
+const requireOwner = (req, res, next) => {
+  const isSuperAdmin = req.user.isSuperAdmin === true;
+  const ownerRoles = ['OWNER', 'ADMIN'];
+  if (!ownerRoles.includes(req.user.role) && !isSuperAdmin) {
+    return res.status(403).json({ error: 'Owner access required' });
+  }
+  next();
+};
+
+// Check if user is manager or higher
+const requireManager = (req, res, next) => {
+  const isSuperAdmin = req.user.isSuperAdmin === true;
+  const managerRoles = ['MANAGER', 'OWNER', 'ADMIN'];
+  if (!managerRoles.includes(req.user.role) && !isSuperAdmin) {
+    return res.status(403).json({ error: 'Manager access required' });
+  }
+  next();
+};
+
 // Log audit trail
-const logAudit = async (tenantId, userId, action, description = null, metadata = null) => {
+const logAudit = async (tenantId, userId, action, description = null, metadata = null, branchId = null) => {
   try {
     await prisma.auditLog.create({
       data: {
@@ -75,7 +97,8 @@ const logAudit = async (tenantId, userId, action, description = null, metadata =
         description,
         metadata: metadata ? JSON.stringify(metadata) : null,
         userId,
-        tenantId
+        tenantId,
+        branchId
       }
     });
   } catch (error) {
@@ -86,6 +109,8 @@ const logAudit = async (tenantId, userId, action, description = null, metadata =
 module.exports = {
   authenticate,
   requireAdmin,
+  requireOwner,
+  requireManager,
   requireSuperAdmin,
   logAudit,
   JWT_SECRET

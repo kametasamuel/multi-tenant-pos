@@ -17,9 +17,12 @@ const validateLogin = [
 
 const validateCreateProduct = [
   body('name').trim().notEmpty().withMessage('Product name is required'),
-  body('costPrice').isFloat({ min: 0 }).withMessage('Cost price must be a positive number'),
+  body('costPrice').optional().isFloat({ min: 0 }).withMessage('Cost price must be a positive number'),
   body('sellingPrice').isFloat({ min: 0 }).withMessage('Selling price must be a positive number'),
   body('stockQuantity').optional().isInt({ min: 0 }).withMessage('Stock quantity must be a non-negative integer'),
+  body('lowStockThreshold').optional().isInt({ min: 0 }).withMessage('Low stock threshold must be a non-negative integer'),
+  body('customCategory').optional().trim(),
+  body('expiryDate').optional(),
   handleValidationErrors
 ];
 
@@ -42,7 +45,7 @@ const validateCreateUser = [
   body('username').trim().notEmpty().withMessage('Username is required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('fullName').trim().notEmpty().withMessage('Full name is required'),
-  body('role').isIn(['CASHIER', 'ADMIN']).withMessage('Invalid role'),
+  body('role').isIn(['CASHIER', 'MANAGER', 'OWNER', 'ADMIN']).withMessage('Invalid role'),
   handleValidationErrors
 ];
 

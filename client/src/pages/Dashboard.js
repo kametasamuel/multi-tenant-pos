@@ -41,8 +41,8 @@ const Dashboard = () => {
   const [showExpenseModal, setShowExpenseModal] = useState(false);
 
   // Currency settings from tenant (with fallback)
-  const currencySymbol = user?.tenant?.currencySymbol || '$';
-  const taxRate = user?.tenant?.taxRate || 0;
+  const currencySymbol = user?.currencySymbol || user?.tenant?.currencySymbol || '$';
+  const taxRate = user?.taxRate || user?.tenant?.taxRate || 0;
 
   useEffect(() => {
     loadProducts();
@@ -222,7 +222,7 @@ const Dashboard = () => {
                   </div>
                   <button
                     onClick={() => removeItem(item.productId)}
-                    className="text-gray-400 hover:text-red-500 transition-colors"
+                    className="text-gray-400 hover:text-negative-500 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -387,7 +387,7 @@ const Dashboard = () => {
                     <DollarSign className="w-4 h-4 text-emerald-500" />
                     <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400">Net Profit</h3>
                   </div>
-                  <p className={`text-xl md:text-2xl font-bold ${(dashboardData.netProfit || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                  <p className={`text-xl md:text-2xl font-bold ${(dashboardData.netProfit || 0) >= 0 ? 'text-emerald-500' : 'text-negative-500'}`}>
                     {formatCurrency(dashboardData.netProfit || 0)}
                   </p>
                 </div>
