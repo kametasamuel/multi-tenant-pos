@@ -1564,7 +1564,7 @@ const CashierPOS = ({
                                   </div>
                                   <span className={`text-xs font-bold ${textClass} w-12 shrink-0`}>{method}</span>
                                   <div className="relative flex-1">
-                                    <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${mutedClass}`}>
+                                    <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold ${mutedClass}`}>
                                       {currencySymbol}
                                     </span>
                                     <input
@@ -1572,7 +1572,7 @@ const CashierPOS = ({
                                       value={paymentAmounts[method] || ''}
                                       onChange={(e) => updateSplitAmount(method, e.target.value)}
                                       placeholder="0.00"
-                                      className={`w-full ${bgClass} border ${borderClass} rounded-lg py-2 pl-7 pr-3 text-sm font-bold focus:outline-none focus:border-accent-500 ${textClass}`}
+                                      className={`w-full ${bgClass} border ${borderClass} rounded-lg py-2 pl-10 pr-3 text-sm font-bold focus:outline-none focus:border-accent-500 ${textClass}`}
                                     />
                                   </div>
                                 </div>
@@ -1618,7 +1618,7 @@ const CashierPOS = ({
                               Amount Tendered
                             </label>
                             <div className="relative">
-                              <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold ${mutedClass}`}>
+                              <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold ${mutedClass}`}>
                                 {currencySymbol}
                               </span>
                               <input
@@ -1631,7 +1631,7 @@ const CashierPOS = ({
                                   amountTendered && parseFloat(amountTendered) >= getCartTotal()
                                     ? 'border-positive-500'
                                     : borderClass
-                                } rounded-xl py-4 pl-12 pr-4 text-2xl font-black focus:outline-none focus:border-accent-500 ${textClass}`}
+                                } rounded-xl py-4 pl-16 pr-4 text-2xl font-black focus:outline-none focus:border-accent-500 ${textClass}`}
                               />
                             </div>
                           </div>
