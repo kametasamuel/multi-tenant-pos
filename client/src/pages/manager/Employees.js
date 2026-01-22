@@ -13,7 +13,13 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Briefcase
+  Briefcase,
+  Plus,
+  X,
+  Eye,
+  EyeOff,
+  UserPlus,
+  Key
 } from 'lucide-react';
 
 const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, bgClass }) => {
@@ -24,6 +30,27 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
   const [expandedEmployee, setExpandedEmployee] = useState(null);
   const [filterRole, setFilterRole] = useState('All');
 
+  // Add Cashier Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [newCashier, setNewCashier] = useState({
+    username: '',
+    password: '',
+    fullName: '',
+    phone: '',
+    email: '',
+    address: ''
+  });
+
+  // Reset Password Modal State
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmployee, setResetEmployee] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+
   useEffect(() => {
     loadEmployees();
   }, []);
@@ -31,14 +58,68 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
   const loadEmployees = async () => {
     try {
       const response = await usersAPI.getAll();
-      // Filter to only show employees (not the manager themselves, and not super admin)
+      // Filter to only show workers (MANAGER and CASHIER) - exclude ADMIN, OWNER, and super admin
       const allUsers = response.data.users || response.data || [];
-      setEmployees(allUsers.filter(u => !u.isSuperAdmin));
+      setEmployees(allUsers.filter(u =>
+        !u.isSuperAdmin &&
+        u.role !== 'ADMIN' &&
+        u.role !== 'OWNER'
+      ));
     } catch (error) {
       console.error('Error loading employees:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddCashier = async (e) => {
+    e.preventDefault();
+    setAddLoading(true);
+    setAddError('');
+
+    try {
+      await usersAPI.create({
+        ...newCashier,
+        role: 'CASHIER'
+      });
+      setShowAddModal(false);
+      setNewCashier({
+        username: '',
+        password: '',
+        fullName: '',
+        phone: '',
+        email: '',
+        address: ''
+      });
+      loadEmployees();
+    } catch (error) {
+      setAddError(error.response?.data?.error || 'Failed to add cashier');
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (!resetEmployee || !newPassword) return;
+
+    setResetLoading(true);
+    try {
+      await usersAPI.resetPassword(resetEmployee.id, newPassword);
+      setShowResetModal(false);
+      setResetEmployee(null);
+      setNewPassword('');
+    } catch (error) {
+      console.error('Failed to reset password:', error);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const openResetModal = (employee) => {
+    setResetEmployee(employee);
+    setNewPassword('');
+    setShowResetModal(true);
   };
 
   const getRoleBadgeColor = (role) => {
@@ -70,7 +151,10 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
     return matchesSearch && matchesRole;
   });
 
-  const roles = ['All', ...new Set(employees.map(e => e.role))];
+  // Only show MANAGER and CASHIER roles in filter
+  const roles = ['All', 'MANAGER', 'CASHIER'].filter(role =>
+    role === 'All' || employees.some(e => e.role === role)
+  );
 
   if (loading) {
     return (
@@ -83,19 +167,28 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className={`text-xl sm:text-2xl font-black uppercase tracking-tighter ${textClass}`}>
-          Employees
-        </h1>
-        <p className={`text-sm ${mutedClass}`}>
-          View and manage your team members
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className={`text-xl sm:text-2xl font-black uppercase tracking-tighter ${textClass}`}>
+            Workers
+          </h1>
+          <p className={`text-sm ${mutedClass}`}>
+            View and manage your team members
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-accent-500 text-white rounded-xl text-xs font-bold uppercase hover:bg-accent-600 transition-colors shadow-lg"
+        >
+          <UserPlus className="w-4 h-4" />
+          <span className="hidden sm:inline">Add Cashier</span>
+        </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className={`${surfaceClass} border ${borderClass} rounded-xl p-4`}>
-          <p className={`text-[10px] font-bold uppercase ${mutedClass}`}>Total Staff</p>
+          <p className={`text-[10px] font-bold uppercase ${mutedClass}`}>Total Workers</p>
           <p className={`text-2xl font-black ${textClass}`}>{employees.length}</p>
         </div>
         <div className={`${surfaceClass} border ${borderClass} rounded-xl p-4`}>
@@ -330,6 +423,22 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                         <p className={`text-sm ${textClass}`}>{employee.notes}</p>
                       </div>
                     )}
+
+                    {/* Actions - Only for cashiers */}
+                    {employee.role === 'CASHIER' && (
+                      <div className={`mt-4 pt-4 border-t ${borderClass} flex gap-2`}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openResetModal(employee);
+                          }}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-gray-100 hover:bg-gray-200'} ${textClass} transition-colors`}
+                        >
+                          <Key className="w-3.5 h-3.5" />
+                          Reset Password
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -337,6 +446,179 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
           })
         )}
       </div>
+
+      {/* Add Cashier Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
+          <div
+            className={`${surfaceClass} w-full max-w-md rounded-[32px] p-6 shadow-2xl border ${borderClass}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className={`text-lg font-black uppercase ${textClass}`}>Add Cashier</h2>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className={`p-2 rounded-xl ${mutedClass} hover:bg-gray-100 dark:hover:bg-slate-700`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {addError && (
+              <div className="mb-4 p-3 bg-red-100 text-negative-700 rounded-xl text-sm">
+                {addError}
+              </div>
+            )}
+
+            <form onSubmit={handleAddCashier} className="space-y-4">
+              <div>
+                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Username *</label>
+                <input
+                  type="text"
+                  value={newCashier.username}
+                  onChange={(e) => setNewCashier({ ...newCashier, username: e.target.value })}
+                  className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Password *</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newCashier.password}
+                    onChange={(e) => setNewCashier({ ...newCashier, password: e.target.value })}
+                    className={`w-full px-4 py-3 pr-12 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 ${mutedClass}`}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Full Name *</label>
+                <input
+                  type="text"
+                  value={newCashier.fullName}
+                  onChange={(e) => setNewCashier({ ...newCashier, fullName: e.target.value })}
+                  className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Phone</label>
+                <input
+                  type="tel"
+                  value={newCashier.phone}
+                  onChange={(e) => setNewCashier({ ...newCashier, phone: e.target.value })}
+                  className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
+                />
+              </div>
+
+              <div>
+                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Email</label>
+                <input
+                  type="email"
+                  value={newCashier.email}
+                  onChange={(e) => setNewCashier({ ...newCashier, email: e.target.value })}
+                  className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className={`flex-1 py-3 rounded-xl text-sm font-bold ${mutedClass} border ${borderClass} hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addLoading}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold bg-accent-500 text-white hover:bg-accent-600 transition-colors disabled:opacity-50"
+                >
+                  {addLoading ? 'Adding...' : 'Add Cashier'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {showResetModal && resetEmployee && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowResetModal(false)}>
+          <div
+            className={`${surfaceClass} w-full max-w-sm rounded-[32px] p-6 shadow-2xl border ${borderClass}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className={`text-lg font-black uppercase ${textClass}`}>Reset Password</h2>
+              <button
+                onClick={() => setShowResetModal(false)}
+                className={`p-2 rounded-xl ${mutedClass} hover:bg-gray-100 dark:hover:bg-slate-700`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className={`text-sm ${mutedClass} mb-4`}>
+              Reset password for <strong className={textClass}>{resetEmployee.fullName}</strong>
+            </p>
+
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>New Password *</label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className={`w-full px-4 py-3 pr-12 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
+                    required
+                    minLength={6}
+                    placeholder="Minimum 6 characters"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 ${mutedClass}`}
+                  >
+                    {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className={`flex-1 py-3 rounded-xl text-sm font-bold ${mutedClass} border ${borderClass} hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetLoading || !newPassword}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold bg-accent-500 text-white hover:bg-accent-600 transition-colors disabled:opacity-50"
+                >
+                  {resetLoading ? 'Resetting...' : 'Reset'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
