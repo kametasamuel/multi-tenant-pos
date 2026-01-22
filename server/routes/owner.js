@@ -326,14 +326,14 @@ router.post('/staff', [
   body('username').trim().notEmpty().withMessage('Username is required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('fullName').trim().notEmpty().withMessage('Full name is required'),
-  body('role').isIn(['CASHIER', 'MANAGER', 'OWNER', 'ADMIN']).withMessage('Invalid role'),
+  body('role').isIn(['CASHIER', 'MANAGER', 'OWNER']).withMessage('Invalid role. Allowed: CASHIER, MANAGER, OWNER'),
   body('branchId').optional(),
   handleValidationErrors
 ], async (req, res) => {
   try {
     const { username, password, fullName, role, branchId } = req.body;
 
-    // Check for existing username
+    // Check for existing username within this tenant
     const existingUser = await prisma.user.findFirst({
       where: {
         username: { equals: username, mode: 'insensitive' },
@@ -342,26 +342,34 @@ router.post('/staff', [
     });
 
     if (existingUser) {
-      return res.status(400).json({ error: 'Username already exists' });
+      return res.status(400).json({ error: 'Username already exists in this business' });
     }
 
-    // Validate branch if provided
-    if (branchId) {
-      const branch = await prisma.branch.findFirst({
-        where: { id: branchId, tenantId: req.tenantId }
-      });
-      if (!branch) {
-        return res.status(400).json({ error: 'Invalid branch' });
-      }
-    }
+    // Get all branches for this tenant
+    const branches = await prisma.branch.findMany({
+      where: { tenantId: req.tenantId }
+    });
 
-    // If no branch specified, assign to main branch
+    // Determine branch assignment
     let assignedBranchId = branchId;
-    if (!assignedBranchId) {
-      const mainBranch = await prisma.branch.findFirst({
-        where: { tenantId: req.tenantId, isMain: true }
-      });
-      assignedBranchId = mainBranch?.id;
+
+    if (branches.length === 1) {
+      // Single branch: auto-assign to that branch
+      assignedBranchId = branches[0].id;
+    } else if (branches.length > 1) {
+      // Multiple branches: branch selection is required
+      if (!branchId) {
+        return res.status(400).json({ error: 'Branch selection is required when you have multiple branches' });
+      }
+      // Validate the selected branch belongs to this tenant
+      const validBranch = branches.find(b => b.id === branchId);
+      if (!validBranch) {
+        return res.status(400).json({ error: 'Invalid branch selected' });
+      }
+      assignedBranchId = branchId;
+    } else {
+      // No branches - shouldn't happen, but fallback to null
+      assignedBranchId = null;
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -402,10 +410,10 @@ router.post('/staff', [
   }
 });
 
-// PUT /api/owner/staff/:id - Update staff member
+// PUT /api/owner/staff/:id - Update staff member (Owner can transfer between branches)
 router.put('/staff/:id', [
   body('fullName').optional().trim().notEmpty(),
-  body('role').optional().isIn(['CASHIER', 'MANAGER', 'OWNER', 'ADMIN']),
+  body('role').optional().isIn(['CASHIER', 'MANAGER', 'OWNER']).withMessage('Invalid role. Allowed: CASHIER, MANAGER, OWNER'),
   body('branchId').optional(),
   body('isActive').optional().isBoolean(),
   handleValidationErrors

@@ -92,16 +92,23 @@ router.get('/:id', authenticate, async (req, res) => {
   }
 });
 
-// Create product (Admin only)
+// Create product (Admin/Manager - Managers can only create for their branch)
 router.post('/', authenticate, requireAdmin, validateCreateProduct, async (req, res) => {
   try {
     const { name, description, category, barcode, costPrice, sellingPrice, stockQuantity, lowStockThreshold, customCategory, expiryDate, branchId } = req.body;
 
-    // Use provided branchId or fall back to user's branch
-    const productBranchId = branchId || req.branchId || null;
+    // Managers can only create products for their own branch
+    let productBranchId;
+    if (req.user.role === 'MANAGER') {
+      // Force manager to use their own branch
+      productBranchId = req.branchId;
+    } else {
+      // Owner/Admin can specify branchId or use their own
+      productBranchId = branchId || req.branchId || null;
+    }
 
-    // Validate branch if provided
-    if (productBranchId) {
+    // Validate branch if provided (for owners)
+    if (productBranchId && req.user.role !== 'MANAGER') {
       const branch = await prisma.branch.findFirst({
         where: { id: productBranchId, tenantId: req.tenantId }
       });

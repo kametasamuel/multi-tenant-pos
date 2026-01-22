@@ -1,18 +1,26 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireManager } = require('../middleware/auth');
 const { validateCreateExpense } = require('../middleware/validation');
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Create expense
-router.post('/', authenticate, validateCreateExpense, async (req, res) => {
+// Create expense - Only managers and owners can create expenses
+router.post('/', authenticate, requireManager, validateCreateExpense, async (req, res) => {
   try {
     const { description, amount, category, branchId } = req.body;
 
-    // Use provided branchId or fall back to user's branch
-    const expenseBranchId = branchId || req.branchId || null;
+    // Managers can only create expenses for their own branch
+    // Owners can specify any branch or default to their branch
+    let expenseBranchId;
+    if (req.user.role === 'MANAGER') {
+      // Force manager to use their own branch
+      expenseBranchId = req.branchId;
+    } else {
+      // Owner/Admin can specify branchId or use their own
+      expenseBranchId = branchId || req.branchId || null;
+    }
 
     const expense = await prisma.expense.create({
       data: {

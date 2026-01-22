@@ -294,21 +294,29 @@ router.get('/:id', authenticate, async (req, res) => {
   }
 });
 
-// Void/Delete sale (Admin only)
+// Void/Delete sale (Admin/Manager - managers can only void their branch's sales)
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
+    // Build where clause with branch filtering for managers
+    const where = {
+      id: req.params.id,
+      tenantId: req.tenantId
+    };
+
+    // Managers can only void sales from their own branch
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      where.branchId = req.branchId;
+    }
+
     const sale = await prisma.sale.findFirst({
-      where: {
-        id: req.params.id,
-        tenantId: req.tenantId
-      },
+      where,
       include: {
         items: true
       }
     });
 
     if (!sale) {
-      return res.status(404).json({ error: 'Sale not found' });
+      return res.status(404).json({ error: 'Sale not found or not in your branch' });
     }
 
     // Restore stock and void sale

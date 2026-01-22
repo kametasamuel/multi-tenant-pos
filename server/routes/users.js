@@ -7,20 +7,34 @@ const { validateCreateUser } = require('../middleware/validation');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Get all users (Admin only)
+// Get all users (Admin only - Managers see only their branch)
 router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
+    const where = {
+      tenantId: req.tenantId
+    };
+
+    // Managers can only see users from their own branch
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      where.branchId = req.branchId;
+    }
+
     const users = await prisma.user.findMany({
-      where: {
-        tenantId: req.tenantId
-      },
+      where,
       select: {
         id: true,
         username: true,
         fullName: true,
         role: true,
         isActive: true,
-        createdAt: true
+        createdAt: true,
+        branchId: true,
+        branch: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -32,10 +46,17 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-// Create user (Admin only)
+// Create user (Admin/Manager - Managers can only create CASHIER role)
 router.post('/', authenticate, requireAdmin, validateCreateUser, async (req, res) => {
   try {
-    const { username, password, fullName, role } = req.body;
+    const { username, password, fullName, role, branchId } = req.body;
+
+    // Managers can only create CASHIER role
+    if (req.user.role === 'MANAGER') {
+      if (role !== 'CASHIER') {
+        return res.status(403).json({ error: 'Managers can only create cashier accounts' });
+      }
+    }
 
     // Check if username already exists for this tenant
     const existingUser = await prisma.user.findFirst({
@@ -49,7 +70,17 @@ router.post('/', authenticate, requireAdmin, validateCreateUser, async (req, res
     });
 
     if (existingUser) {
-      return res.status(400).json({ error: 'Username already exists' });
+      return res.status(400).json({ error: 'Username already exists in this business' });
+    }
+
+    // Determine branch assignment
+    let assignedBranchId;
+    if (req.user.role === 'MANAGER') {
+      // Managers: auto-assign to their own branch
+      assignedBranchId = req.branchId;
+    } else {
+      // Owner/Admin: use provided branchId or their own branch
+      assignedBranchId = branchId || req.branchId || null;
     }
 
     // Hash password
@@ -61,6 +92,7 @@ router.post('/', authenticate, requireAdmin, validateCreateUser, async (req, res
         password: hashedPassword,
         fullName,
         role,
+        branchId: assignedBranchId,
         tenantId: req.tenantId
       },
       select: {
@@ -68,14 +100,22 @@ router.post('/', authenticate, requireAdmin, validateCreateUser, async (req, res
         username: true,
         fullName: true,
         role: true,
-        isActive: true
+        isActive: true,
+        branchId: true,
+        branch: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       }
     });
 
-    await logAudit(req.tenantId, req.user.id, 'user_created', `Created user: ${username}`, {
+    await logAudit(req.tenantId, req.user.id, 'user_created', `Created user: ${username} (${role})`, {
       userId: user.id,
-      role
-    });
+      role,
+      branchId: assignedBranchId
+    }, assignedBranchId);
 
     res.status(201).json({ user });
   } catch (error) {
