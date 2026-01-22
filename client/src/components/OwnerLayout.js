@@ -26,6 +26,7 @@ import {
   Wallet,
   UserCheck,
   ChevronDown,
+  ChevronRight,
   Check,
   Globe
 } from 'lucide-react';
@@ -40,6 +41,24 @@ const OwnerLayout = ({ children }) => {
   const [darkMode, setDarkMode] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const [showPOSBranchModal, setShowPOSBranchModal] = useState(false);
+
+  // Handle Launch POS click - show branch selector if in All Branches mode
+  const handleLaunchPOS = () => {
+    if (isAllBranches) {
+      setShowPOSBranchModal(true);
+    } else {
+      navigate('/owner/pos');
+    }
+  };
+
+  // Navigate to POS with selected branch
+  const launchPOSForBranch = (branch) => {
+    switchBranch(branch);
+    setShowPOSBranchModal(false);
+    setMobileMenuOpen(false);
+    navigate('/owner/pos');
+  };
 
   // Update time every second
   useEffect(() => {
@@ -255,14 +274,14 @@ const OwnerLayout = ({ children }) => {
             {!sidebarCollapsed && (
               <p className={`text-[10px] font-black uppercase ${mutedClass} px-3 tracking-widest leading-none mb-2`}>Quick Access</p>
             )}
-            <Link
-              to="/owner/pos"
+            <button
+              onClick={handleLaunchPOS}
               className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-black uppercase shadow-lg transition-colors bg-accent-500 text-white hover:bg-accent-600"
               title={sidebarCollapsed ? 'Launch POS' : ''}
             >
               <Monitor className="w-4 h-4 shrink-0" />
               {!sidebarCollapsed && <span>Launch POS</span>}
-            </Link>
+            </button>
             <button
               onClick={handleLogout}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase ${mutedClass} hover:text-negative-500 hover:bg-negative-50 dark:hover:bg-red-900/20 transition-colors`}
@@ -306,14 +325,13 @@ const OwnerLayout = ({ children }) => {
 
               <div className="mt-auto space-y-1 pt-2 border-t border-dashed dark:border-slate-600">
                 <p className={`text-[10px] font-black uppercase ${mutedClass} px-3 tracking-widest leading-none mb-2`}>Quick Access</p>
-                <Link
-                  to="/owner/pos"
-                  onClick={() => setMobileMenuOpen(false)}
+                <button
+                  onClick={handleLaunchPOS}
                   className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-black uppercase shadow-lg bg-accent-500 text-white hover:bg-accent-600"
                 >
                   <Monitor className="w-4 h-4" />
                   <span>Launch POS</span>
-                </Link>
+                </button>
                 <button
                   onClick={handleLogout}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase ${mutedClass} hover:text-negative-500`}
@@ -341,6 +359,52 @@ const OwnerLayout = ({ children }) => {
           })}
         </main>
       </div>
+
+      {/* POS Branch Selection Modal */}
+      {showPOSBranchModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowPOSBranchModal(false)}>
+          <div
+            className={`${surfaceClass} w-full max-w-md rounded-[32px] p-6 sm:p-8 shadow-2xl border ${borderClass}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-6">
+              <div className={`w-16 h-16 mx-auto rounded-2xl ${darkMode ? 'bg-accent-500/20' : 'bg-accent-50'} flex items-center justify-center mb-4`}>
+                <Monitor className="w-8 h-8 text-accent-500" />
+              </div>
+              <h2 className={`text-xl font-black uppercase ${textClass}`}>Select Branch for POS</h2>
+              <p className={`text-sm ${mutedClass} mt-2`}>Choose which branch you want to operate the POS terminal for</p>
+            </div>
+
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {activeBranches.map((branch) => (
+                <button
+                  key={branch.id}
+                  onClick={() => launchPOSForBranch(branch)}
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border ${borderClass} hover:border-accent-400 hover:bg-accent-50 dark:hover:bg-accent-900/20 transition-all text-left group`}
+                >
+                  <div className={`w-12 h-12 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} flex items-center justify-center group-hover:bg-accent-100 dark:group-hover:bg-accent-900/30 transition-colors`}>
+                    <Building2 className={`w-6 h-6 ${mutedClass} group-hover:text-accent-500`} />
+                  </div>
+                  <div className="flex-1">
+                    <p className={`font-bold ${textClass}`}>{branch.name}</p>
+                    {branch.isMain && (
+                      <span className="text-[10px] font-bold uppercase text-accent-500">Main Branch</span>
+                    )}
+                  </div>
+                  <ChevronRight className={`w-5 h-5 ${mutedClass} group-hover:text-accent-500 transition-colors`} />
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowPOSBranchModal(false)}
+              className={`w-full mt-4 py-3 rounded-xl text-sm font-bold ${mutedClass} hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors`}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

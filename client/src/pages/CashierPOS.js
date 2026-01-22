@@ -1321,14 +1321,24 @@ const CashierPOS = ({
                       <div className="space-y-1">
                         {cart.map((item, idx) => (
                           <div key={idx} className={`group py-2 border-b ${borderClass} last:border-0`}>
-                            <div className="flex justify-between items-center">
-                              <div className="flex-1">
-                                <h4 className={`text-[10px] font-bold uppercase ${textClass}`}>{item.name}</h4>
-                                <p className={`text-[9px] font-bold ${mutedClass}`}>
-                                  {formatCurrency(item.sellingPrice)}
-                                </p>
+                            <div className="flex flex-col gap-1.5">
+                              {/* Product Name and Delete */}
+                              <div className="flex justify-between items-start gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className={`text-[10px] font-bold uppercase ${textClass} truncate`} title={item.name}>{item.name}</h4>
+                                  <p className={`text-[9px] font-bold ${mutedClass}`}>
+                                    {formatCurrency(item.sellingPrice)} each
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => removeFromCart(idx)}
+                                  className={`${mutedClass} hover:text-negative-500 shrink-0`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
-                              <div className="flex items-center gap-2">
+                              {/* Quantity and Subtotal */}
+                              <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1">
                                   <button
                                     onClick={() => updateQty(idx, -1)}
@@ -1344,15 +1354,9 @@ const CashierPOS = ({
                                     <Plus className="w-3 h-3" />
                                   </button>
                                 </div>
-                                <span className={`text-[11px] font-black ${textClass} w-16 text-right`}>
+                                <span className={`text-[11px] font-black text-accent-500`}>
                                   {formatCurrency(item.sellingPrice * item.qty)}
                                 </span>
-                                <button
-                                  onClick={() => removeFromCart(idx)}
-                                  className={`${mutedClass} hover:text-negative-500 opacity-0 group-hover:opacity-100 transition-opacity`}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
                               </div>
                             </div>
                             {/* Stylist Selection for Services */}
