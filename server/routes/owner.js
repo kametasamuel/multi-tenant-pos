@@ -1012,7 +1012,7 @@ router.get('/settings', async (req, res) => {
 // PUT /api/owner/settings - Update tenant settings
 router.put('/settings', [
   body('businessName').optional().trim().notEmpty(),
-  body('businessType').optional().isIn(['RETAIL', 'RESTAURANT', 'SALON', 'PHARMACY', 'GROCERY', 'ELECTRONICS', 'CLOTHING', 'OTHER']),
+  body('businessType').optional().isIn(['RETAIL', 'FOOD_AND_BEVERAGE', 'HOSPITALITY', 'SERVICES', 'RESTAURANT', 'SALON', 'PHARMACY', 'GROCERY', 'ELECTRONICS', 'CLOTHING', 'OTHER']),
   body('currency').optional().trim().notEmpty(),
   body('currencySymbol').optional().trim().notEmpty(),
   body('taxRate').optional().isFloat({ min: 0, max: 1 }),

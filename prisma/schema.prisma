@@ -10,16 +10,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Business Type Enum
+// Business Type Enum - 4 Main Sectors
+// Legacy types (RESTAURANT, SALON, PHARMACY, GROCERY, ELECTRONICS, CLOTHING, OTHER)
+// are kept for backward compatibility with existing data
 enum BusinessType {
-  RETAIL
-  RESTAURANT
-  SALON
-  PHARMACY
-  GROCERY
-  ELECTRONICS
-  CLOTHING
-  OTHER
+  // Main 4 Sectors (used for new signups)
+  RETAIL            // Shops, electronics, groceries, pharmacy, clothing & general merchandise
+  FOOD_AND_BEVERAGE // Restaurants, cafes, bars, quick service & food trucks
+  HOSPITALITY       // Hotels, lodges, guest houses, rentals & vacation properties
+  SERVICES          // Salons, spas, auto repair, laundry & professional services
+
+  // Legacy types (for backward compatibility)
+  RESTAURANT        // Maps to FOOD_AND_BEVERAGE
+  SALON             // Maps to SERVICES
+  PHARMACY          // Maps to RETAIL
+  GROCERY           // Maps to RETAIL
+  ELECTRONICS       // Maps to RETAIL
+  CLOTHING          // Maps to RETAIL
+  OTHER             // Generic fallback
 }
 
 // Subscription Tier: Plans that control feature access

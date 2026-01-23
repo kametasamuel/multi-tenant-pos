@@ -14,12 +14,8 @@ import {
   ChevronLeft,
   Store,
   Utensils,
+  Hotel,
   Scissors,
-  Pill,
-  ShoppingCart,
-  Tv,
-  Shirt,
-  MoreHorizontal,
   Copy,
   ExternalLink,
   Eye,
@@ -27,14 +23,34 @@ import {
 } from 'lucide-react';
 
 const businessTypes = [
-  { value: 'RETAIL', label: 'Retail Store', icon: Store, description: 'General retail and merchandise' },
-  { value: 'RESTAURANT', label: 'Restaurant', icon: Utensils, description: 'Food service and dining' },
-  { value: 'SALON', label: 'Salon & Spa', icon: Scissors, description: 'Beauty and wellness services' },
-  { value: 'PHARMACY', label: 'Pharmacy', icon: Pill, description: 'Medical and health products' },
-  { value: 'GROCERY', label: 'Grocery', icon: ShoppingCart, description: 'Food and household items' },
-  { value: 'ELECTRONICS', label: 'Electronics', icon: Tv, description: 'Tech and gadgets' },
-  { value: 'CLOTHING', label: 'Clothing', icon: Shirt, description: 'Fashion and apparel' },
-  { value: 'OTHER', label: 'Other', icon: MoreHorizontal, description: 'Other business types' }
+  {
+    value: 'RETAIL',
+    label: 'Retail',
+    icon: Store,
+    description: 'Shops, electronics, groceries, pharmacy, clothing & general merchandise',
+    features: ['Inventory Management', 'Barcode Scanning', 'Stock Alerts', 'Supplier Management']
+  },
+  {
+    value: 'FOOD_AND_BEVERAGE',
+    label: 'Food & Beverage',
+    icon: Utensils,
+    description: 'Restaurants, cafes, bars, quick service & food trucks',
+    features: ['Table Management', 'Kitchen Display', 'Menu Modifiers', 'Split Bills']
+  },
+  {
+    value: 'HOSPITALITY',
+    label: 'Hospitality',
+    icon: Hotel,
+    description: 'Hotels, lodges, guest houses, rentals & vacation properties',
+    features: ['Room Management', 'Reservations', 'Housekeeping', 'Guest Folios']
+  },
+  {
+    value: 'SERVICES',
+    label: 'Services',
+    icon: Scissors,
+    description: 'Salons, spas, auto repair, laundry & professional services',
+    features: ['Appointment Booking', 'Staff Scheduling', 'Commission Tracking', 'Client History']
+  }
 ];
 
 const Signup = () => {
@@ -212,9 +228,9 @@ const Signup = () => {
       {/* Business Type */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-3">
-          Business Type <span className="text-negative-500">*</span>
+          What type of business do you run? <span className="text-negative-500">*</span>
         </label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {businessTypes.map((type) => {
             const Icon = type.icon;
             const isSelected = formData.businessType === type.value;
@@ -223,16 +239,51 @@ const Signup = () => {
                 key={type.value}
                 type="button"
                 onClick={() => handleBusinessTypeSelect(type.value)}
-                className={`p-4 rounded-xl border-2 text-center transition-all ${
+                className={`p-4 rounded-xl border-2 text-left transition-all ${
                   isSelected
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20'
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                <Icon className={`w-6 h-6 mx-auto mb-2 ${isSelected ? 'text-blue-600' : 'text-gray-500'}`} />
-                <p className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
-                  {type.label}
-                </p>
+                <div className="flex items-start gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-semibold ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
+                      {type.label}
+                    </p>
+                    <p className={`text-xs mt-0.5 ${isSelected ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {type.description}
+                    </p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {type.features.slice(0, 2).map((feature, idx) => (
+                        <span
+                          key={idx}
+                          className={`text-[10px] px-1.5 py-0.5 rounded ${
+                            isSelected ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {feature}
+                        </span>
+                      ))}
+                      {type.features.length > 2 && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                          isSelected ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          +{type.features.length - 2} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
               </button>
             );
           })}
