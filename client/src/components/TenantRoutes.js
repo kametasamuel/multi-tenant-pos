@@ -45,7 +45,8 @@ import {
   OwnerActivityLogs,
   OwnerReports,
   OwnerBranches,
-  OwnerSettings
+  OwnerSettings,
+  OwnerStockTransfers
 } from '../pages/owner';
 
 // Owner Routes with shared BranchProvider
@@ -56,6 +57,7 @@ const OwnerRoutes = () => {
         <Route path="dashboard" element={<OwnerLayout><OwnerDashboard /></OwnerLayout>} />
         <Route path="sales" element={<OwnerLayout><OwnerSales /></OwnerLayout>} />
         <Route path="inventory" element={<OwnerLayout><OwnerInventory /></OwnerLayout>} />
+        <Route path="stock-transfers" element={<OwnerLayout><OwnerStockTransfers /></OwnerLayout>} />
         <Route path="staff" element={<OwnerLayout><OwnerStaff /></OwnerLayout>} />
         <Route path="customers" element={<OwnerLayout><OwnerCustomers /></OwnerLayout>} />
         <Route path="requests" element={<OwnerLayout><OwnerRequests /></OwnerLayout>} />

@@ -149,7 +149,7 @@ const Sales = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className={`text-2xl font-black uppercase tracking-tight ${textClass}`}>Sales & Revenue</h1>
+          <h1 className={`text-xl sm:text-2xl font-black uppercase tracking-tight ${textClass}`}>Sales & Revenue</h1>
           <p className={`text-sm ${mutedClass}`}>
             {isAllBranches ? 'All branches' : currentBranch?.name || 'Select a branch'} - Sales overview
           </p>
@@ -228,51 +228,51 @@ const Sales = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className={`${surfaceClass} rounded-2xl p-3 sm:p-4 border ${borderClass}`}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-xs font-bold uppercase ${mutedClass}`}>Total Sales</p>
-                <p className={`text-2xl font-black ${textClass}`}>{formatCurrency(stats.totalSales || 0)}</p>
+              <div className="min-w-0 flex-1">
+                <p className={`text-[10px] sm:text-xs font-bold uppercase ${mutedClass}`}>Total Sales</p>
+                <p className={`text-lg sm:text-2xl font-black ${textClass} truncate`}>{formatCurrency(stats.totalSales || 0)}</p>
               </div>
-              <DollarSign className="w-8 h-8 text-green-500" />
+              <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 text-green-500 shrink-0 ml-2" />
             </div>
           </div>
-          <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
+          <div className={`${surfaceClass} rounded-2xl p-3 sm:p-4 border ${borderClass}`}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-xs font-bold uppercase ${mutedClass}`}>Transactions</p>
-                <p className={`text-2xl font-black ${textClass}`}>{stats.transactionCount || 0}</p>
+              <div className="min-w-0 flex-1">
+                <p className={`text-[10px] sm:text-xs font-bold uppercase ${mutedClass}`}>Transactions</p>
+                <p className={`text-lg sm:text-2xl font-black ${textClass}`}>{stats.transactionCount || 0}</p>
               </div>
-              <Receipt className="w-8 h-8 text-blue-500" />
+              <Receipt className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 shrink-0 ml-2" />
             </div>
           </div>
-          <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
+          <div className={`${surfaceClass} rounded-2xl p-3 sm:p-4 border ${borderClass}`}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-xs font-bold uppercase ${mutedClass}`}>Avg Transaction</p>
-                <p className={`text-2xl font-black ${textClass}`}>
+              <div className="min-w-0 flex-1">
+                <p className={`text-[10px] sm:text-xs font-bold uppercase ${mutedClass}`}>Avg Transaction</p>
+                <p className={`text-lg sm:text-2xl font-black ${textClass} truncate`}>
                   {formatCurrency(stats.transactionCount > 0 ? stats.totalSales / stats.transactionCount : 0)}
                 </p>
               </div>
-              <TrendingUp className="w-8 h-8 text-slate-500" />
+              <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-slate-500 shrink-0 ml-2" />
             </div>
           </div>
-          <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
+          <div className={`${surfaceClass} rounded-2xl p-3 sm:p-4 border ${borderClass}`}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-xs font-bold uppercase ${mutedClass}`}>Gross Profit</p>
-                <p className={`text-2xl font-black text-green-600`}>{formatCurrency(stats.grossProfit || 0)}</p>
+              <div className="min-w-0 flex-1">
+                <p className={`text-[10px] sm:text-xs font-bold uppercase ${mutedClass}`}>Gross Profit</p>
+                <p className={`text-lg sm:text-2xl font-black text-green-600 truncate`}>{formatCurrency(stats.grossProfit || 0)}</p>
               </div>
-              <BarChart3 className="w-8 h-8 text-green-600" />
+              <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 shrink-0 ml-2" />
             </div>
           </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
-        <div className="flex flex-wrap items-center gap-4">
+      <div className={`${surfaceClass} rounded-2xl p-3 sm:p-4 border ${borderClass} relative z-20`}>
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 sm:gap-4">
           <DateRangePicker
             dateRange={dateRange}
             onDateChange={setDateRange}
@@ -306,13 +306,13 @@ const Sales = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
             <table className="w-full">
               <thead className={`${darkMode ? 'bg-slate-700' : 'bg-gray-50'}`}>
                 <tr>
-                  <th className={`px-4 py-3 text-left text-xs font-black uppercase ${mutedClass}`}>Transaction</th>
-                  <th className={`px-4 py-3 text-left text-xs font-black uppercase ${mutedClass}`}>Date</th>
-                  <th className={`px-4 py-3 text-left text-xs font-black uppercase ${mutedClass}`}>Cashier</th>
-                  <th className={`px-4 py-3 text-left text-xs font-black uppercase ${mutedClass}`}>Payment</th>
-                  <th className={`px-4 py-3 text-right text-xs font-black uppercase ${mutedClass}`}>Amount</th>
-                  <th className={`px-4 py-3 text-left text-xs font-black uppercase ${mutedClass}`}>Status</th>
-                  <th className={`px-4 py-3 text-right text-xs font-black uppercase ${mutedClass}`}>Actions</th>
+                  <th className={`px-2 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-black uppercase ${mutedClass}`}>Transaction</th>
+                  <th className={`px-2 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-black uppercase ${mutedClass} hidden sm:table-cell`}>Date</th>
+                  <th className={`px-2 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-black uppercase ${mutedClass} hidden md:table-cell`}>Cashier</th>
+                  <th className={`px-2 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-black uppercase ${mutedClass} hidden lg:table-cell`}>Payment</th>
+                  <th className={`px-2 sm:px-4 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-black uppercase ${mutedClass}`}>Amount</th>
+                  <th className={`px-2 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-black uppercase ${mutedClass}`}>Status</th>
+                  <th className={`px-2 sm:px-4 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-black uppercase ${mutedClass}`}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y dark:divide-slate-700">
@@ -320,26 +320,27 @@ const Sales = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
                   const PaymentIcon = getPaymentIcon(sale.paymentMethod);
                   return (
                     <tr key={sale.id} className={sale.paymentStatus === 'voided' ? 'opacity-50' : ''}>
-                      <td className="px-4 py-3">
-                        <span className={`text-sm font-mono font-bold ${textClass}`}>{sale.transactionNumber}</span>
+                      <td className="px-2 sm:px-4 py-2 sm:py-3">
+                        <span className={`text-xs sm:text-sm font-mono font-bold ${textClass}`}>{sale.transactionNumber}</span>
+                        <span className={`block sm:hidden text-[10px] ${mutedClass} mt-0.5`}>{formatDate(sale.createdAt)}</span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-sm ${mutedClass}`}>{formatDate(sale.createdAt)}</span>
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 hidden sm:table-cell">
+                        <span className={`text-xs sm:text-sm ${mutedClass}`}>{formatDate(sale.createdAt)}</span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-sm ${textClass}`}>{sale.cashier?.fullName || '-'}</span>
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 hidden md:table-cell">
+                        <span className={`text-xs sm:text-sm ${textClass}`}>{sale.cashier?.fullName || '-'}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 hidden lg:table-cell">
                         <div className="flex items-center gap-2">
                           <PaymentIcon className={`w-4 h-4 ${mutedClass}`} />
-                          <span className={`text-sm ${textClass}`}>{getPaymentLabel(sale.paymentMethod)}</span>
+                          <span className={`text-xs sm:text-sm ${textClass}`}>{getPaymentLabel(sale.paymentMethod)}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={`text-sm font-bold ${textClass}`}>{formatCurrency(sale.finalAmount)}</span>
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-right">
+                        <span className={`text-xs sm:text-sm font-bold ${textClass}`}>{formatCurrency(sale.finalAmount)}</span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${
+                      <td className="px-2 sm:px-4 py-2 sm:py-3">
+                        <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase ${
                           sale.paymentStatus === 'completed'
                             ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                             : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
@@ -347,10 +348,10 @@ const Sales = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
                           {sale.paymentStatus}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-right">
                         <button
                           onClick={() => setSelectedSale(sale)}
-                          className={`p-2 rounded-lg ${darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}
+                          className={`p-1.5 sm:p-2 rounded-lg ${darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}
                         >
                           <Eye className={`w-4 h-4 ${mutedClass}`} />
                         </button>

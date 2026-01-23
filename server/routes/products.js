@@ -55,7 +55,7 @@ router.get('/', authenticate, async (req, res) => {
         },
         orderBy: { name: 'asc' }
       });
-      const lowStockProducts = allProducts.filter(p => p.stockQuantity <= p.lowStockThreshold && p.category === 'PRODUCT');
+      const lowStockProducts = allProducts.filter(p => p.stockQuantity <= p.lowStockThreshold && p.type === 'PRODUCT');
       total = lowStockProducts.length;
       products = lowStockProducts.slice(skip, skip + take);
     } else {
@@ -148,14 +148,14 @@ router.post('/', authenticate, requireAdmin, validateCreateProduct, async (req, 
     }
 
     // For services, costPrice defaults to 0
-    const productCategory = category || 'PRODUCT';
-    const actualCostPrice = productCategory === 'SERVICE' ? (costPrice || 0) : (costPrice || 0);
+    const productType = category || 'PRODUCT';
+    const actualCostPrice = productType === 'SERVICE' ? (costPrice || 0) : (costPrice || 0);
 
     const product = await prisma.product.create({
       data: {
         name,
         description,
-        category: productCategory,
+        type: productType,
         barcode,
         costPrice: actualCostPrice,
         sellingPrice,
@@ -269,7 +269,7 @@ router.get('/inventory/low-stock', authenticate, requireAdmin, async (req, res) 
       where: {
         tenantId: req.tenantId,
         isActive: true,
-        category: 'PRODUCT',
+        type: 'PRODUCT',
         ...(branchIdToUse && { branchId: branchIdToUse })
       },
       include: {

@@ -1160,7 +1160,7 @@ router.get('/analytics/anomalies', async (req, res) => {
     const negativeStock = await prisma.product.findMany({
       where: {
         stockQuantity: { lt: 0 },
-        category: 'PRODUCT'
+        type: 'PRODUCT'
       },
       include: {
         tenant: { select: { businessName: true } }

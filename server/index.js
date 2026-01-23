@@ -18,6 +18,10 @@ const ownerRoutes = require('./routes/owner');
 const branchRoutes = require('./routes/branches');
 const platformRoutes = require('./routes/platform');
 const marketIntelligenceRoutes = require('./routes/marketIntelligence');
+// Retail module routes
+const stockTransferRoutes = require('./routes/stockTransfers');
+const categoryRoutes = require('./routes/categories');
+const stockAdjustmentRoutes = require('./routes/stockAdjustments');
 const {
   generalLimiter,
   loginLimiter,
@@ -89,6 +93,10 @@ app.use('/api/owner', ownerRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/platform', platformRoutes);
 app.use('/api/market-intelligence', marketIntelligenceRoutes);
+// Retail module routes
+app.use('/api/stock-transfers', stockTransferRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/stock-adjustments', stockAdjustmentRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -88,7 +88,7 @@ router.get('/dashboard', async (req, res) => {
       prisma.product.findMany({
         where: {
           tenantId: req.tenantId,
-          category: 'PRODUCT',
+          type: 'PRODUCT',
           isActive: true,
           ...(branchId && { branchId })
         },
@@ -854,7 +854,7 @@ router.get('/reports/product-profitability', async (req, res) => {
       },
       include: {
         product: {
-          select: { id: true, name: true, costPrice: true, sellingPrice: true, category: true }
+          select: { id: true, name: true, costPrice: true, sellingPrice: true, type: true, customCategory: true }
         }
       }
     });
@@ -867,7 +867,8 @@ router.get('/reports/product-profitability', async (req, res) => {
         productMap[productId] = {
           id: productId,
           name: item.product.name,
-          category: item.product.category,
+          type: item.product.type,
+          category: item.product.customCategory || 'General',
           costPrice: item.product.costPrice,
           sellingPrice: item.product.sellingPrice,
           totalQuantity: 0,

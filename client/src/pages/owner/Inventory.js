@@ -129,7 +129,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
   };
 
   const getStockStatus = (product) => {
-    if (product.category === 'SERVICE') return 'service';
+    if (product.type === 'SERVICE') return 'service';
     if (product.stockQuantity === 0) return 'out';
     if (product.stockQuantity <= (product.lowStockThreshold || 10)) return 'low';
     return 'ok';
@@ -205,8 +205,8 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'All' ||
-      (filterCategory === 'Services' && p.category === 'SERVICE') ||
-      (filterCategory === 'Products' && p.category === 'PRODUCT') ||
+      (filterCategory === 'Services' && p.type === 'SERVICE') ||
+      (filterCategory === 'Products' && p.type === 'PRODUCT') ||
       p.customCategory === filterCategory;
     const status = getStockStatus(p);
     const expiryStatus = getExpiryStatus(p);
@@ -217,7 +217,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
     if (activeStatsFilter) {
       switch (activeStatsFilter) {
         case 'services':
-          matchesStatsFilter = p.category === 'SERVICE';
+          matchesStatsFilter = p.type === 'SERVICE';
           break;
         case 'lowStock':
           matchesStatsFilter = status === 'low';
@@ -241,7 +241,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
 
   const stats = {
     total: products.length,
-    services: products.filter(p => p.category === 'SERVICE').length,
+    services: products.filter(p => p.type === 'SERVICE').length,
     lowStock: products.filter(p => getStockStatus(p) === 'low').length,
     outOfStock: products.filter(p => getStockStatus(p) === 'out').length,
     expiringSoon: products.filter(p => ['critical', 'warning'].includes(getExpiryStatus(p))).length,
@@ -261,7 +261,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className={`text-2xl sm:text-3xl font-black uppercase tracking-tighter ${textClass}`}>
+          <h1 className={`text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-tighter ${textClass}`}>
             Inventory Control
           </h1>
           <div className="flex items-center gap-2 mt-1">
@@ -360,48 +360,48 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
       </div>
 
       {/* Stats Bar - Clickable Filters */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4">
         <div
           onClick={() => setActiveStatsFilter(activeStatsFilter === null ? null : null)}
-          className={`${surfaceClass} border-2 ${activeStatsFilter === null ? 'border-slate-500' : borderClass} rounded-[28px] p-5 cursor-pointer hover:border-slate-400 transition-all`}
+          className={`${surfaceClass} border-2 ${activeStatsFilter === null ? 'border-slate-500' : borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5 cursor-pointer hover:border-slate-400 transition-all`}
         >
-          <p className={`text-[10px] font-black uppercase ${mutedClass} mb-1`}>Total Items</p>
-          <p className={`text-2xl font-black ${textClass}`}>{stats.total}</p>
+          <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} mb-0.5 sm:mb-1`}>Total</p>
+          <p className={`text-lg sm:text-2xl font-black ${textClass}`}>{stats.total}</p>
         </div>
         <div
           onClick={() => setActiveStatsFilter(activeStatsFilter === 'services' ? null : 'services')}
-          className={`${surfaceClass} border-2 ${activeStatsFilter === 'services' ? 'border-slate-500' : borderClass} rounded-[28px] p-5 cursor-pointer hover:border-slate-400 transition-all`}
+          className={`${surfaceClass} border-2 ${activeStatsFilter === 'services' ? 'border-slate-500' : borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5 cursor-pointer hover:border-slate-400 transition-all`}
         >
-          <p className={`text-[10px] font-black uppercase ${mutedClass} mb-1`}>Services</p>
-          <p className="text-2xl font-black text-slate-600 dark:text-slate-400">{stats.services}</p>
+          <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} mb-0.5 sm:mb-1`}>Services</p>
+          <p className="text-lg sm:text-2xl font-black text-slate-600 dark:text-slate-400">{stats.services}</p>
         </div>
         <div
           onClick={() => setActiveStatsFilter(activeStatsFilter === 'lowStock' ? null : 'lowStock')}
-          className={`${surfaceClass} border-2 ${activeStatsFilter === 'lowStock' ? 'border-warning-500' : borderClass} rounded-[28px] p-5 cursor-pointer hover:border-warning-400 transition-all`}
+          className={`${surfaceClass} border-2 ${activeStatsFilter === 'lowStock' ? 'border-warning-500' : borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5 cursor-pointer hover:border-warning-400 transition-all`}
         >
-          <p className={`text-[10px] font-black uppercase ${mutedClass} mb-1`}>Low Stock</p>
-          <p className="text-2xl font-black text-warning-500">{stats.lowStock}</p>
+          <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} mb-0.5 sm:mb-1`}>Low Stock</p>
+          <p className="text-lg sm:text-2xl font-black text-warning-500">{stats.lowStock}</p>
         </div>
         <div
           onClick={() => setActiveStatsFilter(activeStatsFilter === 'outOfStock' ? null : 'outOfStock')}
-          className={`${surfaceClass} border-2 ${activeStatsFilter === 'outOfStock' ? 'border-negative-500' : borderClass} rounded-[28px] p-5 cursor-pointer hover:border-negative-400 transition-all`}
+          className={`${surfaceClass} border-2 ${activeStatsFilter === 'outOfStock' ? 'border-negative-500' : borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5 cursor-pointer hover:border-negative-400 transition-all`}
         >
-          <p className={`text-[10px] font-black uppercase ${mutedClass} mb-1`}>Out of Stock</p>
-          <p className="text-2xl font-black text-negative-500">{stats.outOfStock}</p>
+          <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} mb-0.5 sm:mb-1`}>Out of Stock</p>
+          <p className="text-lg sm:text-2xl font-black text-negative-500">{stats.outOfStock}</p>
         </div>
         <div
           onClick={() => setActiveStatsFilter(activeStatsFilter === 'expiringSoon' ? null : 'expiringSoon')}
-          className={`${surfaceClass} border-2 ${activeStatsFilter === 'expiringSoon' ? 'border-yellow-500' : borderClass} rounded-[28px] p-5 cursor-pointer hover:border-yellow-400 transition-all`}
+          className={`${surfaceClass} border-2 ${activeStatsFilter === 'expiringSoon' ? 'border-yellow-500' : borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5 cursor-pointer hover:border-yellow-400 transition-all`}
         >
-          <p className={`text-[10px] font-black uppercase ${mutedClass} mb-1`}>Expiring Soon</p>
-          <p className="text-2xl font-black text-yellow-500">{stats.expiringSoon}</p>
+          <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} mb-0.5 sm:mb-1`}>Expiring</p>
+          <p className="text-lg sm:text-2xl font-black text-yellow-500">{stats.expiringSoon}</p>
         </div>
         <div
           onClick={() => setActiveStatsFilter(activeStatsFilter === 'expired' ? null : 'expired')}
-          className={`${surfaceClass} border-2 ${activeStatsFilter === 'expired' ? 'border-negative-600' : borderClass} rounded-[28px] p-5 cursor-pointer hover:border-negative-500 transition-all`}
+          className={`${surfaceClass} border-2 ${activeStatsFilter === 'expired' ? 'border-negative-600' : borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5 cursor-pointer hover:border-negative-500 transition-all`}
         >
-          <p className={`text-[10px] font-black uppercase ${mutedClass} mb-1`}>Expired</p>
-          <p className="text-2xl font-black text-negative-600">{stats.expired}</p>
+          <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} mb-0.5 sm:mb-1`}>Expired</p>
+          <p className="text-lg sm:text-2xl font-black text-negative-600">{stats.expired}</p>
         </div>
       </div>
 
@@ -470,7 +470,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
 
       {/* Products - Grid or List View */}
       {viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
           {filteredProducts.length === 0 ? (
             <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-8 text-center col-span-full`}>
               <Package className={`w-12 h-12 mx-auto mb-3 ${mutedClass} opacity-30`} />
@@ -486,7 +486,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
               return (
                 <div
                   key={product.id}
-                  className={`${surfaceClass} border ${borderClass} rounded-[28px] p-5 shadow-sm hover:border-slate-400 transition-all group relative`}
+                  className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5 shadow-sm hover:border-slate-400 transition-all group relative`}
                 >
                   <button
                     onClick={() => openEditModal(product)}
@@ -505,11 +505,11 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
                     </div>
                   )}
 
-                  <div className={`aspect-square ${darkMode ? 'bg-slate-800' : 'bg-slate-50'} rounded-[20px] mb-4 overflow-hidden flex items-center justify-center`}>
-                    <div className={`text-6xl grayscale group-hover:grayscale-0 transition-all ${
-                      product.category === 'SERVICE' ? 'opacity-50' : ''
+                  <div className={`aspect-square ${darkMode ? 'bg-slate-800' : 'bg-slate-50'} rounded-xl sm:rounded-[20px] mb-2 sm:mb-4 overflow-hidden flex items-center justify-center`}>
+                    <div className={`text-4xl sm:text-6xl grayscale group-hover:grayscale-0 transition-all ${
+                      product.type === 'SERVICE' ? 'opacity-50' : ''
                     }`}>
-                      {product.category === 'SERVICE' ? '✂️' : '📦'}
+                      {product.type === 'SERVICE' ? '✂️' : '📦'}
                     </div>
                   </div>
 
@@ -528,7 +528,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
                       {product.branch.name}
                     </p>
                   )}
-                  <p className="font-black text-slate-600 dark:text-slate-400 text-sm">{formatCurrency(product.sellingPrice)}</p>
+                  <p className="font-black text-slate-600 dark:text-slate-400 text-xs sm:text-sm">{formatCurrency(product.sellingPrice)}</p>
                   {product.costPrice > 0 && (
                     <p className={`text-[9px] ${mutedClass} mb-2`}>
                       Cost: {formatCurrency(product.costPrice)} ·
@@ -543,30 +543,30 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
                     </p>
                   )}
 
-                  {product.category === 'PRODUCT' ? (
-                    <div className={`flex items-center gap-2 border-t pt-4 ${borderClass}`}>
+                  {product.type === 'PRODUCT' ? (
+                    <div className={`flex items-center gap-1.5 sm:gap-2 border-t pt-2 sm:pt-4 ${borderClass}`}>
                       <input
                         type="number"
                         value={stockUpdates[product.id] || 0}
                         onChange={(e) => setStockUpdates(prev => ({ ...prev, [product.id]: e.target.value }))}
-                        className={`flex-1 ${darkMode ? 'bg-slate-800' : 'bg-slate-50'} border ${borderClass} rounded-xl p-2 text-center text-xs font-black focus:outline-none focus:border-slate-400 ${textClass} ${
+                        className={`flex-1 ${darkMode ? 'bg-slate-800' : 'bg-slate-50'} border ${borderClass} rounded-lg sm:rounded-xl p-1.5 sm:p-2 text-center text-[10px] sm:text-xs font-black focus:outline-none focus:border-slate-400 ${textClass} ${
                           isLowOrOut ? 'border-negative-300 bg-negative-50' : ''
                         }`}
                       />
                       <button
                         onClick={() => updateStock(product.id)}
-                        className="bg-slate-800 dark:bg-slate-700 text-white p-2 rounded-xl hover:opacity-80 transition-opacity"
+                        className="bg-slate-800 dark:bg-slate-700 text-white p-1.5 sm:p-2 rounded-lg sm:rounded-xl hover:opacity-80 transition-opacity"
                       >
-                        <Check className="w-4 h-4" />
+                        <Check className="w-3 h-3 sm:w-4 sm:h-4" />
                       </button>
                     </div>
                   ) : (
-                    <div className={`border-t pt-4 ${borderClass}`}>
-                      <p className={`text-[9px] ${mutedClass} uppercase text-center`}>Service - No Stock</p>
+                    <div className={`border-t pt-2 sm:pt-4 ${borderClass}`}>
+                      <p className={`text-[8px] sm:text-[9px] ${mutedClass} uppercase text-center`}>Service - No Stock</p>
                     </div>
                   )}
 
-                  {isLowOrOut && product.category === 'PRODUCT' && (
+                  {isLowOrOut && product.type === 'PRODUCT' && (
                     <div className="w-full mt-3 flex items-center justify-center gap-2 py-2 bg-warning-500 text-white rounded-xl text-[9px] font-bold uppercase">
                       <AlertTriangle className="w-3 h-3" />
                       {status === 'out' ? 'Out of Stock' : 'Low Stock'}
@@ -612,7 +612,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
                         <td className="p-4">
                           <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} flex items-center justify-center text-xl`}>
-                              {product.category === 'SERVICE' ? '✂️' : '📦'}
+                              {product.type === 'SERVICE' ? '✂️' : '📦'}
                             </div>
                             <div>
                               <p className={textClass}>{product.name}</p>
@@ -622,11 +622,11 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
                         </td>
                         <td className="p-4">
                           <span className={`px-2 py-1 rounded-lg text-[9px] font-bold uppercase ${
-                            product.category === 'SERVICE'
+                            product.type === 'SERVICE'
                               ? 'bg-slate-200 text-slate-700 dark:bg-slate-600 dark:text-slate-200'
                               : 'bg-emerald-100 text-emerald-600'
                           }`}>
-                            {product.customCategory || (product.category === 'SERVICE' ? 'Service' : 'Product')}
+                            {product.customCategory || (product.type === 'SERVICE' ? 'Service' : 'Product')}
                           </span>
                         </td>
                         {isAllBranches && (
@@ -643,7 +643,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
                           <span className={`text-[9px] ${mutedClass} ml-1`}>({getProfitMargin(product)}%)</span>
                         </td>
                         <td className="p-4">
-                          {product.category === 'PRODUCT' ? (
+                          {product.type === 'PRODUCT' ? (
                             <div className="flex items-center gap-2">
                               <input
                                 type="number"
@@ -922,7 +922,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
                 className={`w-full ${darkMode ? 'bg-slate-800' : 'bg-slate-50'} border ${borderClass} rounded-xl p-4 text-xs font-bold focus:outline-none focus:border-slate-400 ${textClass}`}
               />
 
-              {editingProduct.category === 'PRODUCT' ? (
+              {editingProduct.type === 'PRODUCT' ? (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={`text-[10px] font-bold ${mutedClass} block mb-2`}>Cost Price ({currencySymbol})</label>
@@ -958,7 +958,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
                 </div>
               )}
 
-              {editingProduct.category === 'PRODUCT' && editingProduct.price && (
+              {editingProduct.type === 'PRODUCT' && editingProduct.price && (
                 <div className={`p-3 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-positive-50'} flex justify-between items-center`}>
                   <span className={`text-[10px] font-bold ${mutedClass}`}>Profit per unit:</span>
                   <span className="text-positive-500 font-black text-sm">
@@ -967,7 +967,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
                 </div>
               )}
 
-              {editingProduct.category === 'PRODUCT' && (
+              {editingProduct.type === 'PRODUCT' && (
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>

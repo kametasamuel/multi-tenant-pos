@@ -159,11 +159,22 @@ const DateRangePicker = ({
         <ChevronDown className={`w-4 h-4 transition-transform ${showPicker ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown Picker */}
+      {/* Dropdown Picker - Fixed on mobile, absolute on desktop */}
       {showPicker && (
-        <div className={`absolute right-0 mt-2 ${surfaceClass} border ${borderClass} rounded-2xl shadow-xl z-50 overflow-hidden w-80`}>
+        <>
+          {/* Overlay for both mobile and desktop */}
+          <div
+            className="fixed inset-0 bg-black/30 z-40"
+            onClick={() => setShowPicker(false)}
+          />
+          <div className={`
+            fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+            ${surfaceClass} border ${borderClass}
+            rounded-2xl shadow-xl z-50
+            w-[calc(100vw-2rem)] max-w-sm max-h-[85vh] overflow-y-auto
+          `}>
           {/* Header */}
-          <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
+          <div className={`flex items-center justify-between p-4 border-b ${borderClass} sticky top-0 ${surfaceClass}`}>
             <h3 className={`text-sm font-bold ${textClass}`}>Select Date Range</h3>
             <button
               onClick={() => setShowPicker(false)}
@@ -230,6 +241,7 @@ const DateRangePicker = ({
             </button>
           </div>
         </div>
+        </>
       )}
     </div>
   );

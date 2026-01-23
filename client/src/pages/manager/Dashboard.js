@@ -140,7 +140,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
 
       // Low stock items
       const lowStock = products.filter(p =>
-        p.category === 'PRODUCT' && p.stockQuantity <= (p.reorderLevel || 10)
+        p.type === 'PRODUCT' && p.stockQuantity <= (p.reorderLevel || 10)
       );
 
       // Expiring products (within 3 months)
@@ -376,32 +376,32 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       </div>
 
       {/* Main Stats Cards - Revenue & Profit */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {/* Total Sales Card */}
         <div
           onClick={() => navigate(`/${user?.tenantSlug}/manager/sales`)}
-          className={`${surfaceClass} border ${borderClass} p-5 sm:p-6 rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-accent-500 hover:shadow-xl group`}
+          className={`${surfaceClass} border ${borderClass} p-3 sm:p-5 lg:p-6 rounded-2xl sm:rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-accent-500 hover:shadow-xl group`}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <DollarSign className="w-4 h-4 text-accent-500" />
-            <p className={`text-[10px] font-black uppercase ${mutedClass} tracking-widest`}>Total Sales</p>
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-accent-500" />
+            <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} tracking-widest`}>Total Sales</p>
           </div>
-          <h3 className="text-xl sm:text-2xl font-black text-accent-500">{formatCurrency(dashboardData.todayRevenue)}</h3>
-          <p className={`text-[10px] ${mutedClass} mt-1`}>{dashboardData.todayOrders} orders</p>
+          <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-accent-500 truncate">{formatCurrency(dashboardData.todayRevenue)}</h3>
+          <p className={`text-[9px] sm:text-[10px] ${mutedClass} mt-0.5 sm:mt-1`}>{dashboardData.todayOrders} orders</p>
         </div>
 
         {/* Gross Profit Card */}
         <div
           onClick={() => navigate(`/${user?.tenantSlug}/manager/sales`)}
-          className={`${surfaceClass} border ${borderClass} p-5 sm:p-6 rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-positive-500 hover:shadow-xl group`}
+          className={`${surfaceClass} border ${borderClass} p-3 sm:p-5 lg:p-6 rounded-2xl sm:rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-positive-500 hover:shadow-xl group`}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="w-4 h-4 text-positive-500" />
-            <p className={`text-[10px] font-black uppercase ${mutedClass} tracking-widest`}>Gross Profit</p>
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-positive-500" />
+            <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} tracking-widest`}>Gross Profit</p>
           </div>
-          <h3 className="text-xl sm:text-2xl font-black text-positive-500">{formatCurrency(dashboardData.todayProfit)}</h3>
+          <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-positive-500 truncate">{formatCurrency(dashboardData.todayProfit)}</h3>
           {dashboardData.todayRevenue > 0 && (
-            <p className={`text-[10px] ${mutedClass} mt-1`}>
+            <p className={`text-[9px] sm:text-[10px] ${mutedClass} mt-0.5 sm:mt-1`}>
               {((dashboardData.todayProfit / dashboardData.todayRevenue) * 100).toFixed(1)}% margin
             </p>
           )}
@@ -410,62 +410,62 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
         {/* Expenses Card */}
         <div
           onClick={() => navigate(`/${user?.tenantSlug}/manager/expenses`)}
-          className={`${surfaceClass} border ${borderClass} p-5 sm:p-6 rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-negative-500 hover:shadow-xl group`}
+          className={`${surfaceClass} border ${borderClass} p-3 sm:p-5 lg:p-6 rounded-2xl sm:rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-negative-500 hover:shadow-xl group`}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingDown className="w-4 h-4 text-negative-500" />
-            <p className={`text-[10px] font-black uppercase ${mutedClass} tracking-widest`}>Expenses</p>
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <TrendingDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-negative-500" />
+            <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} tracking-widest`}>Expenses</p>
           </div>
-          <h3 className="text-xl sm:text-2xl font-black text-negative-500">-{formatCurrency(dashboardData.totalExpenses)}</h3>
-          <p className={`text-[10px] ${mutedClass} mt-1`}>Period expenses</p>
+          <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-negative-500 truncate">-{formatCurrency(dashboardData.totalExpenses)}</h3>
+          <p className={`text-[9px] sm:text-[10px] ${mutedClass} mt-0.5 sm:mt-1`}>Period expenses</p>
         </div>
 
         {/* Net Profit Card */}
-        <div className={`${surfaceClass} border ${dashboardData.netProfit >= 0 ? 'border-emerald-500/50' : 'border-negative-500/50'} p-5 sm:p-6 rounded-[28px]`}>
-          <div className="flex items-center gap-2 mb-2">
-            <BarChart3 className={`w-4 h-4 ${dashboardData.netProfit >= 0 ? 'text-emerald-500' : 'text-negative-500'}`} />
-            <p className={`text-[10px] font-black uppercase ${mutedClass} tracking-widest`}>Net Profit</p>
+        <div className={`${surfaceClass} border ${dashboardData.netProfit >= 0 ? 'border-emerald-500/50' : 'border-negative-500/50'} p-3 sm:p-5 lg:p-6 rounded-2xl sm:rounded-[28px]`}>
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <BarChart3 className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${dashboardData.netProfit >= 0 ? 'text-emerald-500' : 'text-negative-500'}`} />
+            <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} tracking-widest`}>Net Profit</p>
           </div>
-          <h3 className={`text-xl sm:text-2xl font-black ${dashboardData.netProfit >= 0 ? 'text-emerald-500' : 'text-negative-500'}`}>
+          <h3 className={`text-lg sm:text-xl lg:text-2xl font-black truncate ${dashboardData.netProfit >= 0 ? 'text-emerald-500' : 'text-negative-500'}`}>
             {dashboardData.netProfit >= 0 ? '' : '-'}{formatCurrency(Math.abs(dashboardData.netProfit))}
           </h3>
-          <p className={`text-[10px] ${mutedClass} mt-1`}>After expenses</p>
+          <p className={`text-[9px] sm:text-[10px] ${mutedClass} mt-0.5 sm:mt-1`}>After expenses</p>
         </div>
       </div>
 
       {/* Secondary Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         {/* Pending Authorizations Card */}
         <div
           onClick={() => navigate(`/${user?.tenantSlug}/manager/requests`)}
-          className={`${surfaceClass} border ${borderClass} p-6 rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-negative-500 hover:shadow-xl group`}
+          className={`${surfaceClass} border ${borderClass} p-4 sm:p-6 rounded-2xl sm:rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-negative-500 hover:shadow-xl group`}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-[10px] font-black uppercase ${mutedClass} mb-1 tracking-widest`}>Pending Authorizations</p>
-              <h3 className={`text-2xl font-black ${dashboardData.pendingRequests > 0 ? 'text-negative-500' : textClass}`}>
+              <p className={`text-[9px] sm:text-[10px] font-black uppercase ${mutedClass} mb-1 tracking-widest`}>Pending Authorizations</p>
+              <h3 className={`text-xl sm:text-2xl font-black ${dashboardData.pendingRequests > 0 ? 'text-negative-500' : textClass}`}>
                 {dashboardData.pendingRequests} Requests
               </h3>
-              <p className={`text-[10px] ${mutedClass} mt-1`}>Awaiting approval</p>
+              <p className={`text-[9px] sm:text-[10px] ${mutedClass} mt-1`}>Awaiting approval</p>
             </div>
-            <ArrowRight className={`w-5 h-5 ${mutedClass} group-hover:text-negative-500 transition-colors`} />
+            <ArrowRight className={`w-4 h-4 sm:w-5 sm:h-5 ${mutedClass} group-hover:text-negative-500 transition-colors`} />
           </div>
         </div>
 
         {/* Inventory Alerts Card */}
         <div
           onClick={() => navigate(`/${user?.tenantSlug}/manager/inventory`, { state: { filter: 'lowStock' } })}
-          className={`${surfaceClass} border ${borderClass} p-6 rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-warning-500 hover:shadow-xl group`}
+          className={`${surfaceClass} border ${borderClass} p-4 sm:p-6 rounded-2xl sm:rounded-[28px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-warning-500 hover:shadow-xl group`}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-[10px] font-black uppercase ${mutedClass} mb-1 tracking-widest`}>Inventory Alerts</p>
-              <h3 className={`text-2xl font-black ${dashboardData.lowStockCount > 0 ? 'text-warning-500' : textClass}`}>
+              <p className={`text-[9px] sm:text-[10px] font-black uppercase ${mutedClass} mb-1 tracking-widest`}>Inventory Alerts</p>
+              <h3 className={`text-xl sm:text-2xl font-black ${dashboardData.lowStockCount > 0 ? 'text-warning-500' : textClass}`}>
                 {dashboardData.lowStockCount} Items Low
               </h3>
-              <p className={`text-[10px] ${mutedClass} mt-1`}>Below reorder level</p>
+              <p className={`text-[9px] sm:text-[10px] ${mutedClass} mt-1`}>Below reorder level</p>
             </div>
-            <ArrowRight className={`w-5 h-5 ${mutedClass} group-hover:text-warning-500 transition-colors`} />
+            <ArrowRight className={`w-4 h-4 sm:w-5 sm:h-5 ${mutedClass} group-hover:text-warning-500 transition-colors`} />
           </div>
         </div>
       </div>
@@ -535,9 +535,9 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       )}
 
       {/* Analytics Grid */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Top Performing Products */}
-        <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-6 shadow-sm`}>
+        <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-4 sm:p-6 shadow-sm`}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-positive-500" />
@@ -574,7 +574,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
         </div>
 
         {/* Least Performing Products */}
-        <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-6 shadow-sm`}>
+        <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-4 sm:p-6 shadow-sm`}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <TrendingDown className="w-4 h-4 text-negative-500" />
@@ -607,9 +607,9 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       </div>
 
       {/* Second Row Analytics */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Top Performing Days */}
-        <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-6 shadow-sm`}>
+        <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-4 sm:p-6 shadow-sm`}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-accent-500" />
@@ -644,7 +644,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
         </div>
 
         {/* Worker Performance */}
-        <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-6 shadow-sm`}>
+        <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-4 sm:p-6 shadow-sm`}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <Award className="w-4 h-4 text-purple-500" />
@@ -684,7 +684,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       </div>
 
       {/* Recent Transactions */}
-      <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-6 shadow-sm`}>
+      <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-4 sm:p-6 shadow-sm`}>
         <div className="flex items-center justify-between mb-6">
           <h2 className={`text-sm font-black uppercase tracking-tight ${textClass}`}>Recent Transactions</h2>
           <Link to={`/${user?.tenantSlug}/manager/sales`} className="text-xs font-bold text-accent-500 flex items-center gap-1 hover:underline">

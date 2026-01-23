@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ownerAPI } from '../../api';
 import { useAuth } from '../../context/AuthContext';
+import DateRangePicker from '../../components/DateRangePicker';
 import {
   DollarSign,
   TrendingUp,
@@ -27,7 +28,10 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
-  const [dateRange, setDateRange] = useState('today');
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0]
+  });
   // Branch filter for drilling down when in "All Branches" mode
   const [branchFilter, setBranchFilter] = useState(null);
   const [showBranchDropdown, setShowBranchDropdown] = useState(false);
@@ -84,25 +88,13 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
       setLoading(true);
       const params = {};
 
-      // Set date range - use local time for better date filtering
-      const now = new Date();
-      if (dateRange === 'today') {
-        // Create start of today in local time, then convert to ISO
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-        params.startDate = startOfToday.toISOString();
-        params.endDate = endOfToday.toISOString();
-      } else if (dateRange === 'week') {
-        const weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0, 0);
-        const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-        params.startDate = weekAgo.toISOString();
-        params.endDate = endOfToday.toISOString();
-      } else if (dateRange === 'month') {
-        const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(), 0, 0, 0, 0);
-        const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-        params.startDate = monthAgo.toISOString();
-        params.endDate = endOfToday.toISOString();
-      }
+      // Set date range from picker
+      const startOfDay = new Date(dateRange.startDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(dateRange.endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      params.startDate = startOfDay.toISOString();
+      params.endDate = endOfDay.toISOString();
 
       const effectiveBranchId = getEffectiveBranchId();
       if (effectiveBranchId) {
@@ -146,7 +138,7 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className={`text-2xl font-black uppercase tracking-tight ${textClass}`}>Command Center</h1>
+          <h1 className={`text-xl sm:text-2xl font-black uppercase tracking-tight ${textClass}`}>Command Center</h1>
           <div className="flex items-center gap-2 mt-1">
             <Building2 className={`w-4 h-4 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`} />
             <p className={`text-sm ${mutedClass}`}>
@@ -207,68 +199,68 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
             </div>
           )}
 
-          <select
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            className={`px-4 py-2 rounded-xl border ${borderClass} ${surfaceClass} ${textClass} text-sm font-medium`}
-          >
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-          </select>
+          <DateRangePicker
+            dateRange={dateRange}
+            onDateChange={setDateRange}
+            darkMode={darkMode}
+            surfaceClass={surfaceClass}
+            textClass={textClass}
+            mutedClass={mutedClass}
+            borderClass={borderClass}
+          />
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className={`${surfaceClass} rounded-2xl p-6 border ${borderClass}`}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={`${surfaceClass} rounded-2xl p-4 sm:p-6 border ${borderClass}`}>
           <div className="flex items-center justify-between">
-            <div>
-              <p className={`text-xs font-bold uppercase ${mutedClass}`}>Total Revenue</p>
-              <p className={`text-2xl font-black ${textClass}`}>{formatCurrency(stats.totalRevenue || 0)}</p>
+            <div className="min-w-0 flex-1">
+              <p className={`text-[10px] sm:text-xs font-bold uppercase ${mutedClass}`}>Total Revenue</p>
+              <p className={`text-lg sm:text-2xl font-black ${textClass} truncate`}>{formatCurrency(stats.totalRevenue || 0)}</p>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-green-600" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0 ml-2">
+              <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
             </div>
           </div>
-          <p className={`text-xs ${mutedClass} mt-2`}>{stats.transactionCount || 0} transactions</p>
+          <p className={`text-[10px] sm:text-xs ${mutedClass} mt-2`}>{stats.transactionCount || 0} transactions</p>
         </div>
 
-        <div className={`${surfaceClass} rounded-2xl p-6 border ${borderClass}`}>
+        <div className={`${surfaceClass} rounded-2xl p-4 sm:p-6 border ${borderClass}`}>
           <div className="flex items-center justify-between">
-            <div>
-              <p className={`text-xs font-bold uppercase ${mutedClass}`}>Gross Profit</p>
-              <p className={`text-2xl font-black ${textClass}`}>{formatCurrency(stats.grossProfit || 0)}</p>
+            <div className="min-w-0 flex-1">
+              <p className={`text-[10px] sm:text-xs font-bold uppercase ${mutedClass}`}>Gross Profit</p>
+              <p className={`text-lg sm:text-2xl font-black ${textClass} truncate`}>{formatCurrency(stats.grossProfit || 0)}</p>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-blue-600" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0 ml-2">
+              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
             </div>
           </div>
-          <p className={`text-xs ${mutedClass} mt-2`}>COGS: {formatCurrency(stats.cogs || 0)}</p>
+          <p className={`text-[10px] sm:text-xs ${mutedClass} mt-2 hidden sm:block`}>COGS: {formatCurrency(stats.cogs || 0)}</p>
         </div>
 
-        <div className={`${surfaceClass} rounded-2xl p-6 border ${borderClass}`}>
+        <div className={`${surfaceClass} rounded-2xl p-4 sm:p-6 border ${borderClass}`}>
           <div className="flex items-center justify-between">
-            <div>
-              <p className={`text-xs font-bold uppercase ${mutedClass}`}>Expenses</p>
-              <p className={`text-2xl font-black ${textClass}`}>{formatCurrency(stats.totalExpenses || 0)}</p>
+            <div className="min-w-0 flex-1">
+              <p className={`text-[10px] sm:text-xs font-bold uppercase ${mutedClass}`}>Expenses</p>
+              <p className={`text-lg sm:text-2xl font-black ${textClass} truncate`}>{formatCurrency(stats.totalExpenses || 0)}</p>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <TrendingDown className="w-6 h-6 text-red-600" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0 ml-2">
+              <TrendingDown className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
             </div>
           </div>
         </div>
 
-        <div className={`${surfaceClass} rounded-2xl p-6 border ${borderClass}`}>
+        <div className={`${surfaceClass} rounded-2xl p-4 sm:p-6 border ${borderClass}`}>
           <div className="flex items-center justify-between">
-            <div>
-              <p className={`text-xs font-bold uppercase ${mutedClass}`}>Net Profit</p>
-              <p className={`text-2xl font-black ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="min-w-0 flex-1">
+              <p className={`text-[10px] sm:text-xs font-bold uppercase ${mutedClass}`}>Net Profit</p>
+              <p className={`text-lg sm:text-2xl font-black truncate ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {formatCurrency(stats.netProfit || 0)}
               </p>
             </div>
-            <div className={`w-12 h-12 rounded-xl ${stats.netProfit >= 0 ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'} flex items-center justify-center`}>
-              <Receipt className={`w-6 h-6 ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${stats.netProfit >= 0 ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'} flex items-center justify-center shrink-0 ml-2`}>
+              <Receipt className={`w-5 h-5 sm:w-6 sm:h-6 ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`} />
             </div>
           </div>
         </div>
@@ -286,32 +278,32 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
         if (!hasAlerts) return null;
 
         return (
-          <div className={`${surfaceClass} rounded-2xl p-6 border ${borderClass}`}>
-            <h2 className={`text-sm font-black uppercase ${textClass} mb-4 flex items-center gap-2`}>
+          <div className={`${surfaceClass} rounded-2xl p-4 sm:p-6 border ${borderClass}`}>
+            <h2 className={`text-xs sm:text-sm font-black uppercase ${textClass} mb-3 sm:mb-4 flex items-center gap-2`}>
               <AlertTriangle className={`w-4 h-4 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`} />
               Alerts & Notifications
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {/* Combined Void Requests Alert - Clickable */}
               {totalVoidAlerts > 0 && (
                 <div
                   onClick={() => navigate(`/${user?.tenantSlug}/owner/requests`)}
-                  className="flex items-center justify-between gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors group"
+                  className="flex items-center justify-between gap-2 sm:gap-3 p-3 sm:p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors group"
                 >
-                  <div className="flex items-center gap-3">
-                    <ShieldAlert className="w-6 h-6 text-amber-600" />
-                    <div>
-                      <p className={`text-sm font-bold ${textClass}`}>
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className={`text-xs sm:text-sm font-bold ${textClass}`}>
                         {totalVoidAlerts} Void Request{totalVoidAlerts !== 1 ? 's' : ''}
                       </p>
-                      <p className={`text-xs ${mutedClass}`}>
+                      <p className={`text-[10px] sm:text-xs ${mutedClass} truncate`}>
                         {alerts.pendingRequests > 0 && `${alerts.pendingRequests} pending`}
                         {alerts.pendingRequests > 0 && alerts.suspiciousVoids?.length > 0 && ', '}
                         {alerts.suspiciousVoids?.length > 0 && `${alerts.suspiciousVoids.length} high-value`}
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className={`w-5 h-5 ${mutedClass} group-hover:translate-x-1 transition-transform`} />
+                  <ChevronRight className={`w-4 h-4 sm:w-5 sm:h-5 ${mutedClass} group-hover:translate-x-1 transition-transform shrink-0`} />
                 </div>
               )}
 
@@ -319,16 +311,16 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
               {alerts.lowStockCount > 0 && (
                 <div
                   onClick={() => navigate(`/${user?.tenantSlug}/owner/inventory`, { state: { filter: 'lowStock' } })}
-                  className="flex items-center justify-between gap-3 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors group"
+                  className="flex items-center justify-between gap-2 sm:gap-3 p-3 sm:p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors group"
                 >
-                  <div className="flex items-center gap-3">
-                    <Package className="w-6 h-6 text-orange-600" />
-                    <div>
-                      <p className={`text-sm font-bold ${textClass}`}>{alerts.lowStockCount} Low Stock</p>
-                      <p className={`text-xs ${mutedClass}`}>Below threshold</p>
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <Package className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className={`text-xs sm:text-sm font-bold ${textClass}`}>{alerts.lowStockCount} Low Stock</p>
+                      <p className={`text-[10px] sm:text-xs ${mutedClass}`}>Below threshold</p>
                     </div>
                   </div>
-                  <ChevronRight className={`w-5 h-5 ${mutedClass} group-hover:translate-x-1 transition-transform`} />
+                  <ChevronRight className={`w-4 h-4 sm:w-5 sm:h-5 ${mutedClass} group-hover:translate-x-1 transition-transform shrink-0`} />
                 </div>
               )}
 
@@ -336,16 +328,16 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
               {alerts.outOfStockCount > 0 && (
                 <div
                   onClick={() => navigate(`/${user?.tenantSlug}/owner/inventory`, { state: { filter: 'outOfStock' } })}
-                  className="flex items-center justify-between gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group"
+                  className="flex items-center justify-between gap-2 sm:gap-3 p-3 sm:p-4 bg-red-50 dark:bg-red-900/20 rounded-xl cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group"
                 >
-                  <div className="flex items-center gap-3">
-                    <Package className="w-6 h-6 text-red-600" />
-                    <div>
-                      <p className={`text-sm font-bold ${textClass}`}>{alerts.outOfStockCount} Out of Stock</p>
-                      <p className={`text-xs ${mutedClass}`}>No inventory</p>
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <Package className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className={`text-xs sm:text-sm font-bold ${textClass}`}>{alerts.outOfStockCount} Out of Stock</p>
+                      <p className={`text-[10px] sm:text-xs ${mutedClass}`}>No inventory</p>
                     </div>
                   </div>
-                  <ChevronRight className={`w-5 h-5 ${mutedClass} group-hover:translate-x-1 transition-transform`} />
+                  <ChevronRight className={`w-4 h-4 sm:w-5 sm:h-5 ${mutedClass} group-hover:translate-x-1 transition-transform shrink-0`} />
                 </div>
               )}
 
@@ -353,16 +345,16 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
               {alerts.expiringSoonCount > 0 && (
                 <div
                   onClick={() => navigate(`/${user?.tenantSlug}/owner/inventory`, { state: { filter: 'expiringSoon' } })}
-                  className="flex items-center justify-between gap-3 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors group"
+                  className="flex items-center justify-between gap-2 sm:gap-3 p-3 sm:p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors group"
                 >
-                  <div className="flex items-center gap-3">
-                    <Clock className="w-6 h-6 text-yellow-600" />
-                    <div>
-                      <p className={`text-sm font-bold ${textClass}`}>{alerts.expiringSoonCount} Expiring Soon</p>
-                      <p className={`text-xs ${mutedClass}`}>Within 90 days</p>
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className={`text-xs sm:text-sm font-bold ${textClass}`}>{alerts.expiringSoonCount} Expiring Soon</p>
+                      <p className={`text-[10px] sm:text-xs ${mutedClass}`}>Within 90 days</p>
                     </div>
                   </div>
-                  <ChevronRight className={`w-5 h-5 ${mutedClass} group-hover:translate-x-1 transition-transform`} />
+                  <ChevronRight className={`w-4 h-4 sm:w-5 sm:h-5 ${mutedClass} group-hover:translate-x-1 transition-transform shrink-0`} />
                 </div>
               )}
 
@@ -370,16 +362,16 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
               {alerts.expiredCount > 0 && (
                 <div
                   onClick={() => navigate(`/${user?.tenantSlug}/owner/inventory`, { state: { filter: 'expired' } })}
-                  className="flex items-center justify-between gap-3 p-4 bg-red-100 dark:bg-red-900/30 rounded-xl cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors group"
+                  className="flex items-center justify-between gap-2 sm:gap-3 p-3 sm:p-4 bg-red-100 dark:bg-red-900/30 rounded-xl cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors group"
                 >
-                  <div className="flex items-center gap-3">
-                    <AlertTriangle className="w-6 h-6 text-red-700" />
-                    <div>
-                      <p className={`text-sm font-bold ${textClass}`}>{alerts.expiredCount} Expired</p>
-                      <p className={`text-xs ${mutedClass}`}>Need removal</p>
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-700 shrink-0" />
+                    <div className="min-w-0">
+                      <p className={`text-xs sm:text-sm font-bold ${textClass}`}>{alerts.expiredCount} Expired</p>
+                      <p className={`text-[10px] sm:text-xs ${mutedClass}`}>Need removal</p>
                     </div>
                   </div>
-                  <ChevronRight className={`w-5 h-5 ${mutedClass} group-hover:translate-x-1 transition-transform`} />
+                  <ChevronRight className={`w-4 h-4 sm:w-5 sm:h-5 ${mutedClass} group-hover:translate-x-1 transition-transform shrink-0`} />
                 </div>
               )}
             </div>
@@ -387,10 +379,10 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
         );
       })()}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Branch Performance */}
-        <div className={`${surfaceClass} rounded-2xl p-6 border ${borderClass}`}>
-          <h2 className={`text-sm font-black uppercase ${textClass} mb-4 flex items-center gap-2`}>
+        <div className={`${surfaceClass} rounded-2xl p-4 sm:p-6 border ${borderClass}`}>
+          <h2 className={`text-xs sm:text-sm font-black uppercase ${textClass} mb-3 sm:mb-4 flex items-center gap-2`}>
             <Building2 className="w-4 h-4" />
             Branch Performance
           </h2>
@@ -443,8 +435,8 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
         </div>
 
         {/* Staff Leaderboard */}
-        <div className={`${surfaceClass} rounded-2xl p-6 border ${borderClass}`}>
-          <h2 className={`text-sm font-black uppercase ${textClass} mb-4 flex items-center gap-2`}>
+        <div className={`${surfaceClass} rounded-2xl p-4 sm:p-6 border ${borderClass}`}>
+          <h2 className={`text-xs sm:text-sm font-black uppercase ${textClass} mb-3 sm:mb-4 flex items-center gap-2`}>
             <Award className="w-4 h-4" />
             Staff Leaderboard
           </h2>
@@ -475,8 +467,8 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
       </div>
 
       {/* Hourly Sales Trend */}
-      <div className={`${surfaceClass} rounded-2xl p-6 border ${borderClass}`}>
-        <h2 className={`text-sm font-black uppercase ${textClass} mb-4 flex items-center gap-2`}>
+      <div className={`${surfaceClass} rounded-2xl p-4 sm:p-6 border ${borderClass}`}>
+        <h2 className={`text-xs sm:text-sm font-black uppercase ${textClass} mb-3 sm:mb-4 flex items-center gap-2`}>
           <BarChart3 className="w-4 h-4" />
           Today's Hourly Sales
         </h2>
@@ -527,28 +519,28 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass} text-center`}>
-          <Users className={`w-6 h-6 mx-auto ${mutedClass}`} />
-          <p className={`text-2xl font-black ${textClass} mt-2`}>{stats.staffCount || 0}</p>
-          <p className={`text-xs ${mutedClass}`}>Total Staff</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className={`${surfaceClass} rounded-2xl p-3 sm:p-4 border ${borderClass} text-center`}>
+          <Users className={`w-5 h-5 sm:w-6 sm:h-6 mx-auto ${mutedClass}`} />
+          <p className={`text-xl sm:text-2xl font-black ${textClass} mt-1 sm:mt-2`}>{stats.staffCount || 0}</p>
+          <p className={`text-[10px] sm:text-xs ${mutedClass}`}>Total Staff</p>
         </div>
-        <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass} text-center`}>
-          <Building2 className={`w-6 h-6 mx-auto ${mutedClass}`} />
-          <p className={`text-2xl font-black ${textClass} mt-2`}>{stats.branchCount || 0}</p>
-          <p className={`text-xs ${mutedClass}`}>Branches</p>
+        <div className={`${surfaceClass} rounded-2xl p-3 sm:p-4 border ${borderClass} text-center`}>
+          <Building2 className={`w-5 h-5 sm:w-6 sm:h-6 mx-auto ${mutedClass}`} />
+          <p className={`text-xl sm:text-2xl font-black ${textClass} mt-1 sm:mt-2`}>{stats.branchCount || 0}</p>
+          <p className={`text-[10px] sm:text-xs ${mutedClass}`}>Branches</p>
         </div>
-        <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass} text-center`}>
-          <Receipt className={`w-6 h-6 mx-auto ${mutedClass}`} />
-          <p className={`text-2xl font-black ${textClass} mt-2`}>{stats.transactionCount || 0}</p>
-          <p className={`text-xs ${mutedClass}`}>Transactions</p>
+        <div className={`${surfaceClass} rounded-2xl p-3 sm:p-4 border ${borderClass} text-center`}>
+          <Receipt className={`w-5 h-5 sm:w-6 sm:h-6 mx-auto ${mutedClass}`} />
+          <p className={`text-xl sm:text-2xl font-black ${textClass} mt-1 sm:mt-2`}>{stats.transactionCount || 0}</p>
+          <p className={`text-[10px] sm:text-xs ${mutedClass}`}>Transactions</p>
         </div>
-        <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass} text-center`}>
-          <TrendingUp className={`w-6 h-6 mx-auto ${mutedClass}`} />
-          <p className={`text-2xl font-black ${textClass} mt-2`}>
+        <div className={`${surfaceClass} rounded-2xl p-3 sm:p-4 border ${borderClass} text-center`}>
+          <TrendingUp className={`w-5 h-5 sm:w-6 sm:h-6 mx-auto ${mutedClass}`} />
+          <p className={`text-lg sm:text-2xl font-black ${textClass} mt-1 sm:mt-2 truncate`}>
             {stats.transactionCount > 0 ? formatCurrency(stats.totalRevenue / stats.transactionCount) : formatCurrency(0)}
           </p>
-          <p className={`text-xs ${mutedClass}`}>Avg Transaction</p>
+          <p className={`text-[10px] sm:text-xs ${mutedClass}`}>Avg Transaction</p>
         </div>
       </div>
     </div>

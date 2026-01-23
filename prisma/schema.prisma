@@ -147,6 +147,13 @@ model Tenant {
   securityRequests  SecurityRequest[]
   branches          Branch[]
   branchRequests    BranchRequest[]
+  // Retail module relations
+  suppliers         Supplier[]
+  purchaseOrders    PurchaseOrder[]
+  stockTransfers    StockTransfer[]
+  returns           Return[]
+  productCategories ProductCategory[]
+  stockAdjustments  StockAdjustment[]
 
   @@index([tierId])
   @@index([country])
@@ -184,6 +191,12 @@ model User {
   requestsReviewed        SecurityRequest[] @relation("RequestsReviewed")
   branchRequestsMade      BranchRequest[]   @relation("BranchRequestsMade")
   branchRequestsReviewed  BranchRequest[]   @relation("BranchRequestsReviewed")
+  // Retail module relations
+  purchaseOrdersCreated   PurchaseOrder[]   @relation("PurchaseOrdersCreated")
+  transfersInitiated      StockTransfer[]   @relation("TransfersInitiated")
+  transfersReceived       StockTransfer[]   @relation("TransfersReceived")
+  returnsProcessed        Return[]          @relation("ReturnsProcessed")
+  stockAdjustments        StockAdjustment[] @relation("StockAdjustments")
 
   @@unique([username, tenantId]) // Username unique per tenant
   @@index([branchId])
@@ -205,15 +218,22 @@ model Product {
   id          String   @id @default(uuid())
   name        String
   description String?
-  category    ProductCategory @default(PRODUCT)
-  customCategory String?       // Custom category tag (e.g., "Hair Products", "Drinks")
-  barcode     String?
+  type        ProductType @default(PRODUCT) // PRODUCT or SERVICE
+  categoryId  String?      // Reference to ProductCategory
+  customCategory String?   // Legacy: Custom category tag (e.g., "Hair Products", "Drinks")
+  sku         String?      // Stock Keeping Unit - internal code
+  barcode     String?      // External barcode (UPC, EAN, etc.)
   costPrice   Float    @default(0)
   sellingPrice Float
   stockQuantity Int    @default(0)
   lowStockThreshold Int @default(10)
+  reorderPoint Int     @default(5)    // When to reorder
+  reorderQty   Int     @default(10)   // How much to reorder
   expiryDate  DateTime?        // Product expiry date (optional)
+  weight      Float?           // Weight in kg (for shipping)
+  dimensions  String?          // LxWxH in cm (for shipping)
   isActive    Boolean  @default(true)
+  trackInventory Boolean @default(true) // False for services
   tenantId    String
   branchId    String?          // Branch that owns this product
   createdAt   DateTime @default(now())
@@ -221,17 +241,27 @@ model Product {
 
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch      Branch?  @relation(fields: [branchId], references: [id])
+  category    ProductCategory? @relation(fields: [categoryId], references: [id])
   saleItems   SaleItem[]
+  // Retail module relations
+  suppliers         ProductSupplier[]
+  purchaseOrderItems PurchaseOrderItem[]
+  stockTransferItems StockTransferItem[]
+  returnItems       ReturnItem[]
+  stockAdjustments  StockAdjustment[]
 
   @@index([tenantId, name])
   @@index([branchId])
   @@index([tenantId, isActive])      // Active products per tenant
-  @@index([tenantId, category])      // Filter by category
+  @@index([tenantId, type])          // Filter by type
+  @@index([categoryId])              // Filter by category
   @@index([barcode])                 // Quick barcode lookups (POS scanning)
+  @@index([sku])                     // SKU lookups
   @@map("products")
 }
 
-enum ProductCategory {
+// Product Type: Physical product or service
+enum ProductType {
   PRODUCT
   SERVICE
 }
@@ -252,6 +282,7 @@ model Customer {
 
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sales       Sale[]
+  returns     Return[] // Retail: returns by this customer
 
   @@index([tenantId, name])
   @@index([tenantId, phone])
@@ -285,6 +316,7 @@ model Sale {
   branch            Branch?           @relation(fields: [branchId], references: [id])
   items             SaleItem[]
   securityRequests  SecurityRequest[]
+  returns           Return[]          // Retail: returns for this sale
 
   @@index([tenantId, createdAt])
   @@index([cashierId, createdAt])
@@ -306,9 +338,10 @@ model SaleItem {
   discount    Float    @default(0)
   subtotal    Float
   createdAt   DateTime @default(now())
-  
+
   sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product     Product  @relation(fields: [productId], references: [id])
+  returnItems ReturnItem[] // Retail: items returned from this sale item
 
   @@index([saleId])        // Faster sale item lookups
   @@index([productId])     // Product sales analysis
@@ -424,6 +457,12 @@ model Branch {
   expenses          Expense[]
   auditLogs         AuditLog[]
   securityRequests  SecurityRequest[]
+  // Retail module relations
+  purchaseOrders    PurchaseOrder[]
+  transfersFrom     StockTransfer[]   @relation("TransfersFrom")
+  transfersTo       StockTransfer[]   @relation("TransfersTo")
+  returns           Return[]
+  stockAdjustments  StockAdjustment[]
 
   @@index([tenantId])
   @@map("branches")
@@ -495,4 +534,286 @@ model TenantApplication {
 
   @@index([status, createdAt])
   @@map("tenant_applications")
+}
+
+// =============================================================================
+// RETAIL MODULE - Suppliers, Purchase Orders, Stock Transfers, Returns
+// =============================================================================
+
+// Supplier: Vendors that provide products
+model Supplier {
+  id            String   @id @default(uuid())
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  notes         String?
+  isActive      Boolean  @default(true)
+  tenantId      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products        ProductSupplier[]
+  purchaseOrders  PurchaseOrder[]
+
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+  @@map("suppliers")
+}
+
+// Many-to-many: Products can have multiple suppliers with different costs
+model ProductSupplier {
+  id            String   @id @default(uuid())
+  productId     String
+  supplierId    String
+  supplierSku   String?          // Supplier's product code
+  costPrice     Float            // Cost from this supplier
+  isPreferred   Boolean  @default(false) // Primary supplier for this product
+  leadTimeDays  Int      @default(0)     // Days to receive from supplier
+  minOrderQty   Int      @default(1)     // Minimum order quantity
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier      Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, supplierId])
+  @@index([supplierId])
+  @@map("product_suppliers")
+}
+
+// Purchase Order Status
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING      // Sent to supplier, awaiting delivery
+  PARTIAL      // Partially received
+  RECEIVED     // Fully received
+  CANCELLED
+}
+
+// Purchase Order: Orders to suppliers for restocking
+model PurchaseOrder {
+  id              String              @id @default(uuid())
+  orderNumber     String              // PO-YYYYMMDD-XXXX
+  supplierId      String
+  status          PurchaseOrderStatus @default(DRAFT)
+  subtotal        Float               @default(0)
+  taxAmount       Float               @default(0)
+  shippingCost    Float               @default(0)
+  totalAmount     Float               @default(0)
+  notes           String?
+  expectedDate    DateTime?           // Expected delivery date
+  receivedDate    DateTime?           // Actual received date
+  createdById     String              // User who created the PO
+  tenantId        String
+  branchId        String?             // Branch receiving the stock
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  supplier        Supplier            @relation(fields: [supplierId], references: [id])
+  createdBy       User                @relation("PurchaseOrdersCreated", fields: [createdById], references: [id])
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch          Branch?             @relation(fields: [branchId], references: [id])
+  items           PurchaseOrderItem[]
+
+  @@index([tenantId, status])
+  @@index([supplierId])
+  @@index([branchId])
+  @@index([tenantId, createdAt])
+  @@map("purchase_orders")
+}
+
+// Purchase Order Item: Line items in a purchase order
+model PurchaseOrderItem {
+  id              String   @id @default(uuid())
+  purchaseOrderId String
+  productId       String
+  quantity        Int               // Ordered quantity
+  receivedQty     Int      @default(0) // Received quantity
+  unitCost        Float             // Cost per unit
+  subtotal        Float             // quantity * unitCost
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id])
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+  @@map("purchase_order_items")
+}
+
+// Stock Transfer Status
+enum StockTransferStatus {
+  PENDING      // Awaiting approval/shipment
+  IN_TRANSIT   // Being transferred
+  RECEIVED     // Received at destination
+  CANCELLED
+}
+
+// Stock Transfer: Move inventory between branches
+model StockTransfer {
+  id              String              @id @default(uuid())
+  transferNumber  String              // TRF-YYYYMMDD-XXXX
+  fromBranchId    String
+  toBranchId      String
+  status          StockTransferStatus @default(PENDING)
+  notes           String?
+  initiatedById   String              // User who initiated
+  receivedById    String?             // User who received
+  shippedAt       DateTime?
+  receivedAt      DateTime?
+  tenantId        String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  fromBranch      Branch              @relation("TransfersFrom", fields: [fromBranchId], references: [id])
+  toBranch        Branch              @relation("TransfersTo", fields: [toBranchId], references: [id])
+  initiatedBy     User                @relation("TransfersInitiated", fields: [initiatedById], references: [id])
+  receivedBy      User?               @relation("TransfersReceived", fields: [receivedById], references: [id])
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items           StockTransferItem[]
+
+  @@index([tenantId, status])
+  @@index([fromBranchId])
+  @@index([toBranchId])
+  @@index([tenantId, createdAt])
+  @@map("stock_transfers")
+}
+
+// Stock Transfer Item: Products being transferred
+model StockTransferItem {
+  id              String   @id @default(uuid())
+  stockTransferId String
+  productId       String
+  quantity        Int               // Quantity to transfer
+  receivedQty     Int      @default(0) // Quantity actually received
+  createdAt       DateTime @default(now())
+
+  stockTransfer   StockTransfer @relation(fields: [stockTransferId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id])
+
+  @@index([stockTransferId])
+  @@index([productId])
+  @@map("stock_transfer_items")
+}
+
+// Return Type
+enum ReturnType {
+  REFUND       // Money back
+  EXCHANGE     // Swap for another product
+  STORE_CREDIT // Credit for future purchase
+}
+
+// Return Status
+enum ReturnStatus {
+  PENDING      // Awaiting processing
+  APPROVED     // Approved, awaiting completion
+  COMPLETED    // Return processed
+  REJECTED     // Return denied
+}
+
+// Return: Customer returns and exchanges
+model Return {
+  id              String       @id @default(uuid())
+  returnNumber    String       // RTN-YYYYMMDD-XXXX
+  saleId          String       // Original sale
+  type            ReturnType   @default(REFUND)
+  status          ReturnStatus @default(PENDING)
+  reason          String       // Why customer is returning
+  totalAmount     Float        @default(0) // Total refund/credit amount
+  notes           String?
+  processedById   String?      // Staff who processed
+  processedAt     DateTime?
+  customerId      String?
+  tenantId        String
+  branchId        String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  sale            Sale         @relation(fields: [saleId], references: [id])
+  processedBy     User?        @relation("ReturnsProcessed", fields: [processedById], references: [id])
+  customer        Customer?    @relation(fields: [customerId], references: [id])
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch          Branch?      @relation(fields: [branchId], references: [id])
+  items           ReturnItem[]
+
+  @@index([tenantId, status])
+  @@index([saleId])
+  @@index([customerId])
+  @@index([branchId])
+  @@index([tenantId, createdAt])
+  @@map("returns")
+}
+
+// Return Item: Products being returned
+model ReturnItem {
+  id              String   @id @default(uuid())
+  returnId        String
+  productId       String
+  saleItemId      String?  // Reference to original sale item
+  quantity        Int      // Quantity being returned
+  unitPrice       Float    // Price at time of sale
+  subtotal        Float    // Refund amount for this item
+  condition       String?  // e.g., "unopened", "defective", "damaged"
+  restockable     Boolean  @default(true) // Can be resold?
+  createdAt       DateTime @default(now())
+
+  return          Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id])
+  saleItem        SaleItem? @relation(fields: [saleItemId], references: [id])
+
+  @@index([returnId])
+  @@index([productId])
+  @@map("return_items")
+}
+
+// Product Category: Organize products into categories
+model ProductCategory {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  parentId    String?          // For subcategories
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent      ProductCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    ProductCategory[] @relation("CategoryHierarchy")
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products    Product[]
+
+  @@unique([name, tenantId])
+  @@index([tenantId])
+  @@index([parentId])
+  @@map("product_categories")
+}
+
+// Stock Adjustment: Track inventory adjustments (damage, theft, counting errors)
+model StockAdjustment {
+  id            String   @id @default(uuid())
+  productId     String
+  adjustmentType String  // "damage", "theft", "count", "expiry", "other"
+  quantity      Int      // Positive or negative
+  previousQty   Int      // Stock before adjustment
+  newQty        Int      // Stock after adjustment
+  reason        String   // Detailed reason
+  adjustedById  String   // User who made adjustment
+  tenantId      String
+  branchId      String?
+  createdAt     DateTime @default(now())
+
+  product       Product  @relation(fields: [productId], references: [id])
+  adjustedBy    User     @relation("StockAdjustments", fields: [adjustedById], references: [id])
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch        Branch?  @relation(fields: [branchId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([productId])
+  @@index([branchId])
+  @@map("stock_adjustments")
 }

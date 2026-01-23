@@ -244,7 +244,7 @@ const Inventory = () => {
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            product.category === 'PRODUCT'
+                            product.type === 'PRODUCT'
                               ? 'bg-blue-100 text-blue-800'
                               : 'bg-purple-100 text-purple-800'
                           }`}>
@@ -269,7 +269,7 @@ const Inventory = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          {product.category === 'PRODUCT' ? (
+                          {product.type === 'PRODUCT' ? (
                             <input
                               type="number"
                               min="0"

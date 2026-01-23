@@ -288,6 +288,36 @@ export const ownerAPI = {
   updateSettings: (data) => api.put('/owner/settings', data)
 };
 
+// Stock Transfers API (Retail Module)
+export const stockTransfersAPI = {
+  getAll: (params) => api.get('/stock-transfers', { params }),
+  getById: (id) => api.get(`/stock-transfers/${id}`),
+  create: (data) => api.post('/stock-transfers', data),
+  ship: (id) => api.post(`/stock-transfers/${id}/ship`),
+  receive: (id, items) => api.post(`/stock-transfers/${id}/receive`, { items }),
+  cancel: (id) => api.post(`/stock-transfers/${id}/cancel`)
+};
+
+// Categories API (Retail Module)
+export const categoriesAPI = {
+  getAll: (params) => api.get('/categories', { params }),
+  getById: (id) => api.get(`/categories/${id}`),
+  create: (data) => api.post('/categories', data),
+  update: (id, data) => api.put(`/categories/${id}`, data),
+  delete: (id) => api.delete(`/categories/${id}`),
+  reorder: (categories) => api.put('/categories/reorder', { categories })
+};
+
+// Stock Adjustments API (Retail Module)
+export const stockAdjustmentsAPI = {
+  getAll: (params) => api.get('/stock-adjustments', { params }),
+  getSummary: (params) => api.get('/stock-adjustments/summary', { params }),
+  getById: (id) => api.get(`/stock-adjustments/${id}`),
+  getByProduct: (productId, params) => api.get(`/stock-adjustments/product/${productId}`, { params }),
+  create: (data) => api.post('/stock-adjustments', data),
+  bulkCount: (data) => api.post('/stock-adjustments/bulk', data)
+};
+
 // Branches API
 export const branchesAPI = {
   getAll: () => api.get('/branches'),

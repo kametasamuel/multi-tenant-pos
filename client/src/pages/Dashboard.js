@@ -152,7 +152,7 @@ const Dashboard = () => {
 
   // Get emoji for product category
   const getProductEmoji = (product) => {
-    if (product.category === 'SERVICE') return '✂️';
+    if (product.type === 'SERVICE') return '✂️';
     if (product.name.toLowerCase().includes('hair')) return '💇';
     if (product.name.toLowerCase().includes('laptop') || product.name.toLowerCase().includes('charger')) return '💻';
     if (product.name.toLowerCase().includes('usb') || product.name.toLowerCase().includes('cable')) return '🔌';
@@ -483,14 +483,14 @@ const Dashboard = () => {
                     <div className={viewMode === 'grid' ? '' : 'flex-1'}>
                       <h3 className="font-semibold text-sm md:text-base text-gray-900 dark:text-gray-100">{product.name}</h3>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{product.category}</p>
-                      {product.category === 'PRODUCT' && (
+                      {product.type === 'PRODUCT' && (
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Stock: {product.stockQuantity}</p>
                       )}
                     </div>
                     <p className={`text-lg font-bold text-gray-900 dark:text-gray-100 ${viewMode === 'grid' ? 'mt-2' : 'ml-auto'}`}>
                       {formatCurrency(product.sellingPrice)}
                     </p>
-                    {product.category === 'PRODUCT' && product.stockQuantity <= (product.lowStockThreshold || 10) && (
+                    {product.type === 'PRODUCT' && product.stockQuantity <= (product.lowStockThreshold || 10) && (
                       <span className={`bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 text-xs font-semibold px-2 py-1 rounded-lg ${viewMode === 'grid' ? 'mt-2' : 'ml-2'}`}>
                         Low Stock
                       </span>

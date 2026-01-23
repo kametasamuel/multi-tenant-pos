@@ -36,7 +36,7 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
         return res.status(400).json({ error: `Product ${item.productId} not found` });
       }
 
-      if (product.category === 'PRODUCT' && product.stockQuantity < item.quantity) {
+      if (product.type === 'PRODUCT' && product.stockQuantity < item.quantity) {
         return res.status(400).json({ 
           error: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}` 
         });
@@ -120,7 +120,7 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
       // Update product stock
       for (const item of items) {
         const product = products.find(p => p.id === item.productId);
-        if (product.category === 'PRODUCT') {
+        if (product.type === 'PRODUCT') {
           await tx.product.update({
             where: { id: item.productId },
             data: {
@@ -324,7 +324,7 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
       // Restore product stock
       for (const item of sale.items) {
         const product = await tx.product.findUnique({ where: { id: item.productId } });
-        if (product && product.category === 'PRODUCT') {
+        if (product && product.type === 'PRODUCT') {
           await tx.product.update({
             where: { id: item.productId },
             data: {

@@ -233,7 +233,7 @@ const ManagerSales = ({ darkMode, surfaceClass, textClass, mutedClass, borderCla
       {/* Header with Filter */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className={`text-2xl sm:text-3xl font-black uppercase tracking-tighter ${textClass}`}>
+          <h1 className={`text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-tighter ${textClass}`}>
             Shift Revenue
           </h1>
           <p className={`text-sm ${mutedClass} mt-1`}>
@@ -330,64 +330,64 @@ const ManagerSales = ({ darkMode, surfaceClass, textClass, mutedClass, borderCla
       </div>
 
       {/* Stats Summary - Moved to Top */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Sales Card */}
-        <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-5`}>
-          <div className="flex items-center gap-2 mb-2">
-            <DollarSign className="w-4 h-4 text-accent-500" />
-            <p className={`text-[10px] font-black uppercase ${mutedClass}`}>Total Sales</p>
+        <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5`}>
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-accent-500" />
+            <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass}`}>Total Sales</p>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-accent-500">{formatCurrency(stats.totalRevenue)}</p>
+          <p className="text-lg sm:text-2xl lg:text-3xl font-black text-accent-500 truncate">{formatCurrency(stats.totalRevenue)}</p>
         </div>
 
         {/* Total Profit Card */}
-        <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-5`}>
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="w-4 h-4 text-positive-500" />
-            <p className={`text-[10px] font-black uppercase ${mutedClass}`}>Total Profit</p>
+        <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5`}>
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-positive-500" />
+            <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass}`}>Total Profit</p>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-positive-500">{formatCurrency(stats.totalProfit)}</p>
+          <p className="text-lg sm:text-2xl lg:text-3xl font-black text-positive-500 truncate">{formatCurrency(stats.totalProfit)}</p>
           {stats.totalRevenue > 0 && (
-            <p className={`text-[10px] ${mutedClass} mt-1`}>
+            <p className={`text-[9px] sm:text-[10px] ${mutedClass} mt-0.5 sm:mt-1`}>
               {((stats.totalProfit / stats.totalRevenue) * 100).toFixed(1)}% margin
             </p>
           )}
         </div>
 
         {/* Orders Card */}
-        <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-5`}>
-          <div className="flex items-center gap-2 mb-2">
-            <ShoppingBag className="w-4 h-4 text-warning-500" />
-            <p className={`text-[10px] font-black uppercase ${mutedClass}`}>Orders</p>
+        <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5`}>
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-warning-500" />
+            <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass}`}>Orders</p>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-warning-500">{stats.totalOrders}</p>
-          <p className={`text-[10px] ${mutedClass} mt-1`}>Avg: {formatCurrency(stats.avgOrderValue)}</p>
+          <p className="text-lg sm:text-xl lg:text-2xl font-black text-warning-500">{stats.totalOrders}</p>
+          <p className={`text-[9px] sm:text-[10px] ${mutedClass} mt-0.5 sm:mt-1 truncate`}>Avg: {formatCurrency(stats.avgOrderValue)}</p>
         </div>
 
         {/* Payment Breakdown Card */}
-        <div className={`${surfaceClass} border ${borderClass} rounded-[28px] p-5`}>
-          <p className={`text-[10px] font-black uppercase ${mutedClass} mb-3`}>Payment Methods</p>
-          <div className="space-y-2">
+        <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5`}>
+          <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} mb-2 sm:mb-3`}>Payment Methods</p>
+          <div className="space-y-1.5 sm:space-y-2">
             <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <Banknote className="w-3.5 h-3.5 text-emerald-500" />
-                <span className={`text-[10px] ${mutedClass}`}>Cash</span>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Banknote className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500" />
+                <span className={`text-[9px] sm:text-[10px] ${mutedClass}`}>Cash</span>
               </div>
-              <span className="text-xs font-black text-emerald-500">{formatCurrency(stats.cashTotal)}</span>
+              <span className="text-[10px] sm:text-xs font-black text-emerald-500 truncate ml-2">{formatCurrency(stats.cashTotal)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-3.5 h-3.5 text-blue-500" />
-                <span className={`text-[10px] ${mutedClass}`}>Card</span>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <CreditCard className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500" />
+                <span className={`text-[9px] sm:text-[10px] ${mutedClass}`}>Card</span>
               </div>
-              <span className="text-xs font-black text-blue-500">{formatCurrency(stats.cardTotal)}</span>
+              <span className="text-[10px] sm:text-xs font-black text-blue-500 truncate ml-2">{formatCurrency(stats.cardTotal)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <Smartphone className="w-3.5 h-3.5 text-purple-500" />
-                <span className={`text-[10px] ${mutedClass}`}>Momo</span>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Smartphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-500" />
+                <span className={`text-[9px] sm:text-[10px] ${mutedClass}`}>Momo</span>
               </div>
-              <span className="text-xs font-black text-purple-500">{formatCurrency(stats.momoTotal)}</span>
+              <span className="text-[10px] sm:text-xs font-black text-purple-500 truncate ml-2">{formatCurrency(stats.momoTotal)}</span>
             </div>
           </div>
         </div>

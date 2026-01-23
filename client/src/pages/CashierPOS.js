@@ -139,7 +139,7 @@ const CashierPOS = ({
   // Check for low stock items when products load
   useEffect(() => {
     const lowStock = products.filter(p =>
-      p.category === 'PRODUCT' && p.stockQuantity <= (p.lowStockThreshold || 10)
+      p.type === 'PRODUCT' && p.stockQuantity <= (p.lowStockThreshold || 10)
     );
     setLowStockItems(lowStock);
   }, [products]);
@@ -377,20 +377,22 @@ const CashierPOS = ({
     setDarkMode(!darkMode);
   };
 
-  // Get unique categories
-  const categories = ['All', ...new Set(products.map(p => p.category))];
+  // Get type tabs (All, Products, Services)
+  const typeTabs = ['All', 'Products', 'Services'];
 
   // Filter products
   const filteredProducts = products.filter(p => {
-    const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
+    const matchesType = activeCategory === 'All' ||
+      (activeCategory === 'Products' && p.type === 'PRODUCT') ||
+      (activeCategory === 'Services' && p.type === 'SERVICE');
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const hasStock = p.category === 'SERVICE' || p.stockQuantity > 0;
-    return matchesCategory && matchesSearch && hasStock;
+    const hasStock = p.type === 'SERVICE' || p.stockQuantity > 0;
+    return matchesType && matchesSearch && hasStock;
   });
 
   // Cart functions
   const addToCart = (product) => {
-    if (product.category === 'PRODUCT') {
+    if (product.type === 'PRODUCT') {
       const cartItem = cart.find(item => item.id === product.id);
       const currentQty = cartItem ? cartItem.qty : 0;
       if (currentQty >= product.stockQuantity) {
@@ -419,7 +421,7 @@ const CashierPOS = ({
       const item = prev[index];
       const newQty = item.qty + delta;
 
-      if (item.category === 'PRODUCT' && newQty > item.stockQuantity) {
+      if (item.type === 'PRODUCT' && newQty > item.stockQuantity) {
         showToast('Not enough stock');
         return prev;
       }
@@ -874,19 +876,19 @@ const CashierPOS = ({
                 </div>
               </div>
 
-              {/* Category Filters */}
+              {/* Type Filters - All / Products / Services */}
               <div className="flex gap-1.5 sm:gap-2 mb-3 sm:mb-4 overflow-x-auto pb-1 scrollbar-hide">
-                {categories.map((cat) => (
+                {typeTabs.map((tab) => (
                   <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
+                    key={tab}
+                    onClick={() => setActiveCategory(tab)}
                     className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[8px] sm:text-[9px] font-bold uppercase tracking-wide whitespace-nowrap transition-all ${
-                      activeCategory === cat
+                      activeCategory === tab
                         ? `${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} shadow-md`
                         : `${surfaceClass} border ${borderClass} ${mutedClass} hover:text-accent-500`
                     }`}
                   >
-                    {cat === 'PRODUCT' ? 'Products' : cat === 'SERVICE' ? 'Services' : cat}
+                    {tab}
                   </button>
                 ))}
               </div>
@@ -900,7 +902,7 @@ const CashierPOS = ({
                     className={`${surfaceClass} border ${borderClass} rounded-xl sm:rounded-2xl p-2 sm:p-3 cursor-pointer hover:border-accent-500 hover:shadow-lg transition-all group`}
                   >
                     <div className={`aspect-square ${bgClass} rounded-lg sm:rounded-xl mb-1.5 sm:mb-2 flex items-center justify-center`}>
-                      {product.category === 'SERVICE' ? (
+                      {product.type === 'SERVICE' ? (
                         <Scissors className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} group-hover:text-accent-500`} />
                       ) : (
                         <Package className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} group-hover:text-accent-500`} />
@@ -911,7 +913,7 @@ const CashierPOS = ({
                     </h3>
                     <div className="flex justify-between items-center">
                       <span className={`${mutedClass} text-[7px] font-bold uppercase hidden sm:inline`}>
-                        {product.category === 'SERVICE' ? 'Svc' : `${product.stockQuantity}`}
+                        {product.type === 'SERVICE' ? 'Svc' : `${product.stockQuantity}`}
                       </span>
                       <span className={`font-black text-[10px] sm:text-xs ${textClass}`}>
                         {formatCurrency(product.sellingPrice)}
@@ -1402,7 +1404,7 @@ const CashierPOS = ({
                               </div>
                             </div>
                             {/* Stylist Selection for Services */}
-                            {item.category === 'SERVICE' && workers.length > 0 && (
+                            {item.type === 'SERVICE' && workers.length > 0 && (
                               <div className="mt-1.5 flex items-center gap-2">
                                 <Users className={`w-3 h-3 ${mutedClass}`} />
                                 <select
