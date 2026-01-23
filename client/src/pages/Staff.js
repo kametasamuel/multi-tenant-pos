@@ -172,7 +172,7 @@ const Staff = () => {
                     required
                   >
                     <option value="CASHIER">Cashier</option>
-                    <option value="ADMIN">Admin</option>
+                    <option value="ADMIN">Owner</option>
                   </select>
                 </div>
               </div>
@@ -268,7 +268,9 @@ const Staff = () => {
                   <td>{user.username}</td>
                   <td>{user.fullName}</td>
                   <td>
-                    <span className={`role-badge ${user.role.toLowerCase()}`}>{user.role}</span>
+                    <span className={`role-badge ${user.role === 'ADMIN' ? 'owner' : user.role.toLowerCase()}`}>
+                      {user.role === 'ADMIN' ? 'OWNER' : user.role}
+                    </span>
                   </td>
                   <td>
                     <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>

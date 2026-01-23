@@ -336,11 +336,14 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
         }
       }
 
-      // Update sale status
+      // Update sale status with void tracking info
       await tx.sale.update({
         where: { id: sale.id },
         data: {
-          paymentStatus: 'voided'
+          paymentStatus: 'voided',
+          voidedById: req.user.id,
+          voidedAt: new Date(),
+          voidReason: req.body.reason || null
         }
       });
     });
@@ -348,7 +351,8 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
     await logAudit(req.tenantId, req.user.id, 'sale_voided', `Voided sale: ${sale.transactionNumber}`, {
       saleId: sale.id,
       originalAmount: sale.finalAmount,
-      branchId: sale.branchId
+      branchId: sale.branchId,
+      reason: req.body.reason || null
     }, sale.branchId);
 
     res.json({ message: 'Sale voided successfully' });

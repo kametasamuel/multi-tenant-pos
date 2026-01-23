@@ -36,7 +36,8 @@ import {
   Clock,
   XCircle,
   Calendar,
-  Edit2
+  Edit2,
+  Building2
 } from 'lucide-react';
 
 const CashierPOS = ({
@@ -612,7 +613,7 @@ const CashierPOS = ({
         primaryMethod = selectedPayment;
       }
 
-      const methodMap = { 'Cash': 'CASH', 'Card': 'CARD', 'Momo': 'MOBILE_MONEY' };
+      const methodMap = { 'Cash': 'CASH', 'Card': 'CARD', 'Momo': 'MOMO', 'Bank Transfer': 'BANK_TRANSFER' };
 
       const saleData = {
         items: cart.map(item => ({
@@ -1544,7 +1545,8 @@ const CashierPOS = ({
                       {[
                         { id: 'Cash', label: 'Cash', icon: Banknote },
                         { id: 'Card', label: 'Card', icon: CreditCard },
-                        { id: 'Momo', label: 'Momo', icon: Smartphone }
+                        { id: 'Momo', label: 'MoMo', icon: Smartphone },
+                        { id: 'Bank Transfer', label: 'Bank Transfer', icon: Building2 }
                       ].map(({ id, label, icon: Icon }) => (
                         <button
                           key={id}

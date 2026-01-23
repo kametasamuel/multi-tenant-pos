@@ -254,28 +254,56 @@ router.get('/staff', async (req, res) => {
   try {
     const { role, branchId, status, search } = req.query;
 
-    const where = {
+    // Base where clause
+    const baseWhere = {
       tenantId: req.tenantId,
       isSuperAdmin: false
     };
 
-    if (role) where.role = role;
-    if (branchId) where.branchId = branchId;
-    if (status === 'active') where.isActive = true;
-    if (status === 'inactive') where.isActive = false;
+    // Build the staff query where clause
+    // When filtering by branch, include OWNER/ADMIN roles regardless of their branch assignment
+    // (Owners manage all branches so they should always be visible)
+    let staffWhere;
+    if (branchId) {
+      staffWhere = {
+        ...baseWhere,
+        OR: [
+          { branchId: branchId },
+          { role: { in: ['OWNER', 'ADMIN'] } }
+        ]
+      };
+    } else {
+      staffWhere = { ...baseWhere };
+    }
+
+    // Handle role filter - treat OWNER and ADMIN as the same
+    if (role) {
+      if (role === 'OWNER' || role === 'OWNER,ADMIN') {
+        staffWhere.role = { in: ['OWNER', 'ADMIN'] };
+      } else {
+        staffWhere.role = role;
+      }
+    }
+    if (status === 'active') staffWhere.isActive = true;
+    if (status === 'inactive') staffWhere.isActive = false;
     if (search) {
-      where.OR = [
-        { fullName: { contains: search, mode: 'insensitive' } },
-        { username: { contains: search, mode: 'insensitive' } }
+      staffWhere.AND = [
+        {
+          OR: [
+            { fullName: { contains: search, mode: 'insensitive' } },
+            { username: { contains: search, mode: 'insensitive' } }
+          ]
+        }
       ];
     }
 
     const staff = await prisma.user.findMany({
-      where,
+      where: staffWhere,
       select: {
         id: true,
         username: true,
         fullName: true,
+        profileImage: true,
         role: true,
         isActive: true,
         branchId: true,
@@ -293,17 +321,25 @@ router.get('/staff', async (req, res) => {
       ]
     });
 
-    // Get stats by role
+    // Get stats - should match the same filter logic as staff list
+    const statsWhere = branchId ? {
+      ...baseWhere,
+      OR: [
+        { branchId: branchId },
+        { role: { in: ['OWNER', 'ADMIN'] } }
+      ]
+    } : baseWhere;
+
     const roleStats = await prisma.user.groupBy({
       by: ['role'],
-      where: { tenantId: req.tenantId, isSuperAdmin: false },
+      where: statsWhere,
       _count: true
     });
 
-    // Get stats by branch
+    // Get stats by branch (always tenant-wide for context)
     const branchStats = await prisma.user.groupBy({
       by: ['branchId'],
-      where: { tenantId: req.tenantId, isSuperAdmin: false },
+      where: baseWhere,
       _count: true
     });
 
@@ -387,6 +423,7 @@ router.post('/staff', [
         id: true,
         username: true,
         fullName: true,
+        profileImage: true,
         role: true,
         isActive: true,
         branchId: true,
@@ -457,6 +494,7 @@ router.put('/staff/:id', [
         id: true,
         username: true,
         fullName: true,
+        profileImage: true,
         role: true,
         isActive: true,
         branchId: true,

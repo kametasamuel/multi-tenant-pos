@@ -16,9 +16,15 @@ const customerRoutes = require('./routes/customers');
 const securityRequestRoutes = require('./routes/securityRequests');
 const ownerRoutes = require('./routes/owner');
 const branchRoutes = require('./routes/branches');
+const platformRoutes = require('./routes/platform');
+const marketIntelligenceRoutes = require('./routes/marketIntelligence');
 const {
   generalLimiter,
   loginLimiter,
+  apiExportLimiter,
+  adminOperationsLimiter,
+  ddosProtection,
+  detectSuspiciousActivity,
   helmetConfig,
   sanitizeBody,
   errorHandler
@@ -31,6 +37,9 @@ const PORT = process.env.PORT || 5000;
 
 // Security middleware
 app.use(helmetConfig);
+
+// Note: DDoS protection disabled for internal management system
+// app.use(ddosProtection);
 
 // CORS configuration
 const corsOptions = {
@@ -49,14 +58,19 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Input sanitization
 app.use(sanitizeBody);
 
+// Note: Suspicious activity detection disabled for internal management system
+// app.use(detectSuspiciousActivity);
+
 // Serve static files for uploads
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-// Apply rate limiting to API routes
-app.use('/api', generalLimiter);
-
-// Apply stricter rate limiting to auth routes
-app.use('/api/auth/login', loginLimiter);
+// Note: Rate limiting disabled for internal management system
+// If needed in production, uncomment the following:
+// app.use('/api', generalLimiter);
+// app.use('/api/auth/login', loginLimiter);
+// app.use('/api/super-admin', adminOperationsLimiter);
+// app.use('/api/platform', adminOperationsLimiter);
+// app.use('/api/market-intelligence/export', apiExportLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -73,6 +87,8 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/security-requests', securityRequestRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/api/branches', branchRoutes);
+app.use('/api/platform', platformRoutes);
+app.use('/api/market-intelligence', marketIntelligenceRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

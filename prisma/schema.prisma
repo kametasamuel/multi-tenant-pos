@@ -22,6 +22,92 @@ enum BusinessType {
   OTHER
 }
 
+// Subscription Tier: Plans that control feature access
+model SubscriptionTier {
+  id                String   @id @default(uuid())
+  name              String   @unique // e.g., "Basic", "Professional", "Enterprise"
+  description       String?
+  monthlyPrice      Float    @default(0)
+  annualPrice       Float    @default(0)
+  maxUsers          Int      @default(5)
+  maxBranches       Int      @default(1)
+  maxProducts       Int      @default(100)
+  isActive          Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenants           Tenant[]
+  features          TierFeature[]
+
+  @@map("subscription_tiers")
+}
+
+// Feature definitions for tier-based access control
+model Feature {
+  id                String   @id @default(uuid())
+  code              String   @unique // e.g., "analytics", "smart_fifo", "multi_branch", "api_access"
+  name              String           // Human-readable name
+  description       String?
+  category          String   @default("general") // e.g., "analytics", "inventory", "integrations"
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tierFeatures      TierFeature[]
+
+  @@map("features")
+}
+
+// Many-to-many: Features enabled for each tier
+model TierFeature {
+  id                String   @id @default(uuid())
+  tierId            String
+  featureId         String
+  isEnabled         Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  tier              SubscriptionTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  feature           Feature          @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([tierId, featureId])
+  @@map("tier_features")
+}
+
+// Global Tax Configuration pushed to tenants
+model TaxConfig {
+  id                String   @id @default(uuid())
+  country           String           // Country code (GH, NG, KE, US, etc.)
+  name              String           // e.g., "VAT", "E-Levy", "NHIL"
+  rate              Float            // Tax rate as decimal
+  isCompound        Boolean  @default(false) // Applied on top of other taxes
+  isActive          Boolean  @default(true)
+  effectiveFrom     DateTime @default(now())
+  effectiveTo       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([country, isActive])
+  @@map("tax_configs")
+}
+
+// Admin Impersonation Log: Audit trail for "login as tenant" actions
+model ImpersonationLog {
+  id                String   @id @default(uuid())
+  adminId           String           // Super admin who impersonated
+  tenantId          String           // Tenant that was accessed
+  reason            String           // Why impersonation was needed
+  startedAt         DateTime @default(now())
+  endedAt           DateTime?
+  ipAddress         String?
+  userAgent         String?
+  actionsPerformed  String?  @db.Text // JSON array of actions taken
+
+  @@index([adminId, startedAt])
+  @@index([tenantId, startedAt])
+  @@map("impersonation_logs")
+}
+
 // Multi-Tenant: Each business has a unique ID
 model Tenant {
   id                String       @id @default(uuid())
@@ -29,15 +115,21 @@ model Tenant {
   slug              String?      @unique // URL slug for tenant (e.g., "trim" for smartpos.com/trim)
   businessType      BusinessType @default(RETAIL)
   businessLogo      String?
+  country           String       @default("GH") // Country code for tax/locale
   currency          String       @default("USD") // Currency code (USD, GHS, NGN, KES, etc.)
   currencySymbol    String       @default("$")   // Currency symbol ($, GH₵, ₦, KSh, etc.)
   taxRate           Float        @default(0)     // Tax rate as decimal (e.g., 0.08 for 8%)
+  tierId            String?      // Subscription tier
   subscriptionStart DateTime     @default(now())
   subscriptionEnd   DateTime
+  gracePeriodEnd    DateTime?    // Extended access period after subscription expires
   isActive          Boolean      @default(true)
+  isInGracePeriod   Boolean      @default(false) // True when subscription expired but in grace
+  lastActivityAt    DateTime?    // Last transaction or login time (for health tracking)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
+  tier              SubscriptionTier? @relation(fields: [tierId], references: [id])
   users             User[]
   products          Product[]
   sales             Sale[]
@@ -48,6 +140,12 @@ model Tenant {
   branches          Branch[]
   branchRequests    BranchRequest[]
 
+  @@index([tierId])
+  @@index([country])
+  @@index([isActive])                    // Filter active tenants
+  @@index([businessType])                // Filter by business type
+  @@index([subscriptionEnd])             // Find expiring subscriptions
+  @@index([isActive, subscriptionEnd])   // Combined for subscription queries
   @@map("tenants")
 }
 
@@ -57,6 +155,9 @@ model User {
   username     String
   password     String   // Hashed password
   fullName     String
+  email        String?  // Personal email (editable by owner)
+  phone        String?  // Personal phone (editable by owner)
+  profileImage String?  // URL path to profile image
   role         Role     @default(CASHIER)
   isActive     Boolean  @default(true)
   isSuperAdmin Boolean  @default(false)
@@ -67,7 +168,8 @@ model User {
 
   tenant                  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch                  Branch?           @relation(fields: [branchId], references: [id])
-  sales                   Sale[]
+  sales                   Sale[]            @relation("CashierSales")
+  voidedSales             Sale[]            @relation("VoidedSales")
   expenses                Expense[]
   auditLogs               AuditLog[]
   requestsMade            SecurityRequest[] @relation("RequestsMade")
@@ -77,6 +179,9 @@ model User {
 
   @@unique([username, tenantId]) // Username unique per tenant
   @@index([branchId])
+  @@index([tenantId])              // Critical for tenant user lookups
+  @@index([tenantId, role])        // Filter users by role within tenant
+  @@index([tenantId, isActive])    // Active users per tenant
   @@map("users")
 }
 
@@ -112,6 +217,9 @@ model Product {
 
   @@index([tenantId, name])
   @@index([branchId])
+  @@index([tenantId, isActive])      // Active products per tenant
+  @@index([tenantId, category])      // Filter by category
+  @@index([barcode])                 // Quick barcode lookups (POS scanning)
   @@map("products")
 }
 
@@ -155,10 +263,15 @@ model Sale {
   customerId  String?
   tenantId    String
   branchId    String?  // Optional branch assignment
+  // Void tracking fields
+  voidedById  String?  // User who voided the sale
+  voidedAt    DateTime? // When the sale was voided
+  voidReason  String?  // Reason for voiding
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  cashier           User              @relation(fields: [cashierId], references: [id])
+  cashier           User              @relation("CashierSales", fields: [cashierId], references: [id])
+  voidedBy          User?             @relation("VoidedSales", fields: [voidedById], references: [id])
   customer          Customer?         @relation(fields: [customerId], references: [id])
   tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch            Branch?           @relation(fields: [branchId], references: [id])
@@ -168,6 +281,11 @@ model Sale {
   @@index([tenantId, createdAt])
   @@index([cashierId, createdAt])
   @@index([branchId])
+  @@index([paymentStatus])                     // Filter by payment status
+  @@index([tenantId, paymentStatus])           // Voided sales per tenant
+  @@index([createdAt])                         // Date range queries (super admin)
+  @@index([tenantId, paymentMethod, createdAt]) // Payment method analytics
+  @@index([voidedById])                        // Lookup sales voided by user
   @@map("sales")
 }
 
@@ -183,15 +301,17 @@ model SaleItem {
   
   sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product     Product  @relation(fields: [productId], references: [id])
-  
+
+  @@index([saleId])        // Faster sale item lookups
+  @@index([productId])     // Product sales analysis
   @@map("sale_items")
 }
 
 enum PaymentMethod {
   CASH
   CARD
-  MOBILE_MONEY
-  SPLIT_CASH_MOMO
+  MOMO
+  BANK_TRANSFER
 }
 
 // Expenses: Business expenses

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { usersAPI } from '../../api';
 import {
@@ -19,7 +19,10 @@ import {
   Eye,
   EyeOff,
   UserPlus,
-  Key
+  Key,
+  Camera,
+  Trash2,
+  Upload
 } from 'lucide-react';
 
 const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, bgClass }) => {
@@ -51,6 +54,12 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
   const [resetLoading, setResetLoading] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
 
+  // Image upload state
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef(null);
+
   useEffect(() => {
     loadEmployees();
   }, []);
@@ -72,16 +81,63 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
     }
   };
 
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setAddError('Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setAddError('File too large. Maximum size is 5MB.');
+        return;
+      }
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+      setAddError('');
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
+  const uploadImage = async (userId) => {
+    if (!selectedImage) return;
+
+    const formData = new FormData();
+    formData.append('image', selectedImage);
+
+    try {
+      setUploadingImage(true);
+      await usersAPI.uploadImage(userId, formData);
+    } catch (error) {
+      console.error('Image upload failed:', error);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleAddCashier = async (e) => {
     e.preventDefault();
     setAddLoading(true);
     setAddError('');
 
     try {
-      await usersAPI.create({
+      const response = await usersAPI.create({
         ...newCashier,
         role: 'CASHIER'
       });
+
+      const userId = response.data.user?.id;
+
+      // Upload image if selected
+      if (selectedImage && userId) {
+        await uploadImage(userId);
+      }
+
       setShowAddModal(false);
       setNewCashier({
         username: '',
@@ -91,6 +147,8 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
         email: '',
         address: ''
       });
+      setSelectedImage(null);
+      setImagePreview(null);
       loadEmployees();
     } catch (error) {
       setAddError(error.response?.data?.error || 'Failed to add cashier');
@@ -134,6 +192,11 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       default:
         return darkMode ? 'bg-slate-700 text-slate-300' : 'bg-gray-100 text-gray-700';
     }
+  };
+
+  // Display OWNER for both OWNER and ADMIN roles
+  const getDisplayRole = (role) => {
+    return role === 'ADMIN' ? 'OWNER' : role;
   };
 
   const getInitials = (name) => {
@@ -260,13 +323,21 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                 >
                   <div className="flex items-center gap-4">
                     {/* Avatar */}
-                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-lg font-black shrink-0 ${
-                      employee.isActive
-                        ? darkMode ? 'bg-accent-900/50 text-accent-300' : 'bg-accent-100 text-accent-700'
-                        : darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-200 text-gray-500'
-                    }`}>
-                      {getInitials(employee.fullName)}
-                    </div>
+                    {employee.profileImage ? (
+                      <img
+                        src={`http://localhost:5000${employee.profileImage}`}
+                        alt={employee.fullName}
+                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover shrink-0 ${!employee.isActive ? 'opacity-50' : ''}`}
+                      />
+                    ) : (
+                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-lg font-black shrink-0 ${
+                        employee.isActive
+                          ? darkMode ? 'bg-accent-900/50 text-accent-300' : 'bg-accent-100 text-accent-700'
+                          : darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {getInitials(employee.fullName)}
+                      </div>
+                    )}
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
@@ -275,7 +346,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                           {employee.fullName}
                         </h3>
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${getRoleBadgeColor(employee.role)}`}>
-                          {employee.role}
+                          {getDisplayRole(employee.role)}
                         </span>
                         {!employee.isActive && (
                           <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-red-100 text-negative-600">
@@ -379,7 +450,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                             </div>
                             <div>
                               <p className={`text-[10px] ${mutedClass}`}>Role</p>
-                              <p className={`text-sm font-bold ${textClass}`}>{employee.role}</p>
+                              <p className={`text-sm font-bold ${textClass}`}>{getDisplayRole(employee.role)}</p>
                             </div>
                           </div>
 
@@ -471,6 +542,48 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
             )}
 
             <form onSubmit={handleAddCashier} className="space-y-4">
+              {/* Profile Image Upload */}
+              <div className="flex flex-col items-center mb-2">
+                <div className="relative">
+                  {imagePreview ? (
+                    <img
+                      src={imagePreview}
+                      alt="Profile preview"
+                      className="w-20 h-20 rounded-2xl object-cover border-4 border-accent-200 dark:border-slate-600"
+                    />
+                  ) : (
+                    <div className={`w-20 h-20 rounded-2xl ${darkMode ? 'bg-slate-600' : 'bg-gray-200'} flex items-center justify-center border-4 border-accent-200 dark:border-slate-600`}>
+                      <User className={`w-8 h-8 ${mutedClass}`} />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute -bottom-1 -right-1 w-7 h-7 bg-accent-500 text-white rounded-full flex items-center justify-center hover:bg-accent-600 transition-colors"
+                    title="Upload photo"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                {imagePreview && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="mt-2 text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Remove
+                  </button>
+                )}
+              </div>
+
               <div>
                 <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Username *</label>
                 <input
@@ -537,17 +650,29 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className={`flex-1 py-3 rounded-xl text-sm font-bold ${mutedClass} border ${borderClass} hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors`}
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setSelectedImage(null);
+                    setImagePreview(null);
+                  }}
+                  disabled={addLoading || uploadingImage}
+                  className={`flex-1 py-3 rounded-xl text-sm font-bold ${mutedClass} border ${borderClass} hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={addLoading}
-                  className="flex-1 py-3 rounded-xl text-sm font-bold bg-accent-500 text-white hover:bg-accent-600 transition-colors disabled:opacity-50"
+                  disabled={addLoading || uploadingImage}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold bg-accent-500 text-white hover:bg-accent-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {addLoading ? 'Adding...' : 'Add Cashier'}
+                  {addLoading || uploadingImage ? (
+                    <>
+                      <Upload className="w-4 h-4 animate-pulse" />
+                      {uploadingImage ? 'Uploading...' : 'Adding...'}
+                    </>
+                  ) : (
+                    'Add Cashier'
+                  )}
                 </button>
               </div>
             </form>

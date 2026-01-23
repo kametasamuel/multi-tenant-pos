@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { salesAPI, reportsAPI } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import { exportSales } from '../../utils/exportUtils';
+import DateRangePicker from '../../components/DateRangePicker';
 import {
   BarChart3,
   DollarSign,
   Receipt,
   TrendingUp,
-  Calendar,
   Search,
   Eye,
   X,
@@ -123,7 +123,8 @@ const Sales = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
     switch (method) {
       case 'CASH': return Banknote;
       case 'CARD': return CreditCard;
-      case 'MOBILE_MONEY': return Smartphone;
+      case 'MOMO': return Smartphone;
+      case 'BANK_TRANSFER': return Building2;
       default: return DollarSign;
     }
   };
@@ -132,8 +133,8 @@ const Sales = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
     switch (method) {
       case 'CASH': return 'Cash';
       case 'CARD': return 'Card';
-      case 'MOBILE_MONEY': return 'Mobile Money';
-      case 'SPLIT_CASH_MOMO': return 'Split';
+      case 'MOMO': return 'MoMo';
+      case 'BANK_TRANSFER': return 'Bank Transfer';
       default: return method;
     }
   };
@@ -271,23 +272,16 @@ const Sales = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
 
       {/* Filters */}
       <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
-        <div className="flex flex-wrap gap-4">
-          <div className="flex items-center gap-2">
-            <Calendar className={`w-4 h-4 ${mutedClass}`} />
-            <input
-              type="date"
-              value={dateRange.startDate}
-              onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-              className={`px-3 py-2 rounded-xl border ${borderClass} ${surfaceClass} ${textClass} text-sm`}
-            />
-            <span className={mutedClass}>to</span>
-            <input
-              type="date"
-              value={dateRange.endDate}
-              onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-              className={`px-3 py-2 rounded-xl border ${borderClass} ${surfaceClass} ${textClass} text-sm`}
-            />
-          </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <DateRangePicker
+            dateRange={dateRange}
+            onDateChange={setDateRange}
+            darkMode={darkMode}
+            surfaceClass={surfaceClass}
+            textClass={textClass}
+            mutedClass={mutedClass}
+            borderClass={borderClass}
+          />
           <div className="relative flex-1 min-w-[200px]">
             <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedClass}`} />
             <input

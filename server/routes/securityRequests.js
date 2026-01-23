@@ -252,11 +252,14 @@ router.post('/:id/approve', authenticate, requireAdmin, async (req, res) => {
           }
         }
 
-        // Update sale status to voided
+        // Update sale status to voided with tracking info
         await tx.sale.update({
           where: { id: securityRequest.sale.id },
           data: {
-            paymentStatus: 'voided'
+            paymentStatus: 'voided',
+            voidedById: req.user.id,
+            voidedAt: new Date(),
+            voidReason: securityRequest.reason
           }
         });
 

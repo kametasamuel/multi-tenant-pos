@@ -2,25 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { superAdminAPI } from '../../api';
 import {
   TrendingUp,
+  TrendingDown,
   DollarSign,
   Building2,
   Users,
   ShoppingCart,
   Package,
-  AlertTriangle,
-  ArrowUp,
-  ArrowDown,
   Activity,
   PieChart,
-  RefreshCcw,
-  Calendar,
+  RefreshCw,
   Store,
   Utensils,
   Scissors,
   Pill,
   Tv,
   Shirt,
-  MoreHorizontal
+  MoreHorizontal,
+  BarChart3,
+  Percent,
+  Target,
+  Award,
+  Zap,
+  GitBranch
 } from 'lucide-react';
 
 const businessTypeIcons = {
@@ -34,14 +37,19 @@ const businessTypeIcons = {
   OTHER: MoreHorizontal
 };
 
-const Analytics = () => {
+const Analytics = ({
+  darkMode = false,
+  surfaceClass = 'bg-white',
+  textClass = 'text-slate-900',
+  mutedClass = 'text-slate-500',
+  borderClass = 'border-slate-200'
+}) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [analytics, setAnalytics] = useState(null);
   const [subscriptionHealth, setSubscriptionHealth] = useState(null);
   const [industryPerformance, setIndustryPerformance] = useState([]);
-  const [staffProductivity, setStaffProductivity] = useState([]);
-  const [anomalies, setAnomalies] = useState([]);
+  const [topTenants, setTopTenants] = useState([]);
   const [dateRange, setDateRange] = useState('30');
 
   useEffect(() => {
@@ -58,21 +66,18 @@ const Analytics = () => {
         analyticsRes,
         subscriptionRes,
         industryRes,
-        staffRes,
-        anomaliesRes
+        topTenantsRes
       ] = await Promise.all([
         superAdminAPI.getAnalytics({ startDate: startDate.toISOString() }),
         superAdminAPI.getSubscriptionHealth(),
         superAdminAPI.getIndustryPerformance(),
-        superAdminAPI.getStaffProductivity({ startDate: startDate.toISOString(), limit: 10 }),
-        superAdminAPI.getAnomalies()
+        superAdminAPI.getRevenueByTenant({ limit: 5 })
       ]);
 
       setAnalytics(analyticsRes.data);
       setSubscriptionHealth(subscriptionRes.data);
       setIndustryPerformance(industryRes.data.industryPerformance || []);
-      setStaffProductivity(staffRes.data.staffProductivity || []);
-      setAnomalies(anomaliesRes.data);
+      setTopTenants(topTenantsRes.data.tenants || []);
     } catch (err) {
       console.error('Failed to load analytics:', err);
     } finally {
@@ -87,25 +92,42 @@ const Analytics = () => {
   };
 
   const formatCurrency = (amount) => {
+    const value = typeof amount === 'number' ? amount : 0;
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(amount / 100); // Assuming amounts are in cents
+    }).format(value / 100);
   };
 
   const formatNumber = (num) => {
-    return new Intl.NumberFormat('en-US').format(num);
+    return new Intl.NumberFormat('en-US').format(num || 0);
   };
+
+  const StatCard = ({ icon: Icon, label, value, subValue, color, trend }) => (
+    <div className={`${surfaceClass} rounded-2xl p-5 border ${borderClass}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center`}>
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+        {trend !== undefined && (
+          <div className={`flex items-center gap-1 text-xs font-bold ${trend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {Math.abs(trend)}%
+          </div>
+        )}
+      </div>
+      <p className={`text-2xl font-black ${textClass}`}>{value}</p>
+      <p className={`text-xs font-medium ${mutedClass} mt-1`}>{label}</p>
+      {subValue && <p className={`text-xs ${mutedClass}`}>{subValue}</p>}
+    </div>
+  );
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          <p className="text-sm text-gray-500">Loading analytics...</p>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -114,330 +136,359 @@ const Analytics = () => {
   const subHealth = subscriptionHealth?.summary || {};
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-100 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-indigo-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-semibold text-gray-900">Global Analytics</h1>
-                <p className="text-sm text-gray-500">Platform-wide insights and metrics</p>
-              </div>
-            </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className={`text-2xl font-black ${textClass}`}>Global Analytics</h1>
+          <p className={`text-sm ${mutedClass}`}>Platform-wide insights and performance metrics</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+            className={`px-4 py-2 rounded-xl border ${borderClass} ${surfaceClass} ${textClass} text-sm font-bold`}
+          >
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+          </select>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className={`px-4 py-2 ${surfaceClass} border ${borderClass} rounded-xl text-sm font-bold ${textClass} hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50`}
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+      </div>
 
-            <div className="flex items-center gap-3">
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-              >
-                <option value="7">Last 7 days</option>
-                <option value="30">Last 30 days</option>
-                <option value="90">Last 90 days</option>
-                <option value="365">Last year</option>
-              </select>
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                <RefreshCcw className={`w-5 h-5 text-gray-600 ${refreshing ? 'animate-spin' : ''}`} />
-              </button>
+      {/* Main Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <StatCard
+          icon={DollarSign}
+          label="Total Revenue"
+          value={formatCurrency(stats.totalRevenue || 0)}
+          color="bg-emerald-600"
+        />
+        <StatCard
+          icon={ShoppingCart}
+          label="Transactions"
+          value={formatNumber(stats.totalTransactions || 0)}
+          color="bg-indigo-600"
+        />
+        <StatCard
+          icon={Building2}
+          label="Active Tenants"
+          value={stats.activeTenants || 0}
+          color="bg-purple-600"
+        />
+        <StatCard
+          icon={Users}
+          label="Total Staff"
+          value={formatNumber(stats.totalUsers || 0)}
+          color="bg-amber-500"
+        />
+        <StatCard
+          icon={Package}
+          label="Products Listed"
+          value={formatNumber(stats.totalProducts || 0)}
+          color="bg-cyan-600"
+        />
+        <StatCard
+          icon={GitBranch}
+          label="Branches"
+          value={formatNumber(stats.totalBranches || 0)}
+          color="bg-rose-600"
+        />
+      </div>
+
+      {/* Secondary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <Target className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <p className={`text-lg font-bold ${textClass}`}>{formatCurrency((stats.totalRevenue || 0) / (stats.totalTransactions || 1))}</p>
+              <p className={`text-xs ${mutedClass}`}>Average Order Value</p>
+            </div>
+          </div>
+        </div>
+        <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <p className={`text-lg font-bold ${textClass}`}>{Math.round((stats.totalTransactions || 0) / parseInt(dateRange))}/day</p>
+              <p className={`text-xs ${mutedClass}`}>Daily Transactions</p>
+            </div>
+          </div>
+        </div>
+        <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+              <Percent className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className={`text-lg font-bold ${textClass}`}>{((stats.voidedTransactions || 0) / (stats.totalTransactions || 1) * 100).toFixed(1)}%</p>
+              <p className={`text-xs ${mutedClass}`}>Void Rate</p>
+            </div>
+          </div>
+        </div>
+        <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+              <Award className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className={`text-lg font-bold ${textClass}`}>{formatCurrency((stats.totalRevenue || 0) / (stats.activeTenants || 1))}</p>
+              <p className={`text-xs ${mutedClass}`}>Revenue per Tenant</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Main Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Total Revenue */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <DollarSign className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-            <p className="text-3xl font-bold text-gray-900 mb-1">{formatCurrency(stats.totalRevenue || 0)}</p>
-            <p className="text-sm text-gray-500">Total Revenue</p>
+      {/* Two Column Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Subscription Health */}
+        <div className={`${surfaceClass} rounded-2xl border ${borderClass} overflow-hidden`}>
+          <div className={`px-6 py-4 border-b ${borderClass} flex items-center justify-between`}>
+            <h2 className={`text-sm font-bold uppercase ${mutedClass} flex items-center gap-2`}>
+              <Activity className="w-4 h-4" />
+              Subscription Health
+            </h2>
           </div>
-
-          {/* Total Transactions */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <ShoppingCart className="w-6 h-6 text-blue-600" />
+          <div className="p-6">
+            <div className="grid grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="relative w-16 h-16 mx-auto mb-2">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke={darkMode ? '#334155' : '#e2e8f0'} strokeWidth="6" />
+                    <circle
+                      cx="32" cy="32" r="28" fill="none" stroke="#10b981" strokeWidth="6"
+                      strokeDasharray={`${((subHealth.healthy || 0) / (subHealth.total || 1)) * 176} 176`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-sm font-bold ${textClass}`}>{subHealth.healthy || 0}</span>
+                  </div>
+                </div>
+                <p className={`text-xs font-bold ${textClass}`}>Healthy</p>
+                <p className={`text-[10px] ${mutedClass}`}>30+ days</p>
+              </div>
+              <div className="text-center">
+                <div className="relative w-16 h-16 mx-auto mb-2">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke={darkMode ? '#334155' : '#e2e8f0'} strokeWidth="6" />
+                    <circle
+                      cx="32" cy="32" r="28" fill="none" stroke="#f59e0b" strokeWidth="6"
+                      strokeDasharray={`${((subHealth.expiringSoon || 0) / (subHealth.total || 1)) * 176} 176`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-sm font-bold ${textClass}`}>{subHealth.expiringSoon || 0}</span>
+                  </div>
+                </div>
+                <p className={`text-xs font-bold ${textClass}`}>Warning</p>
+                <p className={`text-[10px] ${mutedClass}`}>7-30 days</p>
+              </div>
+              <div className="text-center">
+                <div className="relative w-16 h-16 mx-auto mb-2">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke={darkMode ? '#334155' : '#e2e8f0'} strokeWidth="6" />
+                    <circle
+                      cx="32" cy="32" r="28" fill="none" stroke="#ef4444" strokeWidth="6"
+                      strokeDasharray={`${((subHealth.expiringThisMonth || 0) / (subHealth.total || 1)) * 176} 176`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-sm font-bold ${textClass}`}>{subHealth.expiringThisMonth || 0}</span>
+                  </div>
+                </div>
+                <p className={`text-xs font-bold ${textClass}`}>Critical</p>
+                <p className={`text-[10px] ${mutedClass}`}>Less than 7d</p>
+              </div>
+              <div className="text-center">
+                <div className="relative w-16 h-16 mx-auto mb-2">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke={darkMode ? '#334155' : '#e2e8f0'} strokeWidth="6" />
+                    <circle
+                      cx="32" cy="32" r="28" fill="none" stroke="#64748b" strokeWidth="6"
+                      strokeDasharray={`${((subHealth.expired || 0) / (subHealth.total || 1)) * 176} 176`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-sm font-bold ${textClass}`}>{subHealth.expired || 0}</span>
+                  </div>
+                </div>
+                <p className={`text-xs font-bold ${textClass}`}>Expired</p>
+                <p className={`text-[10px] ${mutedClass}`}>Past due</p>
               </div>
             </div>
-            <p className="text-3xl font-bold text-gray-900 mb-1">{formatNumber(stats.totalTransactions || 0)}</p>
-            <p className="text-sm text-gray-500">Total Transactions</p>
-          </div>
 
-          {/* Active Tenants */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Building2 className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-            <p className="text-3xl font-bold text-gray-900 mb-1">{stats.activeTenants || 0}</p>
-            <p className="text-sm text-gray-500">Active Tenants</p>
-          </div>
-
-          {/* Total Users */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-amber-100 rounded-lg">
-                <Users className="w-6 h-6 text-amber-600" />
-              </div>
-            </div>
-            <p className="text-3xl font-bold text-gray-900 mb-1">{formatNumber(stats.totalUsers || 0)}</p>
-            <p className="text-sm text-gray-500">Total Staff</p>
-          </div>
-        </div>
-
-        {/* Two Column Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Subscription Health */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-indigo-600" />
-                Subscription Health
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="flex items-center justify-center gap-6 flex-wrap">
-                <div className="text-center">
-                  <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-2">
-                    <span className="text-2xl font-bold text-green-600">{subHealth.healthy || 0}</span>
-                  </div>
-                  <p className="text-sm font-medium text-gray-600">Healthy</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mb-2">
-                    <span className="text-2xl font-bold text-amber-600">{subHealth.expiringSoon || 0}</span>
-                  </div>
-                  <p className="text-sm font-medium text-gray-600">Expiring Soon</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-20 h-20 rounded-full bg-orange-100 flex items-center justify-center mb-2">
-                    <span className="text-2xl font-bold text-orange-600">{subHealth.expiringThisMonth || 0}</span>
-                  </div>
-                  <p className="text-sm font-medium text-gray-600">This Month</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mb-2">
-                    <span className="text-2xl font-bold text-red-600">{subHealth.expired || 0}</span>
-                  </div>
-                  <p className="text-sm font-medium text-gray-600">Expired</p>
-                </div>
-              </div>
-
-              {/* Expiring Tenants List */}
-              {subscriptionHealth?.expiringTenants?.length > 0 && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">Attention Required</h4>
-                  <div className="space-y-2">
-                    {subscriptionHealth.expiringTenants.slice(0, 5).map((tenant) => {
-                      const Icon = businessTypeIcons[tenant.businessType] || Building2;
-                      const daysLeft = Math.ceil((new Date(tenant.subscriptionEnd) - new Date()) / (1000 * 60 * 60 * 24));
-                      return (
-                        <div key={tenant.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <Icon className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm font-medium text-gray-900">{tenant.businessName}</span>
-                          </div>
-                          <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                            daysLeft <= 0 ? 'bg-red-100 text-red-700' :
-                            daysLeft <= 7 ? 'bg-amber-100 text-amber-700' :
-                            'bg-orange-100 text-orange-700'
-                          }`}>
-                            {daysLeft <= 0 ? 'Expired' : `${daysLeft} days left`}
-                          </span>
+            {/* Expiring Tenants List */}
+            {subscriptionHealth?.expiringTenants?.length > 0 && (
+              <div className={`mt-6 pt-4 border-t border-dashed ${borderClass}`}>
+                <p className={`text-xs font-bold uppercase ${mutedClass} mb-3`}>Attention Required</p>
+                <div className="space-y-2">
+                  {subscriptionHealth.expiringTenants.slice(0, 4).map((tenant) => {
+                    const Icon = businessTypeIcons[tenant.businessType] || Building2;
+                    const daysLeft = Math.ceil((new Date(tenant.subscriptionEnd) - new Date()) / (1000 * 60 * 60 * 24));
+                    return (
+                      <div key={tenant.id} className={`flex items-center justify-between p-2 rounded-lg ${darkMode ? 'bg-slate-700' : 'bg-slate-50'}`}>
+                        <div className="flex items-center gap-2">
+                          <Icon className={`w-4 h-4 ${mutedClass}`} />
+                          <span className={`text-sm font-bold ${textClass}`}>{tenant.businessName}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Top Staff Productivity */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Users className="w-5 h-5 text-indigo-600" />
-                Top Staff Performance
-              </h2>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {staffProductivity.length === 0 ? (
-                <div className="px-6 py-12 text-center text-gray-500">
-                  No staff data available
-                </div>
-              ) : (
-                staffProductivity.slice(0, 5).map((staff, index) => (
-                  <div key={staff.id} className="px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                        index === 0 ? 'bg-amber-100 text-amber-700' :
-                        index === 1 ? 'bg-gray-200 text-gray-700' :
-                        index === 2 ? 'bg-orange-100 text-orange-700' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {index + 1}
-                      </span>
-                      <div>
-                        <p className="font-medium text-gray-900">{staff.name}</p>
-                        <p className="text-xs text-gray-500">{staff.tenant} - {staff.role}</p>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                          daysLeft <= 0 ? 'bg-red-100 text-red-700' :
+                          daysLeft <= 7 ? 'bg-rose-100 text-rose-700' :
+                          'bg-amber-100 text-amber-700'
+                        }`}>
+                          {daysLeft <= 0 ? 'Expired' : `${daysLeft}d left`}
+                        </span>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900">{staff.currencySymbol}{(staff.totalSales / 100).toFixed(2)}</p>
-                      <p className="text-xs text-gray-500">{staff.transactionCount} txns</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Industry Performance & Anomalies */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Industry Performance */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <PieChart className="w-5 h-5 text-indigo-600" />
-                Industry Performance
-              </h2>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {industryPerformance.length === 0 ? (
-                <div className="px-6 py-12 text-center text-gray-500">
-                  No industry data available
+        {/* Top Performing Tenants */}
+        <div className={`${surfaceClass} rounded-2xl border ${borderClass} overflow-hidden`}>
+          <div className={`px-6 py-4 border-b ${borderClass}`}>
+            <h2 className={`text-sm font-bold uppercase ${mutedClass} flex items-center gap-2`}>
+              <Award className="w-4 h-4" />
+              Top Performing Tenants
+            </h2>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {topTenants.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <Building2 className={`w-8 h-8 mx-auto mb-2 ${mutedClass}`} />
+                <p className={`text-sm ${mutedClass}`}>No tenant data available</p>
+              </div>
+            ) : (
+              topTenants.map((tenant, index) => (
+                <div key={tenant.id} className={`px-6 py-4 flex items-center justify-between hover:${darkMode ? 'bg-slate-700' : 'bg-slate-50'}`}>
+                  <div className="flex items-center gap-3">
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                      index === 0 ? 'bg-amber-100 text-amber-700' :
+                      index === 1 ? 'bg-slate-200 text-slate-700' :
+                      index === 2 ? 'bg-orange-100 text-orange-700' :
+                      darkMode ? 'bg-slate-600 text-slate-300' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {index + 1}
+                    </span>
+                    <div>
+                      <p className={`text-sm font-bold ${textClass}`}>{tenant.businessName}</p>
+                      <p className={`text-xs ${mutedClass}`}>{tenant.industryType || 'General'}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-bold ${textClass}`}>{formatCurrency(tenant.totalRevenue)}</p>
+                    <p className={`text-xs ${mutedClass}`}>{tenant.transactionCount} sales</p>
+                  </div>
                 </div>
-              ) : (
-                industryPerformance.map((industry, index) => {
-                  const Icon = businessTypeIcons[industry.businessType] || Building2;
-                  return (
-                    <div key={industry.businessType} className="px-6 py-4 flex items-center justify-between">
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Industry Performance & Recent Transactions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Industry Performance */}
+        <div className={`${surfaceClass} rounded-2xl border ${borderClass} overflow-hidden`}>
+          <div className={`px-6 py-4 border-b ${borderClass}`}>
+            <h2 className={`text-sm font-bold uppercase ${mutedClass} flex items-center gap-2`}>
+              <PieChart className="w-4 h-4" />
+              Industry Performance
+            </h2>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {industryPerformance.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <BarChart3 className={`w-8 h-8 mx-auto mb-2 ${mutedClass}`} />
+                <p className={`text-sm ${mutedClass}`}>No industry data available</p>
+              </div>
+            ) : (
+              industryPerformance.map((industry) => {
+                const Icon = businessTypeIcons[industry.businessType] || Building2;
+                const maxRevenue = Math.max(...industryPerformance.map(i => i.totalRevenue || 0));
+                const percentage = maxRevenue > 0 ? ((industry.totalRevenue || 0) / maxRevenue) * 100 : 0;
+
+                return (
+                  <div key={industry.businessType} className={`px-6 py-4 hover:${darkMode ? 'bg-slate-700' : 'bg-slate-50'}`}>
+                    <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
-                        <span className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                          <Icon className="w-5 h-5 text-indigo-600" />
-                        </span>
+                        <div className={`w-8 h-8 rounded-lg ${darkMode ? 'bg-slate-600' : 'bg-indigo-100'} flex items-center justify-center`}>
+                          <Icon className={`w-4 h-4 ${darkMode ? 'text-slate-300' : 'text-indigo-600'}`} />
+                        </div>
                         <div>
-                          <p className="font-medium text-gray-900">{industry.businessType}</p>
-                          <p className="text-xs text-gray-500">
-                            {industry.tenantCount} tenants | {industry.totalTransactions} txns
+                          <p className={`text-sm font-bold ${textClass}`}>{industry.businessType}</p>
+                          <p className={`text-xs ${mutedClass}`}>
+                            {industry.tenantCount} tenants
                           </p>
                         </div>
                       </div>
-                      <p className="font-semibold text-gray-900">{formatCurrency(industry.totalRevenue)}</p>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Anomalies / Flags */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-                Anomalies & Flags
-              </h2>
-              {anomalies.summary && (
-                <span className="text-xs font-medium px-2 py-1 bg-amber-100 text-amber-700 rounded-full">
-                  {anomalies.summary.total} issues
-                </span>
-              )}
-            </div>
-            <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
-              {!anomalies.anomalies || anomalies.anomalies.length === 0 ? (
-                <div className="px-6 py-12 text-center">
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Activity className="w-6 h-6 text-green-600" />
-                  </div>
-                  <p className="text-gray-500">No anomalies detected</p>
-                  <p className="text-xs text-gray-400 mt-1">System is running smoothly</p>
-                </div>
-              ) : (
-                anomalies.anomalies.map((anomaly, index) => (
-                  <div key={index} className="px-6 py-4">
-                    <div className="flex items-start gap-3">
-                      <div className={`w-2 h-2 rounded-full mt-2 ${
-                        anomaly.severity === 'HIGH' ? 'bg-red-500' :
-                        anomaly.severity === 'MEDIUM' ? 'bg-amber-500' :
-                        'bg-blue-500'
-                      }`}></div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-gray-900">{anomaly.tenantName}</p>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            anomaly.severity === 'HIGH' ? 'bg-red-100 text-red-700' :
-                            anomaly.severity === 'MEDIUM' ? 'bg-amber-100 text-amber-700' :
-                            'bg-blue-100 text-blue-700'
-                          }`}>
-                            {anomaly.severity}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mt-1">{anomaly.message}</p>
-                        <p className="text-xs text-gray-400 mt-1">{anomaly.type.replace(/_/g, ' ')}</p>
+                      <div className="text-right">
+                        <p className={`text-sm font-bold ${textClass}`}>{formatCurrency(industry.totalRevenue)}</p>
+                        <p className={`text-xs ${mutedClass}`}>{industry.totalTransactions} transactions</p>
                       </div>
                     </div>
+                    <div className={`h-1.5 rounded-full ${darkMode ? 'bg-slate-600' : 'bg-slate-100'}`}>
+                      <div
+                        className="h-full rounded-full bg-indigo-600"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
                   </div>
-                ))
-              )}
-            </div>
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* Recent Sales */}
-        {analytics?.recentSales?.length > 0 && (
-          <div className="mt-8 bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5 text-indigo-600" />
-                Recent Transactions
-              </h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-600">Tenant</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-600">Cashier</th>
-                    <th className="text-right px-6 py-3 text-sm font-medium text-gray-600">Amount</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-600">Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {analytics.recentSales.map((sale) => (
-                    <tr key={sale.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{sale.tenant}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{sale.cashier}</td>
-                      <td className="px-6 py-4 text-sm font-semibold text-gray-900 text-right">
-                        {formatCurrency(sale.amount)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {new Date(sale.date).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        {/* Recent Transactions */}
+        <div className={`${surfaceClass} rounded-2xl border ${borderClass} overflow-hidden`}>
+          <div className={`px-6 py-4 border-b ${borderClass}`}>
+            <h2 className={`text-sm font-bold uppercase ${mutedClass} flex items-center gap-2`}>
+              <ShoppingCart className="w-4 h-4" />
+              Recent Transactions
+            </h2>
           </div>
-        )}
+          <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+            {!analytics?.recentSales || analytics.recentSales.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <ShoppingCart className={`w-8 h-8 mx-auto mb-2 ${mutedClass}`} />
+                <p className={`text-sm ${mutedClass}`}>No recent transactions</p>
+              </div>
+            ) : (
+              analytics.recentSales.slice(0, 8).map((sale) => (
+                <div key={sale.id} className={`px-6 py-4 flex items-center justify-between hover:${darkMode ? 'bg-slate-700' : 'bg-slate-50'}`}>
+                  <div>
+                    <p className={`text-sm font-bold ${textClass}`}>{sale.tenant}</p>
+                    <p className={`text-xs ${mutedClass}`}>{sale.cashier}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-bold ${textClass}`}>{formatCurrency(sale.amount)}</p>
+                    <p className={`text-xs ${mutedClass}`}>
+                      {new Date(sale.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

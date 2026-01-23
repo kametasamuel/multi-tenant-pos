@@ -8,8 +8,9 @@ const prisma = new PrismaClient();
 // Get audit logs (Admin only - Managers see only their branch's logs)
 router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { startDate, endDate, action, userId, branchId } = req.query;
-    const limit = parseInt(req.query.limit) || 100;
+    const { startDate, endDate, action, userId, branchId, page = 1 } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Max 200 per page
+    const skip = (parseInt(page) - 1) * limit;
 
     const where = {
       tenantId: req.tenantId
@@ -37,30 +38,41 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
       where.userId = userId;
     }
 
-    const logs = await prisma.auditLog.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            username: true,
-            fullName: true,
-            role: true
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              username: true,
+              fullName: true,
+              role: true
+            }
+          },
+          branch: {
+            select: {
+              id: true,
+              name: true
+            }
           }
         },
-        branch: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit
-    });
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.auditLog.count({ where })
+    ]);
 
-    res.json({ logs });
+    res.json({
+      logs,
+      pagination: {
+        page: parseInt(page),
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
-    console.error('Get audit logs error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

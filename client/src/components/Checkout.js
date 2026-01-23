@@ -103,20 +103,29 @@ const Checkout = ({ cart, updateCartItem, clearCart, onComplete, onCancel }) => 
             <label>
               <input
                 type="radio"
-                value="MOBILE_MONEY"
-                checked={paymentMethod === 'MOBILE_MONEY'}
+                value="CARD"
+                checked={paymentMethod === 'CARD'}
                 onChange={(e) => setPaymentMethod(e.target.value)}
               />
-              Mobile Money
+              Card
             </label>
             <label>
               <input
                 type="radio"
-                value="SPLIT_CASH_MOMO"
-                checked={paymentMethod === 'SPLIT_CASH_MOMO'}
+                value="MOMO"
+                checked={paymentMethod === 'MOMO'}
                 onChange={(e) => setPaymentMethod(e.target.value)}
               />
-              Split (Cash + MoMo)
+              MoMo
+            </label>
+            <label>
+              <input
+                type="radio"
+                value="BANK_TRANSFER"
+                checked={paymentMethod === 'BANK_TRANSFER'}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+              />
+              Bank Transfer
             </label>
           </div>
         </div>

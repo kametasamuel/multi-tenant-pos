@@ -20,6 +20,11 @@ import SuperAdminDashboard from '../pages/superadmin/Dashboard';
 import SuperAdminApplications from '../pages/superadmin/Applications';
 import SuperAdminTenants from '../pages/superadmin/Tenants';
 import SuperAdminAnalytics from '../pages/superadmin/Analytics';
+import SuperAdminOversight from '../pages/superadmin/Oversight';
+import SuperAdminSubscriptions from '../pages/superadmin/Subscriptions';
+import SuperAdminBranchRequests from '../pages/superadmin/BranchRequests';
+import SuperAdminPlatform from '../pages/superadmin/Platform';
+import SuperAdminMarketIntelligence from '../pages/superadmin/MarketIntelligence';
 import {
   ManagerDashboard,
   ManagerEmployees,
@@ -42,6 +47,28 @@ import {
   OwnerBranches,
   OwnerSettings
 } from '../pages/owner';
+
+// Owner Routes with shared BranchProvider
+const OwnerRoutes = () => {
+  return (
+    <BranchProvider>
+      <Routes>
+        <Route path="dashboard" element={<OwnerLayout><OwnerDashboard /></OwnerLayout>} />
+        <Route path="sales" element={<OwnerLayout><OwnerSales /></OwnerLayout>} />
+        <Route path="inventory" element={<OwnerLayout><OwnerInventory /></OwnerLayout>} />
+        <Route path="staff" element={<OwnerLayout><OwnerStaff /></OwnerLayout>} />
+        <Route path="customers" element={<OwnerLayout><OwnerCustomers /></OwnerLayout>} />
+        <Route path="requests" element={<OwnerLayout><OwnerRequests /></OwnerLayout>} />
+        <Route path="expenses" element={<OwnerLayout><OwnerExpenses /></OwnerLayout>} />
+        <Route path="activity" element={<OwnerLayout><OwnerActivityLogs /></OwnerLayout>} />
+        <Route path="reports" element={<OwnerLayout><OwnerReports /></OwnerLayout>} />
+        <Route path="branches" element={<OwnerLayout><OwnerBranches /></OwnerLayout>} />
+        <Route path="settings" element={<OwnerLayout><OwnerSettings /></OwnerLayout>} />
+        <Route path="pos" element={<OwnerLayout><CashierPOS managerView={true} /></OwnerLayout>} />
+      </Routes>
+    </BranchProvider>
+  );
+};
 
 // Role-based Dashboard component
 const RoleBasedDashboard = () => {
@@ -135,6 +162,56 @@ const TenantRoutes = () => {
             <PrivateRoute requireSuperAdmin>
               <SuperAdminLayout>
                 <SuperAdminAnalytics />
+              </SuperAdminLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="oversight"
+          element={
+            <PrivateRoute requireSuperAdmin>
+              <SuperAdminLayout>
+                <SuperAdminOversight />
+              </SuperAdminLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="subscriptions"
+          element={
+            <PrivateRoute requireSuperAdmin>
+              <SuperAdminLayout>
+                <SuperAdminSubscriptions />
+              </SuperAdminLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="branch-requests"
+          element={
+            <PrivateRoute requireSuperAdmin>
+              <SuperAdminLayout>
+                <SuperAdminBranchRequests />
+              </SuperAdminLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="platform"
+          element={
+            <PrivateRoute requireSuperAdmin>
+              <SuperAdminLayout>
+                <SuperAdminPlatform />
+              </SuperAdminLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="market-intelligence"
+          element={
+            <PrivateRoute requireSuperAdmin>
+              <SuperAdminLayout>
+                <SuperAdminMarketIntelligence />
               </SuperAdminLayout>
             </PrivateRoute>
           }
@@ -243,148 +320,12 @@ const TenantRoutes = () => {
           }
         />
 
-        {/* Owner routes - wrapped in BranchProvider */}
+        {/* Owner routes - all wrapped in single BranchProvider */}
         <Route
-          path="owner/dashboard"
+          path="owner/*"
           element={
             <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerDashboard />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/sales"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerSales />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/inventory"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerInventory />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/staff"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerStaff />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/customers"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerCustomers />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/requests"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerRequests />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/expenses"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerExpenses />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/activity"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerActivityLogs />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/reports"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerReports />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/branches"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerBranches />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/settings"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <OwnerSettings />
-                </OwnerLayout>
-              </BranchProvider>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="owner/pos"
-          element={
-            <PrivateRoute requireOwner>
-              <BranchProvider>
-                <OwnerLayout>
-                  <CashierPOS managerView={true} />
-                </OwnerLayout>
-              </BranchProvider>
+              <OwnerRoutes />
             </PrivateRoute>
           }
         />

@@ -51,7 +51,9 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (username, password, tenantSlug) => api.post('/auth/login', { username, password, tenantSlug }),
   getMe: () => api.get('/auth/me'),
-  getTenantBySlug: (slug) => api.get(`/auth/tenant/${slug}`)
+  getTenantBySlug: (slug) => api.get(`/auth/tenant/${slug}`),
+  requestPasswordReset: (email, tenantSlug) => api.post('/auth/forgot-password', { email, tenantSlug }),
+  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword })
 };
 
 // Products API
@@ -91,7 +93,18 @@ export const usersAPI = {
   getAll: () => api.get('/users'),
   create: (data) => api.post('/users', data),
   update: (id, data) => api.put(`/users/${id}`, data),
-  resetPassword: (id, newPassword) => api.post(`/users/${id}/reset-password`, { newPassword })
+  resetPassword: (id, newPassword) => api.post(`/users/${id}/reset-password`, { newPassword }),
+  uploadImage: (id, formData) => api.post(`/users/${id}/upload-image`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  deleteImage: (id) => api.delete(`/users/${id}/image`),
+  // Profile (self-service)
+  getProfile: () => api.get('/users/me/profile'),
+  updateProfile: (data) => api.put('/users/me/profile', data),
+  uploadProfileImage: (formData) => api.post('/users/me/upload-image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  deleteProfileImage: () => api.delete('/users/me/image')
 };
 
 // Tenants API
@@ -143,16 +156,26 @@ export const superAdminAPI = {
   getDashboard: () => api.get('/super-admin/dashboard'),
   getApplications: (params) => api.get('/super-admin/applications', { params }),
   getApplication: (id) => api.get(`/super-admin/applications/${id}`),
-  approveApplication: (id, subscriptionMonths) =>
-    api.post(`/super-admin/applications/${id}/approve`, { subscriptionMonths }),
+  checkSlugAvailability: (slug) => api.get(`/super-admin/check-slug/${slug}`),
+  approveApplication: (id, slug, subscriptionMonths) =>
+    api.post(`/super-admin/applications/${id}/approve`, { slug, subscriptionMonths }),
   rejectApplication: (id, reason) =>
     api.post(`/super-admin/applications/${id}/reject`, { reason }),
   getTenants: (params) => api.get('/super-admin/tenants', { params }),
   getTenant: (id) => api.get(`/super-admin/tenants/${id}`),
+  getTenantFullData: (id) => api.get(`/super-admin/tenants/${id}/full-data`),
   updateTenantStatus: (id, isActive) =>
     api.put(`/super-admin/tenants/${id}/status`, { isActive }),
   extendSubscription: (id, data) =>
     api.put(`/super-admin/tenants/${id}/subscription`, data),
+  updateTenantSlug: (id, slug) =>
+    api.put(`/super-admin/tenants/${id}/slug`, { slug }),
+  deleteTenant: (id, confirmationName) =>
+    api.delete(`/super-admin/tenants/${id}`, { data: { confirmationName } }),
+  deleteBranch: (id, data) =>
+    api.delete(`/super-admin/branches/${id}`, { data }),
+  setMainBranch: (id) =>
+    api.post(`/super-admin/branches/${id}/set-main`),
   // Global Analytics
   getAnalytics: (params) => api.get('/super-admin/analytics', { params }),
   getRevenueByTenant: (params) => api.get('/super-admin/analytics/revenue-by-tenant', { params }),
@@ -160,10 +183,83 @@ export const superAdminAPI = {
   getStaffProductivity: (params) => api.get('/super-admin/analytics/staff-productivity', { params }),
   getIndustryPerformance: () => api.get('/super-admin/analytics/industry-performance'),
   getAnomalies: () => api.get('/super-admin/analytics/anomalies'),
+  // Oversight - All Transactions
+  getAllTransactions: (params) => api.get('/super-admin/oversight/transactions', { params }),
+  getVoidedSales: (params) => api.get('/super-admin/oversight/voids', { params }),
+  getSuspiciousActivity: (params) => api.get('/super-admin/oversight/suspicious', { params }),
   // Branch Requests
   getBranchRequests: (params) => api.get('/super-admin/branch-requests', { params }),
   approveBranchRequest: (id) => api.post(`/super-admin/branch-requests/${id}/approve`),
   rejectBranchRequest: (id, reason) => api.post(`/super-admin/branch-requests/${id}/reject`, { reason })
+};
+
+// Platform API (Infrastructure Management)
+export const platformAPI = {
+  // Subscription Tiers
+  getTiers: () => api.get('/platform/tiers'),
+  createTier: (data) => api.post('/platform/tiers', data),
+  updateTier: (id, data) => api.put(`/platform/tiers/${id}`, data),
+  deleteTier: (id) => api.delete(`/platform/tiers/${id}`),
+  assignTierToTenant: (tenantId, tierId) => api.put(`/platform/tenants/${tenantId}/tier`, { tierId }),
+
+  // Features
+  getFeatures: () => api.get('/platform/features'),
+  createFeature: (data) => api.post('/platform/features', data),
+  updateTierFeatures: (tierId, featureIds) => api.put(`/platform/tiers/${tierId}/features`, { featureIds }),
+  checkFeatureAccess: (code) => api.get(`/platform/check-feature/${code}`),
+
+  // Grace Period
+  getGracePeriodTenants: () => api.get('/platform/grace-period/tenants'),
+  setGracePeriod: (tenantId, graceDays) => api.put(`/platform/tenants/${tenantId}/grace-period`, { graceDays }),
+  enforceLockout: () => api.post('/platform/grace-period/enforce'),
+
+  // Tax Configuration
+  getTaxConfigs: (params) => api.get('/platform/tax-configs', { params }),
+  createTaxConfig: (data) => api.post('/platform/tax-configs', data),
+  updateTaxConfig: (id, data) => api.put(`/platform/tax-configs/${id}`, data),
+  pushTaxRates: (country, taxRate) => api.post('/platform/tax-configs/push', { country, taxRate }),
+
+  // Admin Impersonation
+  startImpersonation: (tenantId, reason) => api.post('/platform/impersonate', { tenantId, reason }),
+  endImpersonation: (logId, actionsPerformed) => api.post(`/platform/impersonate/${logId}/end`, { actionsPerformed }),
+  getImpersonationLogs: (params) => api.get('/platform/impersonation-logs', { params }),
+
+  // Tenant Health
+  getTenantHealth: () => api.get('/platform/tenant-health'),
+
+  // Seed Defaults
+  seedDefaults: () => api.post('/platform/seed-defaults')
+};
+
+// Market Intelligence API
+export const marketIntelligenceAPI = {
+  // Product Affinity & Basket Analysis
+  getBasketAnalysis: (params) => api.get('/market-intelligence/basket-analysis', { params }),
+
+  // Brand Market Share
+  getBrandShare: (params) => api.get('/market-intelligence/brand-share', { params }),
+
+  // Geospatial Spending Analysis
+  getSpendingByLocation: (params) => api.get('/market-intelligence/spending-by-location', { params }),
+
+  // Peak Hours Analysis
+  getPeakHours: (params) => api.get('/market-intelligence/peak-hours', { params }),
+
+  // Price Elasticity
+  getPriceElasticity: (params) => api.get('/market-intelligence/price-elasticity', { params }),
+
+  // Data Export (Data-as-a-Service)
+  exportSummary: (params) => api.get('/market-intelligence/export/summary', { params }),
+  exportTrends: (params) => api.get('/market-intelligence/export/trends', { params }),
+
+  // Download CSV
+  downloadSummaryCSV: async (period = 30) => {
+    const response = await api.get('/market-intelligence/export/summary', {
+      params: { period, format: 'csv' },
+      responseType: 'blob'
+    });
+    return response;
+  }
 };
 
 // Owner API
@@ -175,6 +271,10 @@ export const ownerAPI = {
   createStaff: (data) => api.post('/owner/staff', data),
   updateStaff: (id, data) => api.put(`/owner/staff/${id}`, data),
   resetStaffPassword: (id, newPassword) => api.post(`/owner/staff/${id}/reset-password`, { newPassword }),
+  uploadStaffImage: (id, formData) => api.post(`/users/${id}/upload-image`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  deleteStaffImage: (id) => api.delete(`/users/${id}/image`),
   // Activity Logs
   getActivity: (params) => api.get('/owner/activity', { params }),
   exportActivity: (params) => api.get('/owner/activity/export', { params, responseType: 'blob' }),
@@ -195,6 +295,7 @@ export const branchesAPI = {
   create: (data) => api.post('/branches', data),
   update: (id, data) => api.put(`/branches/${id}`, data),
   setMain: (id) => api.post(`/branches/${id}/set-main`),
+  delete: (id, data) => api.delete(`/branches/${id}`, { data }),
   getStats: (params) => api.get('/branches/stats/overview', { params }),
   // Branch Requests
   getRequests: (params) => api.get('/branches/requests/list', { params }),

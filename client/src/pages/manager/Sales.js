@@ -17,7 +17,8 @@ import {
   Filter,
   ChevronDown,
   Printer,
-  Download
+  Download,
+  Building2
 } from 'lucide-react';
 
 const ManagerSales = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, bgClass }) => {
@@ -132,7 +133,10 @@ const ManagerSales = ({ darkMode, surfaceClass, textClass, mutedClass, borderCla
         .filter(s => s.paymentMethod === 'CARD')
         .reduce((sum, s) => sum + s.finalAmount, 0);
       const momoTotal = completedSales
-        .filter(s => s.paymentMethod === 'MOBILE_MONEY')
+        .filter(s => s.paymentMethod === 'MOMO')
+        .reduce((sum, s) => sum + s.finalAmount, 0);
+      const bankTransferTotal = completedSales
+        .filter(s => s.paymentMethod === 'BANK_TRANSFER')
         .reduce((sum, s) => sum + s.finalAmount, 0);
 
       setStats({
@@ -201,8 +205,10 @@ const ManagerSales = ({ darkMode, surfaceClass, textClass, mutedClass, borderCla
         return <Banknote className="w-3.5 h-3.5" />;
       case 'CARD':
         return <CreditCard className="w-3.5 h-3.5" />;
-      case 'MOBILE_MONEY':
+      case 'MOMO':
         return <Smartphone className="w-3.5 h-3.5" />;
+      case 'BANK_TRANSFER':
+        return <Building2 className="w-3.5 h-3.5" />;
       default:
         return <DollarSign className="w-3.5 h-3.5" />;
     }

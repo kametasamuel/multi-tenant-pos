@@ -27,7 +27,30 @@
       "Bash(npm run server:*)",
       "Bash(node -e:*)",
       "Bash(timeout /t 5 /nobreak)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(npm run build:*)",
+      "Bash(del \"C:\\\\Users\\\\benco\\\\Desktop\\\\MgtSys\\\\client\\\\src\\\\pages\\\\superadmin\\\\Anomalies.js\")",
+      "Bash(npx eslint:*)",
+      "Bash(node -c:*)",
+      "Bash(powershell -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force; Write-Host ''Killed node processes''\")",
+      "Bash(node:*)",
+      "Bash(cmd.exe /c \"taskkill /F /IM node.exe\")",
+      "Bash(cmd.exe /c \"taskkill /F /IM node.exe /T 2>nul & timeout /t 2 >nul\")",
+      "Bash(cmd.exe /c \"wmic process where \"\"commandline like ''%node%''\"\" get processid,commandline 2>nul\")",
+      "Bash(cmd.exe /c \"del /f /q C:\\\\Users\\\\benco\\\\Desktop\\\\MgtSys\\\\node_modules\\\\.prisma\\\\client\\\\query_engine-windows.dll.node 2>nul & npx prisma generate\")",
+      "Bash(cmd.exe /c \"start /wait cmd /c \"\"npx prisma generate && pause\"\"\")",
+      "Bash(cmd.exe /c \"for /f \"\"tokens=5\"\" %a in \\(''netstat -ano ^| findstr :5000 ^| findstr LISTENING''\\) do taskkill /F /PID %a\")",
+      "Bash(cmd.exe /c \"netstat -ano | findstr :5000\")",
+      "Bash(cmd.exe /c \"rmdir /s /q C:\\\\Users\\\\benco\\\\Desktop\\\\MgtSys\\\\node_modules\\\\.prisma 2>nul\")",
+      "Bash(powershell -Command \"Get-Process | Where-Object { $_Modules.FileName -like ''*prisma*'' } | Select-Object Id, ProcessName\")",
+      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Stop-Process -Id $_-Force -ErrorAction SilentlyContinue }\")",
+      "Bash(cmd.exe /c \"taskkill /F /PID 19436\")",
+      "Bash(powershell:*)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(timeout:*)",
+      "Bash(curl:*)",
+      "Bash(source /tmp/test_tokens.sh)",
+      "Bash(npm test:*)"
     ]
   }
 }

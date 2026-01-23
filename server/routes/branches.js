@@ -191,6 +191,7 @@ router.post('/', requireOwner, [
         address,
         phone,
         isMain: branchCount === 0,
+        isActive: true,
         tenantId: req.tenantId
       }
     });
@@ -314,6 +315,161 @@ router.post('/:id/set-main', requireOwner, async (req, res) => {
   } catch (error) {
     console.error('Set main branch error:', error);
     res.status(500).json({ error: 'Failed to set main branch' });
+  }
+});
+
+// DELETE /api/branches/:id - Delete a branch (Owner only)
+router.delete('/:id', requireOwner, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { transferTo, confirmName } = req.body;
+
+    const branch = await prisma.branch.findFirst({
+      where: { id, tenantId: req.tenantId },
+      include: {
+        _count: {
+          select: { users: true, sales: true, products: true, expenses: true }
+        }
+      }
+    });
+
+    if (!branch) {
+      return res.status(404).json({ error: 'Branch not found' });
+    }
+
+    // Check if this is the only branch
+    const branchCount = await prisma.branch.count({
+      where: { tenantId: req.tenantId }
+    });
+
+    if (branchCount <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the only branch. Create another branch first.' });
+    }
+
+    // Require confirmation by typing branch name
+    if (!confirmName || confirmName.toLowerCase() !== branch.name.toLowerCase()) {
+      return res.status(400).json({
+        error: 'Please type the branch name to confirm deletion',
+        branchName: branch.name
+      });
+    }
+
+    // Check if branch has data
+    const hasData = branch._count.users > 0 || branch._count.sales > 0 ||
+                    branch._count.products > 0 || branch._count.expenses > 0;
+
+    // Determine transfer target
+    let targetBranch = null;
+
+    if (transferTo) {
+      // User specified a target branch
+      targetBranch = await prisma.branch.findFirst({
+        where: { id: transferTo, tenantId: req.tenantId, id: { not: id } }
+      });
+
+      if (!targetBranch) {
+        return res.status(400).json({ error: 'Target branch for data transfer not found' });
+      }
+    } else if (hasData || branch.isMain) {
+      // Auto-select the next available branch for data transfer or main promotion
+      targetBranch = await prisma.branch.findFirst({
+        where: {
+          tenantId: req.tenantId,
+          id: { not: id },
+          isActive: true
+        },
+        orderBy: [
+          { isMain: 'desc' }, // Prefer current main if not being deleted
+          { createdAt: 'asc' } // Then oldest branch
+        ]
+      });
+
+      if (!targetBranch && hasData) {
+        return res.status(400).json({
+          error: 'Branch has associated data but no other active branch exists to transfer to.',
+          counts: branch._count
+        });
+      }
+    }
+
+    const wasMain = branch.isMain;
+    let newMainBranch = null;
+
+    // Use transaction to delete/transfer
+    await prisma.$transaction(async (tx) => {
+      if (targetBranch) {
+        // Transfer users to target branch
+        await tx.user.updateMany({
+          where: { branchId: id },
+          data: { branchId: targetBranch.id }
+        });
+
+        // Transfer sales to target branch
+        await tx.sale.updateMany({
+          where: { branchId: id },
+          data: { branchId: targetBranch.id }
+        });
+
+        // Transfer products to target branch
+        await tx.product.updateMany({
+          where: { branchId: id },
+          data: { branchId: targetBranch.id }
+        });
+
+        // Transfer expenses to target branch
+        await tx.expense.updateMany({
+          where: { branchId: id },
+          data: { branchId: targetBranch.id }
+        });
+
+        // Transfer audit logs to target branch
+        await tx.auditLog.updateMany({
+          where: { branchId: id },
+          data: { branchId: targetBranch.id }
+        });
+
+        // Transfer security requests to target branch
+        await tx.securityRequest.updateMany({
+          where: { branchId: id },
+          data: { branchId: targetBranch.id }
+        });
+
+        // If deleting main branch, promote the target branch to main
+        if (wasMain) {
+          await tx.branch.update({
+            where: { id: targetBranch.id },
+            data: { isMain: true }
+          });
+          newMainBranch = targetBranch;
+        }
+      }
+
+      // Delete the branch
+      await tx.branch.delete({ where: { id } });
+    });
+
+    await logAudit(
+      req.tenantId,
+      req.user.id,
+      'branch_deleted',
+      `Deleted branch: ${branch.name}${targetBranch ? ` (data transferred to ${targetBranch.name})` : ''}${newMainBranch ? ` - ${newMainBranch.name} is now the main branch` : ''}`,
+      { branchId: id, transferredTo: targetBranch?.id, newMainBranchId: newMainBranch?.id }
+    );
+
+    res.json({
+      message: 'Branch deleted successfully',
+      transferred: targetBranch ? {
+        to: targetBranch.name,
+        counts: branch._count
+      } : null,
+      newMainBranch: newMainBranch ? {
+        id: newMainBranch.id,
+        name: newMainBranch.name
+      } : null
+    });
+  } catch (error) {
+    console.error('Delete branch error:', error);
+    res.status(500).json({ error: 'Failed to delete branch' });
   }
 });
 

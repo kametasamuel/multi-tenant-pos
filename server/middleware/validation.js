@@ -83,10 +83,10 @@ const validateRejection = [
   handleValidationErrors
 ];
 
-// Validation for subscription update
+// Validation for subscription update (allow negative for reduction)
 const validateSubscriptionUpdate = [
-  body('months').optional().isInt({ min: 1, max: 60 }).withMessage('Months must be between 1 and 60'),
-  body('days').optional().isInt({ min: 1, max: 365 }).withMessage('Days must be between 1 and 365'),
+  body('months').optional().isInt({ min: -60, max: 60 }).withMessage('Months must be between -60 and 60'),
+  body('days').optional().isInt({ min: -365, max: 365 }).withMessage('Days must be between -365 and 365'),
   handleValidationErrors
 ];
 

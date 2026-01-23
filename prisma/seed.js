@@ -46,12 +46,13 @@ async function main() {
 
   console.log('Created super admin:', superAdmin.username);
 
-  // Create sample tenants with business types
+  // Create sample tenants with business types and slugs
   const tenant1 = await prisma.tenant.upsert({
     where: { businessName: 'Trim N Fade Salon' },
-    update: { businessType: 'SALON' },
+    update: { businessType: 'SALON', slug: 'trimnfade' },
     create: {
       businessName: 'Trim N Fade Salon',
+      slug: 'trimnfade',
       subscriptionStart: new Date(),
       subscriptionEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
       isActive: true,
@@ -63,9 +64,10 @@ async function main() {
 
   const tenant2 = await prisma.tenant.upsert({
     where: { businessName: 'Eddiko Electronics' },
-    update: { businessType: 'ELECTRONICS' },
+    update: { businessType: 'ELECTRONICS', slug: 'eddiko' },
     create: {
       businessName: 'Eddiko Electronics',
+      slug: 'eddiko',
       subscriptionStart: new Date(),
       subscriptionEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       isActive: true,
@@ -77,9 +79,10 @@ async function main() {
 
   const tenant3 = await prisma.tenant.upsert({
     where: { businessName: 'QuickMart Grocery' },
-    update: { businessType: 'GROCERY' },
+    update: { businessType: 'GROCERY', slug: 'quickmart' },
     create: {
       businessName: 'QuickMart Grocery',
+      slug: 'quickmart',
       subscriptionStart: new Date(),
       subscriptionEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       isActive: true,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ownerAPI } from '../../api';
 import { exportStaff } from '../../utils/exportUtils';
 import {
@@ -14,7 +14,10 @@ import {
   Download,
   ChevronDown,
   Eye,
-  EyeOff
+  EyeOff,
+  Camera,
+  Trash2,
+  Upload
 } from 'lucide-react';
 
 const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, currentBranch, isAllBranches, branches = [] }) => {
@@ -41,6 +44,11 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
   // Branch filter for drilling down when in "All Branches" mode
   const [branchFilter, setBranchFilter] = useState(null);
   const [showBranchDropdown, setShowBranchDropdown] = useState(false);
+  // Image upload state
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Get the effective branchId for API calls
   const getEffectiveBranchId = () => {
@@ -101,6 +109,12 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
         role: staffMember.role,
         branchId: staffMember.branchId || ''
       });
+      // Set image preview if user has a profile image
+      if (staffMember.profileImage) {
+        setImagePreview(`http://localhost:5000${staffMember.profileImage}`);
+      } else {
+        setImagePreview(null);
+      }
     } else {
       setEditingStaff(null);
       const mainBranch = branches.find(b => b.isMain);
@@ -111,7 +125,9 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
         role: 'CASHIER',
         branchId: mainBranch?.id || ''
       });
+      setImagePreview(null);
     }
+    setSelectedImage(null);
     setError('');
     setShowModal(true);
   };
@@ -120,6 +136,61 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
     setShowModal(false);
     setEditingStaff(null);
     setError('');
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.');
+        return;
+      }
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('File too large. Maximum size is 5MB.');
+        return;
+      }
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+      setError('');
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (editingStaff?.profileImage) {
+      try {
+        await ownerAPI.deleteStaffImage(editingStaff.id);
+        setSuccess('Profile image removed');
+        loadData();
+        setTimeout(() => setSuccess(''), 3000);
+      } catch (error) {
+        setError(error.response?.data?.error || 'Failed to remove image');
+        return;
+      }
+    }
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
+  const uploadImage = async (userId) => {
+    if (!selectedImage) return;
+
+    const formData = new FormData();
+    formData.append('image', selectedImage);
+
+    try {
+      setUploadingImage(true);
+      await ownerAPI.uploadStaffImage(userId, formData);
+    } catch (error) {
+      console.error('Image upload failed:', error);
+      // Don't fail the whole operation if image upload fails
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -127,19 +198,34 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
     setError('');
 
     try {
+      let userId;
       if (editingStaff) {
         await ownerAPI.updateStaff(editingStaff.id, {
           fullName: formData.fullName,
           role: formData.role,
           branchId: formData.branchId || null
         });
+        userId = editingStaff.id;
+
+        // Upload image if selected
+        if (selectedImage) {
+          await uploadImage(userId);
+        }
+
         setSuccess('Staff member updated successfully');
       } else {
         if (!formData.password) {
           setError('Password is required for new staff');
           return;
         }
-        await ownerAPI.createStaff(formData);
+        const response = await ownerAPI.createStaff(formData);
+        userId = response.data.user?.id;
+
+        // Upload image if selected and we have the user ID
+        if (selectedImage && userId) {
+          await uploadImage(userId);
+        }
+
         setSuccess('Staff member created successfully');
       }
       handleCloseModal();
@@ -200,6 +286,11 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
       default:
         return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400';
     }
+  };
+
+  // Display OWNER for both OWNER and ADMIN roles
+  const getDisplayRole = (role) => {
+    return role === 'ADMIN' ? 'OWNER' : role;
   };
 
   return (
@@ -306,7 +397,7 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
           <p className={`text-xs ${mutedClass} uppercase font-bold`}>Total Staff</p>
         </div>
         <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass} text-center`}>
-          <p className={`text-2xl font-black text-slate-600 dark:text-slate-400`}>{stats.byRole?.OWNER || 0 + (stats.byRole?.ADMIN || 0)}</p>
+          <p className={`text-2xl font-black text-slate-600 dark:text-slate-400`}>{(stats.byRole?.OWNER || 0) + (stats.byRole?.ADMIN || 0)}</p>
           <p className={`text-xs ${mutedClass} uppercase font-bold`}>Owners</p>
         </div>
         <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass} text-center`}>
@@ -338,7 +429,7 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
             className={`px-4 py-2 rounded-xl border ${borderClass} ${surfaceClass} ${textClass} text-sm font-medium`}
           >
             <option value="">All Roles</option>
-            <option value="OWNER">Owner</option>
+            <option value="OWNER,ADMIN">Owner</option>
             <option value="MANAGER">Manager</option>
             <option value="CASHIER">Cashier</option>
           </select>
@@ -378,9 +469,17 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
                   <tr key={member.id} className={`${!member.isActive ? 'opacity-50' : ''}`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full ${darkMode ? 'bg-slate-600' : 'bg-gray-200'} flex items-center justify-center`}>
-                          <span className={`text-sm font-bold ${textClass}`}>{member.fullName?.charAt(0)}</span>
-                        </div>
+                        {member.profileImage ? (
+                          <img
+                            src={`http://localhost:5000${member.profileImage}`}
+                            alt={member.fullName}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className={`w-10 h-10 rounded-full ${darkMode ? 'bg-slate-600' : 'bg-gray-200'} flex items-center justify-center`}>
+                            <span className={`text-sm font-bold ${textClass}`}>{member.fullName?.charAt(0)}</span>
+                          </div>
+                        )}
                         <div>
                           <p className={`text-sm font-bold ${textClass}`}>{member.fullName}</p>
                           <p className={`text-xs ${mutedClass}`}>@{member.username}</p>
@@ -389,7 +488,7 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${getRoleBadgeClass(member.role)}`}>
-                        {member.role}
+                        {getDisplayRole(member.role)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -473,6 +572,49 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Profile Image Upload */}
+              <div className="flex flex-col items-center mb-4">
+                <div className="relative">
+                  {imagePreview ? (
+                    <img
+                      src={imagePreview}
+                      alt="Profile preview"
+                      className="w-24 h-24 rounded-full object-cover border-4 border-slate-200 dark:border-slate-600"
+                    />
+                  ) : (
+                    <div className={`w-24 h-24 rounded-full ${darkMode ? 'bg-slate-600' : 'bg-gray-200'} flex items-center justify-center border-4 border-slate-200 dark:border-slate-600`}>
+                      <Users className={`w-10 h-10 ${mutedClass}`} />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute bottom-0 right-0 w-8 h-8 bg-slate-800 dark:bg-slate-600 text-white rounded-full flex items-center justify-center hover:bg-slate-700 transition-colors"
+                    title="Upload photo"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                {imagePreview && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="mt-2 text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Remove photo
+                  </button>
+                )}
+                <p className={`text-xs ${mutedClass} mt-2`}>Click to upload profile photo</p>
+              </div>
+
               <div>
                 <label className={`block text-xs font-bold uppercase ${mutedClass} mb-2`}>Full Name</label>
                 <input
@@ -523,7 +665,7 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
               <div>
                 <label className={`block text-xs font-bold uppercase ${mutedClass} mb-2`}>Role</label>
                 <select
-                  value={formData.role}
+                  value={formData.role === 'ADMIN' ? 'OWNER' : formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${surfaceClass} ${textClass}`}
                 >
@@ -554,14 +696,23 @@ const Staff = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, cur
                   type="button"
                   onClick={handleCloseModal}
                   className={`flex-1 px-4 py-3 rounded-xl border ${borderClass} ${textClass} font-bold text-sm uppercase`}
+                  disabled={uploadingImage}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-3 bg-slate-800 dark:bg-slate-700 text-white rounded-xl font-bold text-sm uppercase"
+                  disabled={uploadingImage}
+                  className="flex-1 px-4 py-3 bg-slate-800 dark:bg-slate-700 text-white rounded-xl font-bold text-sm uppercase disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {editingStaff ? 'Update' : 'Create'}
+                  {uploadingImage ? (
+                    <>
+                      <Upload className="w-4 h-4 animate-pulse" />
+                      Uploading...
+                    </>
+                  ) : (
+                    editingStaff ? 'Update' : 'Create'
+                  )}
                 </button>
               </div>
             </form>

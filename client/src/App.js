@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import TenantRoutes from './components/TenantRoutes';
 import Signup from './pages/Signup';
 import ApplicationStatus from './pages/ApplicationStatus';
+import ResetPassword from './pages/ResetPassword';
 import './App.css';
 
 // Landing page - redirects to appropriate location
@@ -84,6 +85,7 @@ const AppRoutes = () => {
       {/* Public routes */}
       <Route path="/signup" element={<Signup />} />
       <Route path="/application-status" element={<ApplicationStatus />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Legacy routes - redirect to new format */}
       <Route path="/login" element={<Navigate to="/admin/login" replace />} />

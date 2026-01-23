@@ -9,7 +9,9 @@ const prisma = new PrismaClient();
 // Get all products (for current tenant, filtered by branch for managers)
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { search, category, lowStock, branchId } = req.query;
+    const { search, category, lowStock, branchId, page = 1, limit = 100 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = Math.min(parseInt(limit), 200); // Max 200 per page for POS
 
     const where = {
       tenantId: req.tenantId,
@@ -38,23 +40,51 @@ router.get('/', authenticate, async (req, res) => {
       where.category = category;
     }
 
+    // Low stock filtering done in JS because Prisma doesn't support field comparison
+    let products;
+    let total;
+
     if (lowStock === 'true') {
-      where.stockQuantity = { lte: prisma.raw('"lowStockThreshold"') };
+      // Fetch all products and filter in memory for low stock comparison
+      const allProducts = await prisma.product.findMany({
+        where,
+        include: {
+          branch: {
+            select: { id: true, name: true }
+          }
+        },
+        orderBy: { name: 'asc' }
+      });
+      const lowStockProducts = allProducts.filter(p => p.stockQuantity <= p.lowStockThreshold && p.category === 'PRODUCT');
+      total = lowStockProducts.length;
+      products = lowStockProducts.slice(skip, skip + take);
+    } else {
+      [products, total] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          include: {
+            branch: {
+              select: { id: true, name: true }
+            }
+          },
+          orderBy: { name: 'asc' },
+          skip,
+          take
+        }),
+        prisma.product.count({ where })
+      ]);
     }
 
-    const products = await prisma.product.findMany({
-      where,
-      include: {
-        branch: {
-          select: { id: true, name: true }
-        }
-      },
-      orderBy: { name: 'asc' }
+    res.json({
+      products,
+      pagination: {
+        page: parseInt(page),
+        limit: take,
+        total,
+        totalPages: Math.ceil(total / take)
+      }
     });
-
-    res.json({ products });
   } catch (error) {
-    console.error('Get products error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -17,6 +17,7 @@ export const BranchProvider = ({ children }) => {
   const [branches, setBranches] = useState([]);
   const [currentBranch, setCurrentBranch] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (user && (isOwner() || isManager())) {
@@ -29,6 +30,7 @@ export const BranchProvider = ({ children }) => {
   const loadBranches = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await branchesAPI.getAll();
       const branchList = response.data.branches || [];
       setBranches(branchList);
@@ -45,12 +47,14 @@ export const BranchProvider = ({ children }) => {
         const firstActive = branchList.find(b => b.isActive);
         setCurrentBranch(mainBranch || firstActive || null);
       }
-    } catch (error) {
-      console.error('Failed to load branches:', error);
+    } catch (err) {
+      setError('Failed to load branches');
     } finally {
       setLoading(false);
     }
   };
+
+  const clearError = () => setError(null);
 
   const switchBranch = (branchId) => {
     const branch = branches.find(b => b.id === branchId);
@@ -81,6 +85,8 @@ export const BranchProvider = ({ children }) => {
     branches,
     currentBranch,
     loading,
+    error,
+    clearError,
     switchBranch,
     switchToAllBranches,
     refreshBranches,

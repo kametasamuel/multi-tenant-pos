@@ -31,6 +31,12 @@ const Branches = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass }
   const [formData, setFormData] = useState({ name: '', address: '', phone: '', reason: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [deleteModal, setDeleteModal] = useState({ show: false, branch: null });
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [transferBranchId, setTransferBranchId] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [rejectedRequests, setRejectedRequests] = useState([]);
+  const [dismissedRejections, setDismissedRejections] = useState([]);
 
   useEffect(() => {
     loadData();
@@ -44,7 +50,12 @@ const Branches = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass }
         branchesAPI.getRequests()
       ]);
       setBranches(branchesRes.data.branches || []);
-      setPendingRequests((requestsRes.data.requests || []).filter(r => r.status === 'PENDING'));
+      const allRequests = requestsRes.data.requests || [];
+      setPendingRequests(allRequests.filter(r => r.status === 'PENDING'));
+      // Get rejected requests that haven't been dismissed
+      setRejectedRequests(allRequests.filter(r =>
+        r.status === 'REJECTED' && !dismissedRejections.includes(r.id)
+      ));
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -142,6 +153,58 @@ const Branches = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass }
     }
   };
 
+  const openDeleteModal = (branch) => {
+    setDeleteModal({ show: true, branch });
+    setDeleteConfirmName('');
+    setTransferBranchId('');
+    setError('');
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModal({ show: false, branch: null });
+    setDeleteConfirmName('');
+    setTransferBranchId('');
+    setError('');
+  };
+
+  const handleDeleteBranch = async () => {
+    const branch = deleteModal.branch;
+    if (!branch) return;
+
+    // Validate confirmation name
+    if (deleteConfirmName.toLowerCase() !== branch.name.toLowerCase()) {
+      setError('Please type the branch name correctly to confirm');
+      return;
+    }
+
+    // Check if transfer is needed
+    const hasData = (branch._count?.users || 0) > 0 ||
+                    (branch._count?.sales || 0) > 0 ||
+                    (branch._count?.products || 0) > 0;
+
+    if (hasData && !transferBranchId) {
+      setError('Please select a branch to transfer data to');
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      await branchesAPI.delete(branch.id, {
+        confirmName: deleteConfirmName,
+        transferTo: transferBranchId || undefined
+      });
+      setSuccess('Branch deleted successfully');
+      closeDeleteModal();
+      loadData();
+      refreshBranches();
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to delete branch');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Calculate totals
   const totals = branches.reduce((acc, b) => ({
     staff: acc.staff + (b._count?.users || 0),
@@ -193,6 +256,48 @@ const Branches = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass }
         <div className="flex items-center gap-3 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-xl">
           <XCircle className="w-5 h-5" />
           <span className="text-sm font-medium">{error}</span>
+        </div>
+      )}
+
+      {/* Rejected Requests Alert */}
+      {rejectedRequests.length > 0 && (
+        <div className={`${surfaceClass} rounded-2xl border-2 border-red-300 dark:border-red-800 p-4`}>
+          <div className="flex items-center gap-3 mb-3">
+            <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            <h3 className={`text-sm font-black uppercase text-red-600 dark:text-red-400`}>Rejected Requests ({rejectedRequests.length})</h3>
+          </div>
+          <div className="space-y-2">
+            {rejectedRequests.map(request => (
+              <div key={request.id} className={`p-3 rounded-xl ${darkMode ? 'bg-red-900/20' : 'bg-red-50'}`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <Building2 className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5" />
+                    <div>
+                      <p className={`text-sm font-bold ${textClass}`}>{request.branchName}</p>
+                      <p className={`text-xs ${mutedClass}`}>
+                        Rejected on {request.reviewedAt ? new Date(request.reviewedAt).toLocaleDateString() : 'N/A'}
+                      </p>
+                      {request.rejectionReason && (
+                        <p className={`text-xs text-red-600 dark:text-red-400 mt-1`}>
+                          <span className="font-bold">Reason:</span> {request.rejectionReason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setDismissedRejections([...dismissedRejections, request.id]);
+                      setRejectedRequests(rejectedRequests.filter(r => r.id !== request.id));
+                    }}
+                    className={`p-1.5 ${mutedClass} hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg`}
+                    title="Dismiss"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -301,6 +406,15 @@ const Branches = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass }
                     >
                       <Edit2 className={`w-4 h-4 ${mutedClass}`} />
                     </button>
+                    {!branch.isMain && (
+                      <button
+                        onClick={() => openDeleteModal(branch)}
+                        className={`p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-colors`}
+                        title="Delete Branch"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -448,6 +562,108 @@ const Branches = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass }
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Branch Confirmation Modal */}
+      {deleteModal.show && deleteModal.branch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className={`${surfaceClass} rounded-2xl p-6 w-full max-w-md`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={`text-lg font-black uppercase text-red-600`}>Delete Branch</h2>
+              <button onClick={closeDeleteModal} className={`p-2 rounded-lg ${mutedClass} hover:bg-gray-100 dark:hover:bg-slate-700`}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
+              <p className="text-sm text-red-700 dark:text-red-400 font-medium">
+                You are about to delete <strong>{deleteModal.branch.name}</strong>. This action cannot be undone.
+              </p>
+            </div>
+
+            {/* Branch Data Summary */}
+            {((deleteModal.branch._count?.users || 0) > 0 ||
+              (deleteModal.branch._count?.sales || 0) > 0 ||
+              (deleteModal.branch._count?.products || 0) > 0) && (
+              <div className={`mb-4 p-4 ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} rounded-xl`}>
+                <p className={`text-xs font-bold uppercase ${mutedClass} mb-2`}>This branch has:</p>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className={`text-lg font-bold ${textClass}`}>{deleteModal.branch._count?.users || 0}</p>
+                    <p className={`text-[10px] ${mutedClass}`}>Staff</p>
+                  </div>
+                  <div>
+                    <p className={`text-lg font-bold ${textClass}`}>{deleteModal.branch._count?.sales || 0}</p>
+                    <p className={`text-[10px] ${mutedClass}`}>Sales</p>
+                  </div>
+                  <div>
+                    <p className={`text-lg font-bold ${textClass}`}>{deleteModal.branch._count?.products || 0}</p>
+                    <p className={`text-[10px] ${mutedClass}`}>Products</p>
+                  </div>
+                </div>
+
+                {/* Transfer Branch Selection */}
+                <div className="mt-4">
+                  <label className={`block text-xs font-bold uppercase ${mutedClass} mb-2`}>
+                    Transfer Data To *
+                  </label>
+                  <select
+                    value={transferBranchId}
+                    onChange={(e) => setTransferBranchId(e.target.value)}
+                    className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${surfaceClass} ${textClass}`}
+                  >
+                    <option value="">Select a branch...</option>
+                    {branches
+                      .filter(b => b.id !== deleteModal.branch.id && b.isActive)
+                      .map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} {b.isMain ? '(Main)' : ''}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-xl text-sm">
+                {error}
+              </div>
+            )}
+
+            {/* Confirmation Input */}
+            <div className="mb-4">
+              <label className={`block text-xs font-bold uppercase ${mutedClass} mb-2`}>
+                Type "{deleteModal.branch.name}" to confirm
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${surfaceClass} ${textClass}`}
+                placeholder="Type branch name..."
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={closeDeleteModal}
+                className={`flex-1 px-4 py-3 rounded-xl border ${borderClass} ${textClass} font-bold text-sm uppercase`}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteBranch}
+                disabled={deleting || deleteConfirmName.toLowerCase() !== deleteModal.branch.name.toLowerCase()}
+                className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-300 dark:disabled:bg-red-900 text-white rounded-xl font-bold text-sm uppercase transition-colors"
+              >
+                {deleting ? 'Deleting...' : 'Delete Branch'}
+              </button>
+            </div>
           </div>
         </div>
       )}
