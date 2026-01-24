@@ -13,10 +13,8 @@ import {
   RefreshCw,
   Store,
   Utensils,
-  Scissors,
-  Pill,
-  Tv,
-  Shirt,
+  Briefcase,
+  Hotel,
   MoreHorizontal,
   BarChart3,
   Percent,
@@ -26,14 +24,43 @@ import {
   GitBranch
 } from 'lucide-react';
 
+// Updated to use the 4 main business categories
+const BUSINESS_TYPES = {
+  RETAIL: {
+    label: 'Retail',
+    icon: Store,
+    color: 'bg-blue-500',
+    textColor: 'text-blue-600'
+  },
+  FOOD_AND_BEVERAGE: {
+    label: 'Food & Beverage',
+    icon: Utensils,
+    color: 'bg-orange-500',
+    textColor: 'text-orange-600'
+  },
+  HOSPITALITY: {
+    label: 'Hospitality',
+    icon: Hotel,
+    color: 'bg-purple-500',
+    textColor: 'text-purple-600'
+  },
+  SERVICES: {
+    label: 'Services',
+    icon: Briefcase,
+    color: 'bg-emerald-500',
+    textColor: 'text-emerald-600'
+  }
+};
+
+// Backward compatible icon mapping
 const businessTypeIcons = {
   RETAIL: Store,
+  FOOD_AND_BEVERAGE: Utensils,
+  HOSPITALITY: Hotel,
+  SERVICES: Briefcase,
+  // Legacy mappings
   RESTAURANT: Utensils,
-  SALON: Scissors,
-  PHARMACY: Pill,
-  GROCERY: ShoppingCart,
-  ELECTRONICS: Tv,
-  CLOTHING: Shirt,
+  SALON: Briefcase,
   OTHER: MoreHorizontal
 };
 
@@ -421,7 +448,8 @@ const Analytics = ({
               </div>
             ) : (
               industryPerformance.map((industry) => {
-                const Icon = businessTypeIcons[industry.businessType] || Building2;
+                const typeConfig = BUSINESS_TYPES[industry.businessType] || { label: industry.businessType, icon: Building2, color: 'bg-slate-500', textColor: 'text-slate-600' };
+                const Icon = typeConfig.icon;
                 const maxRevenue = Math.max(...industryPerformance.map(i => i.totalRevenue || 0));
                 const percentage = maxRevenue > 0 ? ((industry.totalRevenue || 0) / maxRevenue) * 100 : 0;
 
@@ -429,11 +457,11 @@ const Analytics = ({
                   <div key={industry.businessType} className={`px-6 py-4 hover:${darkMode ? 'bg-slate-700' : 'bg-slate-50'}`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg ${darkMode ? 'bg-slate-600' : 'bg-indigo-100'} flex items-center justify-center`}>
-                          <Icon className={`w-4 h-4 ${darkMode ? 'text-slate-300' : 'text-indigo-600'}`} />
+                        <div className={`w-8 h-8 rounded-lg ${typeConfig.color} flex items-center justify-center`}>
+                          <Icon className="w-4 h-4 text-white" />
                         </div>
                         <div>
-                          <p className={`text-sm font-bold ${textClass}`}>{industry.businessType}</p>
+                          <p className={`text-sm font-bold ${textClass}`}>{typeConfig.label}</p>
                           <p className={`text-xs ${mutedClass}`}>
                             {industry.tenantCount} tenants
                           </p>
@@ -446,7 +474,7 @@ const Analytics = ({
                     </div>
                     <div className={`h-1.5 rounded-full ${darkMode ? 'bg-slate-600' : 'bg-slate-100'}`}>
                       <div
-                        className="h-full rounded-full bg-indigo-600"
+                        className={`h-full rounded-full ${typeConfig.color}`}
                         style={{ width: `${percentage}%` }}
                       />
                     </div>

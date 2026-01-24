@@ -10,3 +10,4 @@ export { default as OwnerReports } from './Reports';
 export { default as OwnerBranches } from './Branches';
 export { default as OwnerSettings } from './Settings';
 export { default as OwnerStockTransfers } from './StockTransfers';
+export { default as OwnerAttendants } from './Attendants';

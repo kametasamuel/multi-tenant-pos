@@ -48,6 +48,8 @@ router.post('/signup', signupLimiter, validateSignup, async (req, res) => {
   try {
     const {
       businessName,
+      businessType,
+      businessSubtype,
       businessEmail,
       businessPhone,
       businessAddress,
@@ -88,6 +90,8 @@ router.post('/signup', signupLimiter, validateSignup, async (req, res) => {
     const application = await prisma.tenantApplication.create({
       data: {
         businessName,
+        businessType: businessType || 'RETAIL',
+        businessSubtype,
         businessEmail,
         businessPhone,
         businessAddress,

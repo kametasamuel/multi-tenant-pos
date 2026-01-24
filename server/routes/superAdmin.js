@@ -279,6 +279,8 @@ router.post('/applications/:id/approve', validateApproval, async (req, res) => {
       const tenant = await tx.tenant.create({
         data: {
           businessName: application.businessName,
+          businessType: application.businessType || 'RETAIL',
+          businessSubtype: application.businessSubtype,
           slug: slug,
           businessLogo: application.businessLogo,
           subscriptionStart: new Date(),
@@ -403,7 +405,7 @@ router.post('/applications/:id/reject', validateRejection, async (req, res) => {
 // GET /api/super-admin/tenants - List all tenants
 router.get('/tenants', async (req, res) => {
   try {
-    const { search, status, page = 1, limit = 20 } = req.query;
+    const { search, status, businessType, page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Always exclude the System Admin placeholder tenant
@@ -412,6 +414,7 @@ router.get('/tenants', async (req, res) => {
     };
     if (status === 'active') where.isActive = true;
     if (status === 'inactive') where.isActive = false;
+    if (businessType) where.businessType = businessType;
     if (search) {
       where.AND = [
         { businessName: { not: 'System Admin' } },
@@ -431,6 +434,7 @@ router.get('/tenants', async (req, res) => {
           businessName: true,
           slug: true,
           businessType: true,
+          businessSubtype: true,
           businessLogo: true,
           country: true,
           currency: true,
@@ -1054,6 +1058,22 @@ router.get('/analytics/staff-productivity', async (req, res) => {
 // GET /api/super-admin/analytics/industry-performance - Performance by business type
 router.get('/analytics/industry-performance', async (req, res) => {
   try {
+    // Map legacy types to main 4 categories
+    const MAIN_CATEGORY_MAP = {
+      RETAIL: 'RETAIL',
+      FOOD_AND_BEVERAGE: 'FOOD_AND_BEVERAGE',
+      HOSPITALITY: 'HOSPITALITY',
+      SERVICES: 'SERVICES',
+      // Legacy mappings
+      RESTAURANT: 'FOOD_AND_BEVERAGE',
+      SALON: 'SERVICES',
+      PHARMACY: 'RETAIL',
+      GROCERY: 'RETAIL',
+      ELECTRONICS: 'RETAIL',
+      CLOTHING: 'RETAIL',
+      OTHER: 'RETAIL'
+    };
+
     // Get all tenants grouped by business type with their sales (excluding System Admin)
     const tenants = await prisma.tenant.findMany({
       where: {
@@ -1071,23 +1091,26 @@ router.get('/analytics/industry-performance', async (req, res) => {
       }
     });
 
-    // Group by business type
+    // Group by main business category (4 categories only)
     const industryMap = {};
     tenants.forEach(tenant => {
-      const type = tenant.businessType || 'OTHER';
-      if (!industryMap[type]) {
-        industryMap[type] = {
-          businessType: type,
+      // Map to main category
+      const rawType = tenant.businessType || 'RETAIL';
+      const mainCategory = MAIN_CATEGORY_MAP[rawType] || 'RETAIL';
+
+      if (!industryMap[mainCategory]) {
+        industryMap[mainCategory] = {
+          businessType: mainCategory,
           tenantCount: 0,
           totalRevenue: 0,
           totalTransactions: 0,
           totalProducts: 0
         };
       }
-      industryMap[type].tenantCount++;
-      industryMap[type].totalRevenue += tenant.sales.reduce((sum, sale) => sum + sale.finalAmount, 0);
-      industryMap[type].totalTransactions += tenant.sales.length;
-      industryMap[type].totalProducts += tenant.products.length;
+      industryMap[mainCategory].tenantCount++;
+      industryMap[mainCategory].totalRevenue += tenant.sales.reduce((sum, sale) => sum + sale.finalAmount, 0);
+      industryMap[mainCategory].totalTransactions += tenant.sales.length;
+      industryMap[mainCategory].totalProducts += tenant.products.length;
     });
 
     const industryPerformance = Object.values(industryMap)

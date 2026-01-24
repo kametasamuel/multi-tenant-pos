@@ -22,6 +22,8 @@ const marketIntelligenceRoutes = require('./routes/marketIntelligence');
 const stockTransferRoutes = require('./routes/stockTransfers');
 const categoryRoutes = require('./routes/categories');
 const stockAdjustmentRoutes = require('./routes/stockAdjustments');
+// Services module routes
+const attendantRoutes = require('./routes/attendants');
 const {
   generalLimiter,
   loginLimiter,
@@ -97,6 +99,8 @@ app.use('/api/market-intelligence', marketIntelligenceRoutes);
 app.use('/api/stock-transfers', stockTransferRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/stock-adjustments', stockAdjustmentRoutes);
+// Services module routes
+app.use('/api/attendants', attendantRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

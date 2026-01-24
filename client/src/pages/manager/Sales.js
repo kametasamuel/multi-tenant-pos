@@ -166,7 +166,7 @@ const ManagerSales = ({ darkMode, surfaceClass, textClass, mutedClass, borderCla
       name: item.product?.name || 'Item',
       qty: item.quantity,
       sellingPrice: item.unitPrice || item.product?.sellingPrice || 0,
-      stylist: item.worker || null
+      stylist: item.attendant || null
     }));
 
     const subtotal = items.reduce((sum, item) => sum + (item.sellingPrice * item.qty), 0);

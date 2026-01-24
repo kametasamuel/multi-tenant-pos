@@ -1,10 +1,46 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { authenticate, requireAdmin, logAudit } = require('../middleware/auth');
 const { validateCreateProduct } = require('../middleware/validation');
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Configure multer for product image uploads
+const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'products');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'product-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.'), false);
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
 
 // Get all products (for current tenant, filtered by branch for managers)
 router.get('/', authenticate, async (req, res) => {
@@ -123,9 +159,14 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // Create product (Admin/Manager - Managers can only create for their branch)
-router.post('/', authenticate, requireAdmin, validateCreateProduct, async (req, res) => {
+router.post('/', authenticate, requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { name, description, category, barcode, costPrice, sellingPrice, stockQuantity, lowStockThreshold, customCategory, expiryDate, branchId } = req.body;
+
+    // Validation
+    if (!name || !sellingPrice) {
+      return res.status(400).json({ error: 'Name and selling price are required' });
+    }
 
     // Managers can only create products for their own branch
     let productBranchId;
@@ -149,18 +190,22 @@ router.post('/', authenticate, requireAdmin, validateCreateProduct, async (req, 
 
     // For services, costPrice defaults to 0
     const productType = category || 'PRODUCT';
-    const actualCostPrice = productType === 'SERVICE' ? (costPrice || 0) : (costPrice || 0);
+    const actualCostPrice = productType === 'SERVICE' ? (parseFloat(costPrice) || 0) : (parseFloat(costPrice) || 0);
+
+    // Handle image path
+    const imagePath = req.file ? `/uploads/products/${req.file.filename}` : null;
 
     const product = await prisma.product.create({
       data: {
         name,
         description,
+        image: imagePath,
         type: productType,
         barcode,
         costPrice: actualCostPrice,
-        sellingPrice,
-        stockQuantity: stockQuantity || 0,
-        lowStockThreshold: lowStockThreshold || 10,
+        sellingPrice: parseFloat(sellingPrice),
+        stockQuantity: parseInt(stockQuantity) || 0,
+        lowStockThreshold: parseInt(lowStockThreshold) || 10,
         customCategory: customCategory || null,
         expiryDate: expiryDate ? new Date(expiryDate) : null,
         tenantId: req.tenantId,
@@ -188,7 +233,7 @@ router.post('/', authenticate, requireAdmin, validateCreateProduct, async (req, 
 });
 
 // Update product (Admin only)
-router.put('/:id', authenticate, requireAdmin, async (req, res) => {
+router.put('/:id', authenticate, requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { name, description, costPrice, sellingPrice, stockQuantity, lowStockThreshold, isActive, customCategory, expiryDate, branchId } = req.body;
 
@@ -224,14 +269,26 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
-    if (costPrice !== undefined) updateData.costPrice = costPrice;
-    if (sellingPrice !== undefined) updateData.sellingPrice = sellingPrice;
-    if (stockQuantity !== undefined) updateData.stockQuantity = stockQuantity;
-    if (lowStockThreshold !== undefined) updateData.lowStockThreshold = lowStockThreshold;
+    if (costPrice !== undefined) updateData.costPrice = parseFloat(costPrice);
+    if (sellingPrice !== undefined) updateData.sellingPrice = parseFloat(sellingPrice);
+    if (stockQuantity !== undefined) updateData.stockQuantity = parseInt(stockQuantity);
+    if (lowStockThreshold !== undefined) updateData.lowStockThreshold = parseInt(lowStockThreshold);
     if (isActive !== undefined) updateData.isActive = isActive;
     if (customCategory !== undefined) updateData.customCategory = customCategory || null;
     if (expiryDate !== undefined) updateData.expiryDate = expiryDate ? new Date(expiryDate) : null;
     if (branchId !== undefined && req.user.role !== 'MANAGER') updateData.branchId = branchId || null;
+
+    // Handle image upload
+    if (req.file) {
+      // Delete old image if exists
+      if (existingProduct.image) {
+        const oldImagePath = path.join(__dirname, '..', '..', existingProduct.image);
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath);
+        }
+      }
+      updateData.image = `/uploads/products/${req.file.filename}`;
+    }
 
     const product = await prisma.product.update({
       where: { id: req.params.id },
@@ -286,6 +343,40 @@ router.get('/inventory/low-stock', authenticate, requireAdmin, async (req, res) 
     res.json({ products: lowStockProducts });
   } catch (error) {
     console.error('Get low stock error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete product (soft delete - sets isActive to false)
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const where = { id: req.params.id, tenantId: req.tenantId };
+
+    // Managers can only delete their branch's products
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      where.branchId = req.branchId;
+    }
+
+    const existingProduct = await prisma.product.findFirst({ where });
+
+    if (!existingProduct) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Soft delete - set isActive to false
+    await prisma.product.update({
+      where: { id: req.params.id },
+      data: { isActive: false }
+    });
+
+    await logAudit(req.tenantId, req.user.id, 'product_deleted', `Deleted product: ${existingProduct.name}`, {
+      productId: existingProduct.id,
+      branchId: existingProduct.branchId
+    }, existingProduct.branchId);
+
+    res.json({ message: 'Product deleted successfully' });
+  } catch (error) {
+    console.error('Delete product error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { productsAPI, salesAPI, usersAPI, expensesAPI, securityRequestsAPI } from '../../api';
+import { productsAPI, salesAPI, usersAPI, expensesAPI, securityRequestsAPI, reportsAPI } from '../../api';
 import {
   TrendingUp,
   TrendingDown,
@@ -17,7 +17,8 @@ import {
   AlertCircle,
   Timer,
   Award,
-  ChevronDown
+  ChevronDown,
+  UserCog
 } from 'lucide-react';
 
 const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
@@ -25,10 +26,13 @@ const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
 const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, bgClass }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const isServicesType = ['SERVICES', 'SALON'].includes(user?.businessType);
+
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState('today');
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [attendantPerformance, setAttendantPerformance] = useState({ performance: [], totals: {} });
   const [dashboardData, setDashboardData] = useState({
     todayRevenue: 0,
     todayProfit: 0,
@@ -45,10 +49,10 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
     topProducts: [],
     leastProducts: [],
     topDays: [],
-    workerStats: []
+    staffStats: []
   });
 
-  const currencySymbol = user?.currencySymbol || '$';
+  const currency = user?.currency || 'USD';
 
   useEffect(() => {
     loadDashboardData();
@@ -123,13 +127,26 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       setLoading(true);
       const { startDate, endDate } = getDateRange();
 
-      const [salesRes, productsRes, staffRes, expensesRes, requestsRes] = await Promise.all([
+      const apiCalls = [
         salesAPI.getAll({ startDate: startDate.toISOString(), endDate: endDate.toISOString() }),
         productsAPI.getAll(),
         usersAPI.getAll().catch(() => ({ data: { users: [] } })),
         expensesAPI.getAll({ startDate: startDate.toISOString(), endDate: endDate.toISOString() }).catch(() => ({ data: { expenses: [] } })),
         securityRequestsAPI.getAll({ status: 'PENDING' }).catch(() => ({ data: { requests: [] } }))
-      ]);
+      ];
+
+      // Add attendant performance call if business is SERVICES type
+      if (isServicesType) {
+        apiCalls.push(reportsAPI.getStylistPerformance({ startDate: startDate.toISOString(), endDate: endDate.toISOString() }).catch(() => ({ data: { performance: [], totals: {} } })));
+      }
+
+      const results = await Promise.all(apiCalls);
+      const [salesRes, productsRes, staffRes, expensesRes, requestsRes] = results;
+
+      // Handle attendant performance if available
+      if (isServicesType && results[5]) {
+        setAttendantPerformance(results[5].data);
+      }
 
       const sales = salesRes.data.sales || [];
       const completedSales = sales.filter(s => s.paymentStatus === 'completed');
@@ -194,25 +211,25 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 7);
 
-      // Calculate worker performance
-      const workerSales = {};
+      // Calculate staff performance
+      const staffSales = {};
       completedSales.forEach(sale => {
-        const workerId = sale.createdById || sale.createdBy?.id;
-        const workerName = sale.createdBy?.fullName || 'Unknown';
-        if (!workerSales[workerId]) {
-          workerSales[workerId] = {
-            id: workerId,
-            name: workerName,
+        const staffId = sale.createdById || sale.createdBy?.id;
+        const staffName = sale.createdBy?.fullName || 'Unknown';
+        if (!staffSales[staffId]) {
+          staffSales[staffId] = {
+            id: staffId,
+            name: staffName,
             customers: 0,
             totalSales: 0,
             transactions: 0
           };
         }
-        workerSales[workerId].customers += sale.customer ? 1 : 0;
-        workerSales[workerId].totalSales += sale.finalAmount;
-        workerSales[workerId].transactions += 1;
+        staffSales[staffId].customers += sale.customer ? 1 : 0;
+        staffSales[staffId].totalSales += sale.finalAmount;
+        staffSales[staffId].transactions += 1;
       });
-      const workerStats = Object.values(workerSales)
+      const staffStats = Object.values(staffSales)
         .sort((a, b) => b.totalSales - a.totalSales);
 
       // Calculate total revenue
@@ -251,7 +268,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
         topProducts,
         leastProducts,
         topDays,
-        workerStats
+        staffStats
       });
     } catch (error) {
       console.error('Error loading dashboard:', error);
@@ -261,7 +278,12 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
   };
 
   const formatCurrency = (amount) => {
-    return `${currencySymbol} ${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount || 0);
   };
 
   const getFilterLabel = () => {
@@ -643,7 +665,7 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
           </div>
         </div>
 
-        {/* Worker Performance */}
+        {/* Staff Performance */}
         <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-4 sm:p-6 shadow-sm`}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
@@ -653,14 +675,14 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
             <span className={`text-[10px] font-bold uppercase ${mutedClass}`}>{getFilterLabel()}</span>
           </div>
           <div className="space-y-3">
-            {dashboardData.workerStats.length === 0 ? (
+            {dashboardData.staffStats.length === 0 ? (
               <div className={`text-center py-10 ${mutedClass}`}>
                 <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
                 <p className="text-xs font-bold uppercase">No sales data</p>
               </div>
             ) : (
-              dashboardData.workerStats.slice(0, 5).map((worker, index) => (
-                <div key={worker.id} className={`flex items-center gap-4 py-3 border-b ${borderClass} last:border-0`}>
+              dashboardData.staffStats.slice(0, 5).map((staff, index) => (
+                <div key={staff.id} className={`flex items-center gap-4 py-3 border-b ${borderClass} last:border-0`}>
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${
                     index === 0 ? 'bg-purple-100 text-purple-700' :
                     index === 1 ? 'bg-gray-100 text-gray-700' :
@@ -670,18 +692,60 @@ const ManagerDashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                     {index + 1}
                   </div>
                   <div className="flex-1">
-                    <p className={`text-xs font-bold ${textClass}`}>{worker.name}</p>
+                    <p className={`text-xs font-bold ${textClass}`}>{staff.name}</p>
                     <p className={`text-[10px] ${mutedClass}`}>
-                      {worker.transactions} sales • {worker.customers} customers
+                      {staff.transactions} sales • {staff.customers} customers
                     </p>
                   </div>
-                  <p className="text-sm font-black text-purple-500">{formatCurrency(worker.totalSales)}</p>
+                  <p className="text-sm font-black text-purple-500">{formatCurrency(staff.totalSales)}</p>
                 </div>
               ))
             )}
           </div>
         </div>
       </div>
+
+      {/* Attendant Performance - Only for SERVICES/SALON businesses */}
+      {isServicesType && attendantPerformance.performance && attendantPerformance.performance.length > 0 && (
+        <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-4 sm:p-6 shadow-sm`}>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <UserCog className="w-4 h-4 text-pink-500" />
+              <h2 className={`text-sm font-black uppercase tracking-tight ${textClass}`}>Attendant Performance</h2>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className={`text-[9px] ${mutedClass} uppercase`}>Commission</p>
+                <p className="text-sm font-bold text-green-500">{formatCurrency(attendantPerformance.totals?.totalCommission || 0)}</p>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {attendantPerformance.performance.slice(0, 5).map((item, index) => (
+              <div key={item.attendant?.id || index} className={`flex items-center gap-4 py-3 border-b ${borderClass} last:border-0`}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${
+                  index === 0 ? 'bg-pink-100 text-pink-700' :
+                  index === 1 ? 'bg-gray-100 text-gray-700' :
+                  index === 2 ? 'bg-warning-100 text-warning-700' :
+                  darkMode ? 'bg-slate-700 text-slate-300' : 'bg-gray-50 text-gray-500'
+                }`}>
+                  {index + 1}
+                </div>
+                <div className="flex-1">
+                  <p className={`text-xs font-bold ${textClass}`}>{item.attendant?.fullName || 'Unknown'}</p>
+                  <p className={`text-[10px] ${mutedClass}`}>
+                    {item.serviceCount} services • {item.attendant?.commissionRate || 0}% rate
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-black text-pink-500">{formatCurrency(item.totalSales)}</p>
+                  <p className={`text-[10px] ${mutedClass}`}>Earned: {formatCurrency(item.commission)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Recent Transactions */}
       <div className={`${surfaceClass} border ${borderClass} rounded-2xl sm:rounded-[28px] p-4 sm:p-6 shadow-sm`}>

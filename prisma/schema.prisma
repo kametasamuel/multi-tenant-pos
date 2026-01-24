@@ -122,6 +122,7 @@ model Tenant {
   businessName      String       @unique
   slug              String?      @unique // URL slug for tenant (e.g., "trim" for smartpos.com/trim)
   businessType      BusinessType @default(RETAIL)
+  businessSubtype   String?      // Specific subtype (grocery, salon, restaurant, hotel, etc.)
   businessLogo      String?
   country           String       @default("GH") // Country code for tax/locale
   currency          String       @default("USD") // Currency code (USD, GHS, NGN, KES, etc.)
@@ -154,11 +155,14 @@ model Tenant {
   returns           Return[]
   productCategories ProductCategory[]
   stockAdjustments  StockAdjustment[]
+  // Services module relations
+  attendants        Attendant[]
 
   @@index([tierId])
   @@index([country])
   @@index([isActive])                    // Filter active tenants
   @@index([businessType])                // Filter by business type
+  @@index([businessType, businessSubtype]) // Filter by type and subtype
   @@index([subscriptionEnd])             // Find expiring subscriptions
   @@index([isActive, subscriptionEnd])   // Combined for subscription queries
   @@map("tenants")
@@ -166,20 +170,26 @@ model Tenant {
 
 // Users: Staff (Cashier) and Admin
 model User {
-  id           String   @id @default(uuid())
-  username     String
-  password     String   // Hashed password
-  fullName     String
-  email        String?  // Personal email (editable by owner)
-  phone        String?  // Personal phone (editable by owner)
-  profileImage String?  // URL path to profile image
-  role         Role     @default(CASHIER)
-  isActive     Boolean  @default(true)
-  isSuperAdmin Boolean  @default(false)
-  tenantId     String
-  branchId     String?  // Optional branch assignment
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(uuid())
+  username       String?  // Optional for ATTENDANT role
+  password       String?  // Hashed password (optional for ATTENDANT role)
+  fullName       String
+  email          String?  // Personal email (editable by owner)
+  phone          String?  // Personal phone (editable by owner)
+  address        String?  // Personal address
+  gender         String?  // MALE, FEMALE, OTHER, PREFER_NOT_TO_SAY
+  dateOfBirth    DateTime? // For calculating age
+  profileImage   String?  // URL path to profile image
+  role           Role     @default(CASHIER)
+  isActive       Boolean  @default(true)
+  isSuperAdmin   Boolean  @default(false)
+  // ATTENDANT-specific fields
+  specialty      String?  // e.g., "Hair Stylist", "Nail Tech", "Barber" (for ATTENDANT)
+  commissionRate Float?   // Commission percentage (e.g., 30 = 30%) (for ATTENDANT)
+  tenantId       String
+  branchId       String?  // Optional branch assignment
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   tenant                  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch                  Branch?           @relation(fields: [branchId], references: [id])
@@ -206,11 +216,37 @@ model User {
   @@map("users")
 }
 
+// Attendant: Service providers (stylists, technicians, etc.) - no login credentials
+model Attendant {
+  id             String   @id @default(uuid())
+  fullName       String
+  phone          String?
+  email          String?
+  profileImage   String?
+  specialty      String?  // e.g., "Hair Stylist", "Nail Tech", "Barber"
+  commissionRate Float    @default(0)  // Commission percentage (e.g., 30 = 30%)
+  isActive       Boolean  @default(true)
+  tenantId       String
+  branchId       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch         Branch?    @relation(fields: [branchId], references: [id])
+  saleItems      SaleItem[] @relation("AttendantSales")
+
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+  @@index([branchId])
+  @@map("attendants")
+}
+
 enum Role {
   CASHIER
   MANAGER
   OWNER
-  ADMIN  // Kept for backward compatibility, same as OWNER
+  ADMIN      // Kept for backward compatibility, same as OWNER
+  ATTENDANT  // Service provider (stylist, technician) - no login credentials
 }
 
 // Products: Inventory items and services
@@ -218,6 +254,7 @@ model Product {
   id          String   @id @default(uuid())
   name        String
   description String?
+  image       String?  // Product image path
   type        ProductType @default(PRODUCT) // PRODUCT or SERVICE
   categoryId  String?      // Reference to ProductCategory
   customCategory String?   // Legacy: Custom category tag (e.g., "Hair Products", "Drinks")
@@ -337,14 +374,17 @@ model SaleItem {
   unitPrice   Float
   discount    Float    @default(0)
   subtotal    Float
+  attendantId String?  // Optional attendant for SERVICES business type
   createdAt   DateTime @default(now())
 
-  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product     Product  @relation(fields: [productId], references: [id])
+  sale        Sale       @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product     Product    @relation(fields: [productId], references: [id])
+  attendant   Attendant? @relation("AttendantSales", fields: [attendantId], references: [id])
   returnItems ReturnItem[] // Retail: items returned from this sale item
 
   @@index([saleId])        // Faster sale item lookups
   @@index([productId])     // Product sales analysis
+  @@index([attendantId])   // Attendant performance analysis
   @@map("sale_items")
 }
 
@@ -463,6 +503,8 @@ model Branch {
   transfersTo       StockTransfer[]   @relation("TransfersTo")
   returns           Return[]
   stockAdjustments  StockAdjustment[]
+  // Services module relations
+  attendants        Attendant[]
 
   @@index([tenantId])
   @@map("branches")
@@ -511,6 +553,7 @@ model TenantApplication {
   id                String            @id @default(uuid())
   businessName      String
   businessType      BusinessType      @default(RETAIL)
+  businessSubtype   String?           // Specific subtype (grocery, salon, restaurant, hotel, etc.)
   businessEmail     String            @unique
   businessPhone     String?
   businessLogo      String?

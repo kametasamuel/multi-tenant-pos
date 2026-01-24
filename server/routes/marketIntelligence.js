@@ -7,6 +7,30 @@ const { authenticate, requireSuperAdmin: authRequireSuperAdmin } = require('../m
 // Use requireSuperAdmin from auth middleware
 const requireSuperAdmin = authRequireSuperAdmin;
 
+// Helper to build tenant filter based on businessType and businessSubtype
+const buildTenantFilter = async (businessType, businessSubtype) => {
+  if (!businessType && !businessSubtype) return {};
+
+  const tenantFilter = {
+    businessName: { not: 'System Admin' }
+  };
+
+  if (businessType) {
+    tenantFilter.businessType = businessType;
+  }
+
+  if (businessSubtype) {
+    tenantFilter.businessSubtype = businessSubtype;
+  }
+
+  const tenants = await prisma.tenant.findMany({
+    where: tenantFilter,
+    select: { id: true }
+  });
+
+  return { tenantId: { in: tenants.map(t => t.id) } };
+};
+
 // ==========================================
 // PRODUCT AFFINITY & BASKET ANALYSIS
 // ==========================================
@@ -14,12 +38,16 @@ const requireSuperAdmin = authRequireSuperAdmin;
 // GET /api/market-intelligence/basket-analysis - Get product affinity pairs
 router.get('/basket-analysis', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { tenantId, minSupport = 5, limit = 50 } = req.query;
+    const { tenantId, businessType, businessSubtype, minSupport = 5, limit = 50 } = req.query;
+
+    // Build filter for business type
+    const businessFilter = await buildTenantFilter(businessType, businessSubtype);
 
     // Get all sales with their items
     const sales = await prisma.sale.findMany({
       where: {
         ...(tenantId && { tenantId }),
+        ...businessFilter,
         paymentStatus: { not: 'voided' },
         items: { some: {} }
       },
@@ -117,17 +145,21 @@ router.get('/basket-analysis', authenticate, requireSuperAdmin, async (req, res)
 // GET /api/market-intelligence/brand-share - Get brand market share across tenants
 router.get('/brand-share', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { category, period = 30 } = req.query;
+    const { category, period = 30, businessType, businessSubtype } = req.query;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(period));
+
+    // Build filter for business type
+    const businessFilter = await buildTenantFilter(businessType, businessSubtype);
 
     // Get all sale items with product info
     const saleItems = await prisma.saleItem.findMany({
       where: {
         sale: {
           createdAt: { gte: startDate },
-          paymentStatus: { not: 'voided' }
+          paymentStatus: { not: 'voided' },
+          ...businessFilter
         },
         ...(category && {
           product: { customCategory: { contains: category, mode: 'insensitive' } }
@@ -223,14 +255,22 @@ router.get('/brand-share', authenticate, requireSuperAdmin, async (req, res) => 
 // GET /api/market-intelligence/spending-by-location - Get spending patterns by tenant location
 router.get('/spending-by-location', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { period = 30 } = req.query;
+    const { period = 30, businessType, businessSubtype } = req.query;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(period));
 
+    // Build tenant where clause
+    const tenantWhere = {
+      isActive: true,
+      businessName: { not: 'System Admin' }
+    };
+    if (businessType) tenantWhere.businessType = businessType;
+    if (businessSubtype) tenantWhere.businessSubtype = businessSubtype;
+
     // Get sales grouped by tenant
     const tenants = await prisma.tenant.findMany({
-      where: { isActive: true },
+      where: tenantWhere,
       include: {
         _count: { select: { sales: true, users: true, products: true } },
         sales: {
@@ -249,14 +289,18 @@ router.get('/spending-by-location', authenticate, requireSuperAdmin, async (req,
       }
     });
 
-    // Aggregate by business type (as proxy for location/area type)
+    // Aggregate by business type
     const locationStats = {};
+    // Also aggregate by subtype for deeper insights
+    const subtypeStats = {};
 
     tenants.forEach(tenant => {
       const location = tenant.businessType || 'UNKNOWN';
       const country = tenant.country || 'GH';
       const key = `${country}|${location}`;
+      const subtype = tenant.businessSubtype || 'other';
 
+      // Main type aggregation
       locationStats[key] = locationStats[key] || {
         country,
         businessType: location,
@@ -267,44 +311,79 @@ router.get('/spending-by-location', authenticate, requireSuperAdmin, async (req,
         avgTicket: 0,
         hourlyDistribution: Array(24).fill(0)
       };
-
       locationStats[key].tenantCount++;
+
+      // Subtype aggregation (only when a specific businessType is selected)
+      if (businessType && !businessSubtype) {
+        subtypeStats[subtype] = subtypeStats[subtype] || {
+          subtype,
+          businessType: location,
+          tenantCount: 0,
+          totalRevenue: 0,
+          totalTransactions: 0,
+          totalItems: 0,
+          avgTicket: 0,
+          hourlyDistribution: Array(24).fill(0),
+          topProducts: {}
+        };
+        subtypeStats[subtype].tenantCount++;
+      }
 
       tenant.sales.forEach(sale => {
         locationStats[key].totalRevenue += sale.finalAmount;
         locationStats[key].totalTransactions++;
         locationStats[key].totalItems += sale.items.reduce((sum, i) => sum + i.quantity, 0);
 
-        // Track hourly distribution
         const hour = new Date(sale.createdAt).getHours();
         locationStats[key].hourlyDistribution[hour]++;
+
+        // Subtype stats
+        if (businessType && !businessSubtype && subtypeStats[subtype]) {
+          subtypeStats[subtype].totalRevenue += sale.finalAmount;
+          subtypeStats[subtype].totalTransactions++;
+          subtypeStats[subtype].totalItems += sale.items.reduce((sum, i) => sum + i.quantity, 0);
+          subtypeStats[subtype].hourlyDistribution[hour]++;
+        }
       });
     });
 
-    // Calculate averages
+    // Calculate averages for main types
     const locations = Object.values(locationStats).map(loc => ({
       ...loc,
-      avgTicket: loc.totalTransactions > 0
-        ? Math.round(loc.totalRevenue / loc.totalTransactions)
-        : 0,
-      avgTransactionsPerTenant: loc.tenantCount > 0
-        ? Math.round(loc.totalTransactions / loc.tenantCount)
-        : 0,
+      avgTicket: loc.totalTransactions > 0 ? Math.round(loc.totalRevenue / loc.totalTransactions) : 0,
+      avgTransactionsPerTenant: loc.tenantCount > 0 ? Math.round(loc.totalTransactions / loc.tenantCount) : 0,
       peakHours: loc.hourlyDistribution
         .map((count, hour) => ({ hour, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 3)
         .map(h => `${h.hour}:00`)
-    })).sort((a, b) => b.totalRevenue - a.revenue);
+    })).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    // Calculate averages for subtypes
+    const subtypeBreakdown = Object.values(subtypeStats).map(sub => ({
+      ...sub,
+      avgTicket: sub.totalTransactions > 0 ? Math.round(sub.totalRevenue / sub.totalTransactions) : 0,
+      avgTransactionsPerTenant: sub.tenantCount > 0 ? Math.round(sub.totalTransactions / sub.tenantCount) : 0,
+      revenueShare: locations[0]?.totalRevenue > 0
+        ? Math.round((sub.totalRevenue / locations[0].totalRevenue) * 100)
+        : 0,
+      peakHours: sub.hourlyDistribution
+        .map((count, hour) => ({ hour, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3)
+        .map(h => `${h.hour}:00`)
+    })).sort((a, b) => b.totalRevenue - a.totalRevenue);
 
     res.json({
       period: parseInt(period),
       locations,
+      subtypeBreakdown: businessType && !businessSubtype ? subtypeBreakdown : [],
       summary: {
         totalCountries: new Set(locations.map(l => l.country)).size,
         totalLocations: locations.length,
         totalRevenue: locations.reduce((sum, l) => sum + l.totalRevenue, 0),
-        totalTransactions: locations.reduce((sum, l) => sum + l.totalTransactions, 0)
+        totalTransactions: locations.reduce((sum, l) => sum + l.totalTransactions, 0),
+        totalSubtypes: subtypeBreakdown.length
       }
     });
   } catch (error) {
@@ -316,17 +395,21 @@ router.get('/spending-by-location', authenticate, requireSuperAdmin, async (req,
 // GET /api/market-intelligence/peak-hours - Get peak trading hours across platform
 router.get('/peak-hours', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { period = 7, tenantId, country } = req.query;
+    const { period = 7, tenantId, country, businessType, businessSubtype } = req.query;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(period));
+
+    // Build filter for business type
+    const businessFilter = await buildTenantFilter(businessType, businessSubtype);
 
     const sales = await prisma.sale.findMany({
       where: {
         createdAt: { gte: startDate },
         paymentStatus: { not: 'voided' },
         ...(tenantId && { tenantId }),
-        ...(country && { tenant: { country } })
+        ...(country && { tenant: { country } }),
+        ...businessFilter
       },
       select: {
         createdAt: true,
@@ -566,17 +649,21 @@ router.get('/export/trends', authenticate, requireSuperAdmin, async (req, res) =
 // GET /api/market-intelligence/price-elasticity - Analyze price vs volume relationships
 router.get('/price-elasticity', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { productName, category, period = 90 } = req.query;
+    const { productName, category, period = 90, businessType, businessSubtype } = req.query;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(period));
+
+    // Build filter for business type
+    const businessFilter = await buildTenantFilter(businessType, businessSubtype);
 
     // Get sale items with historical prices
     const saleItems = await prisma.saleItem.findMany({
       where: {
         sale: {
           createdAt: { gte: startDate },
-          paymentStatus: { not: 'voided' }
+          paymentStatus: { not: 'voided' },
+          ...businessFilter
         },
         ...(productName && {
           product: { name: { contains: productName, mode: 'insensitive' } }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ownerAPI } from '../../api';
+import { ownerAPI, attendantsAPI, IMAGE_BASE_URL } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import DateRangePicker from '../../components/DateRangePicker';
 import {
@@ -18,7 +18,10 @@ import {
   ShieldAlert,
   ChevronRight,
   ChevronDown,
-  X
+  X,
+  Briefcase,
+  UserCog,
+  Percent
 } from 'lucide-react';
 
 const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
@@ -26,8 +29,11 @@ const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
 const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, currentBranch, isAllBranches, branches = [] }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isServicesType = ['SERVICES', 'SALON'].includes(user?.businessType);
+
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [attendantPerformance, setAttendantPerformance] = useState({ performance: [], totals: {} });
   const [dateRange, setDateRange] = useState({
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -101,8 +107,15 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
         params.branchId = effectiveBranchId;
       }
 
-      const response = await ownerAPI.getDashboard(params);
-      setData(response.data);
+      const [dashboardResponse, attendantResponse] = await Promise.all([
+        ownerAPI.getDashboard(params),
+        isServicesType ? attendantsAPI.getPerformanceSummary(params) : Promise.resolve({ data: { performance: [], totals: {} } })
+      ]);
+
+      setData(dashboardResponse.data);
+      if (isServicesType) {
+        setAttendantPerformance(attendantResponse.data);
+      }
     } catch (error) {
       console.error('Failed to load dashboard:', error);
     } finally {
@@ -465,6 +478,96 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
           )}
         </div>
       </div>
+
+      {/* Attendant Performance - Only for SERVICES/SALON business types */}
+      {isServicesType && attendantPerformance.performance && attendantPerformance.performance.length > 0 && (
+        <div className={`${surfaceClass} rounded-2xl p-4 sm:p-6 border ${borderClass}`}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className={`text-xs sm:text-sm font-black uppercase ${textClass} flex items-center gap-2`}>
+              <UserCog className="w-4 h-4" />
+              Attendant Performance
+            </h2>
+            <div className="flex items-center gap-4 text-xs">
+              <div className="flex items-center gap-1">
+                <span className={mutedClass}>Services:</span>
+                <span className={`font-bold ${textClass}`}>{attendantPerformance.totals?.totalServices || 0}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className={mutedClass}>Commission:</span>
+                <span className="font-bold text-green-600">{formatCurrency(attendantPerformance.totals?.totalCommission || 0)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {attendantPerformance.performance.slice(0, 6).map((item, index) => (
+              <div
+                key={item.attendant?.id || index}
+                className={`p-4 rounded-xl border ${borderClass} ${darkMode ? 'bg-slate-700/50' : 'bg-gray-50'}`}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  {item.attendant?.profileImage ? (
+                    <img
+                      src={`${IMAGE_BASE_URL}${item.attendant.profileImage}`}
+                      alt={item.attendant.fullName}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className={`w-10 h-10 rounded-full ${darkMode ? 'bg-slate-600' : 'bg-gray-200'} flex items-center justify-center`}>
+                      <span className={`text-sm font-bold ${textClass}`}>
+                        {item.attendant?.fullName?.charAt(0) || '?'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-bold ${textClass} truncate`}>{item.attendant?.fullName || 'Unknown'}</p>
+                    <p className={`text-xs ${mutedClass}`}>{item.attendant?.commissionRate || 0}% commission</p>
+                  </div>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                    index === 0 ? 'bg-green-100 text-green-600 dark:bg-green-900/30' :
+                    index === 1 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' :
+                    index === 2 ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30' :
+                    'bg-slate-100 text-slate-600 dark:bg-slate-700'
+                  }`}>
+                    {index + 1}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className={`text-xs ${mutedClass}`}>Sales</p>
+                    <p className={`text-sm font-bold text-green-600`}>{formatCurrency(item.totalSales)}</p>
+                  </div>
+                  <div>
+                    <p className={`text-xs ${mutedClass}`}>Services</p>
+                    <p className={`text-sm font-bold ${textClass}`}>{item.serviceCount}</p>
+                  </div>
+                  <div>
+                    <p className={`text-xs ${mutedClass}`}>Earned</p>
+                    <p className={`text-sm font-bold text-blue-600`}>{formatCurrency(item.commission)}</p>
+                  </div>
+                </div>
+
+                {item.topServices && item.topServices.length > 0 && (
+                  <div className={`mt-3 pt-3 border-t ${borderClass}`}>
+                    <p className={`text-[10px] ${mutedClass} uppercase mb-1`}>Top Services</p>
+                    <div className="flex flex-wrap gap-1">
+                      {item.topServices.map((service, idx) => (
+                        <span
+                          key={idx}
+                          className={`px-2 py-0.5 text-[10px] rounded-full ${darkMode ? 'bg-slate-600' : 'bg-gray-200'} ${textClass}`}
+                        >
+                          {service.name} ({service.count})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Hourly Sales Trend */}
       <div className={`${surfaceClass} rounded-2xl p-4 sm:p-6 border ${borderClass}`}>

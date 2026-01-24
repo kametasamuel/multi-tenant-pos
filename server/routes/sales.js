@@ -37,9 +37,19 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
       }
 
       if (product.type === 'PRODUCT' && product.stockQuantity < item.quantity) {
-        return res.status(400).json({ 
-          error: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}` 
+        return res.status(400).json({
+          error: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}`
         });
+      }
+
+      // Validate attendantId if provided (for SERVICES business type)
+      if (item.attendantId) {
+        const attendant = await prisma.attendant.findFirst({
+          where: { id: item.attendantId, tenantId: req.tenantId, isActive: true }
+        });
+        if (!attendant) {
+          return res.status(400).json({ error: 'Invalid attendant selected' });
+        }
       }
 
       const unitPrice = product.sellingPrice;
@@ -51,7 +61,8 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
         quantity: item.quantity,
         unitPrice,
         discount: itemDiscount,
-        subtotal
+        subtotal,
+        attendantId: item.attendantId || null
       });
 
       totalAmount += subtotal;
@@ -98,7 +109,14 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
         include: {
           items: {
             include: {
-              product: true
+              product: true,
+              attendant: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  commissionRate: true
+                }
+              }
             }
           },
           cashier: {
@@ -208,7 +226,14 @@ router.get('/', authenticate, async (req, res) => {
         include: {
           items: {
             include: {
-              product: true
+              product: true,
+              attendant: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  commissionRate: true
+                }
+              }
             }
           },
           cashier: {
@@ -268,7 +293,14 @@ router.get('/:id', authenticate, async (req, res) => {
       include: {
         items: {
           include: {
-            product: true
+            product: true,
+            attendant: {
+              select: {
+                id: true,
+                fullName: true,
+                commissionRate: true
+              }
+            }
           }
         },
         cashier: {

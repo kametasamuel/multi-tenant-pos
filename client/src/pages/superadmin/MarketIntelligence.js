@@ -25,10 +25,74 @@ import {
   Building2,
   Store,
   Utensils,
+  Hotel,
+  Briefcase,
   Calendar,
   ChevronDown,
   X
 } from 'lucide-react';
+
+// Business type configuration matching the 4 main categories
+const BUSINESS_TYPES = {
+  RETAIL: { label: 'Retail', icon: Store, color: 'bg-blue-500', textColor: 'text-blue-600' },
+  FOOD_AND_BEVERAGE: { label: 'Food & Beverage', icon: Utensils, color: 'bg-orange-500', textColor: 'text-orange-600' },
+  HOSPITALITY: { label: 'Hospitality', icon: Hotel, color: 'bg-purple-500', textColor: 'text-purple-600' },
+  SERVICES: { label: 'Services', icon: Briefcase, color: 'bg-emerald-500', textColor: 'text-emerald-600' }
+};
+
+const getBusinessTypeConfig = (type) => {
+  return BUSINESS_TYPES[type] || { label: type, icon: Building2, color: 'bg-slate-500', textColor: 'text-slate-600' };
+};
+
+// Subtypes for each main category
+const SUBTYPES = {
+  RETAIL: [
+    { value: 'grocery', label: 'Grocery Store' },
+    { value: 'electronics', label: 'Electronics' },
+    { value: 'clothing', label: 'Clothing & Fashion' },
+    { value: 'pharmacy', label: 'Pharmacy' },
+    { value: 'supermarket', label: 'Supermarket' },
+    { value: 'convenience', label: 'Convenience Store' },
+    { value: 'hardware', label: 'Hardware Store' },
+    { value: 'cosmetics', label: 'Cosmetics & Beauty' },
+    { value: 'general', label: 'General Merchandise' },
+    { value: 'other_retail', label: 'Other Retail' }
+  ],
+  FOOD_AND_BEVERAGE: [
+    { value: 'restaurant', label: 'Restaurant' },
+    { value: 'cafe', label: 'Cafe / Coffee Shop' },
+    { value: 'fast_food', label: 'Fast Food / QSR' },
+    { value: 'bar', label: 'Bar / Lounge' },
+    { value: 'bakery', label: 'Bakery' },
+    { value: 'food_truck', label: 'Food Truck' },
+    { value: 'catering', label: 'Catering Service' },
+    { value: 'juice_bar', label: 'Juice Bar / Smoothies' },
+    { value: 'other_food', label: 'Other Food & Beverage' }
+  ],
+  HOSPITALITY: [
+    { value: 'hotel', label: 'Hotel' },
+    { value: 'lodge', label: 'Lodge' },
+    { value: 'guest_house', label: 'Guest House' },
+    { value: 'hostel', label: 'Hostel' },
+    { value: 'resort', label: 'Resort' },
+    { value: 'vacation_rental', label: 'Vacation Rental' },
+    { value: 'motel', label: 'Motel' },
+    { value: 'bnb', label: 'Bed & Breakfast' },
+    { value: 'other_hospitality', label: 'Other Hospitality' }
+  ],
+  SERVICES: [
+    { value: 'salon', label: 'Salon / Barbershop' },
+    { value: 'spa', label: 'Spa & Wellness' },
+    { value: 'auto_repair', label: 'Auto Repair / Garage' },
+    { value: 'laundry', label: 'Laundry / Dry Cleaning' },
+    { value: 'cleaning', label: 'Cleaning Services' },
+    { value: 'consulting', label: 'Consulting / Professional' },
+    { value: 'repair', label: 'Repair Services' },
+    { value: 'tutoring', label: 'Tutoring / Education' },
+    { value: 'fitness', label: 'Fitness / Gym' },
+    { value: 'other_services', label: 'Other Services' }
+  ]
+};
 
 const MarketIntelligence = ({
   darkMode = false,
@@ -49,6 +113,14 @@ const MarketIntelligence = ({
   });
   const datePickerRef = useRef(null);
 
+  // Business type filters
+  const [businessType, setBusinessType] = useState('all');
+  const [businessSubtype, setBusinessSubtype] = useState('all');
+  const [showTypeFilter, setShowTypeFilter] = useState(false);
+  const [showSubtypeFilter, setShowSubtypeFilter] = useState(false);
+  const typeFilterRef = useRef(null);
+  const subtypeFilterRef = useRef(null);
+
   // Data states
   const [basketData, setBasketData] = useState(null);
   const [brandData, setBrandData] = useState(null);
@@ -66,34 +138,52 @@ const MarketIntelligence = ({
     { id: 'export', label: 'Data Export', icon: Download }
   ];
 
-  // Close date picker when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (datePickerRef.current && !datePickerRef.current.contains(event.target)) {
         setShowDatePicker(false);
+      }
+      if (typeFilterRef.current && !typeFilterRef.current.contains(event.target)) {
+        setShowTypeFilter(false);
+      }
+      if (subtypeFilterRef.current && !subtypeFilterRef.current.contains(event.target)) {
+        setShowSubtypeFilter(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Reset subtype when type changes
+  useEffect(() => {
+    setBusinessSubtype('all');
+  }, [businessType]);
+
   useEffect(() => {
     loadTabData(activeTab);
-  }, [activeTab, period, customDates]);
+  }, [activeTab, period, customDates, businessType, businessSubtype]);
 
   const loadTabData = async (tab) => {
     setLoading(true);
     setError(null);
 
-    // Build params based on period type
+    // Build params based on period type and filters
     const getParams = () => {
+      const params = {};
       if (period === 'custom') {
-        return {
-          startDate: customDates.startDate,
-          endDate: customDates.endDate
-        };
+        params.startDate = customDates.startDate;
+        params.endDate = customDates.endDate;
+      } else {
+        params.period = period;
       }
-      return { period };
+      if (businessType !== 'all') {
+        params.businessType = businessType;
+      }
+      if (businessSubtype !== 'all') {
+        params.businessSubtype = businessSubtype;
+      }
+      return params;
     };
 
     try {
@@ -475,6 +565,9 @@ const MarketIntelligence = ({
   const renderLocationData = () => {
     if (!locationData) return null;
 
+    const hasSubtypeData = locationData.subtypeBreakdown && locationData.subtypeBreakdown.length > 0;
+    const selectedTypeConfig = businessType !== 'all' ? BUSINESS_TYPES[businessType] : null;
+
     return (
       <div className="space-y-6">
         {/* Summary Stats */}
@@ -518,17 +611,130 @@ const MarketIntelligence = ({
                 <Store className="w-5 h-5 text-amber-600" />
               </div>
               <div>
-                <p className={`text-xl font-bold ${textClass}`}>{locationData.summary?.totalLocations || 0}</p>
-                <p className={`text-xs ${mutedClass}`}>Business Types</p>
+                <p className={`text-xl font-bold ${textClass}`}>{hasSubtypeData ? locationData.summary?.totalSubtypes : locationData.summary?.totalLocations || 0}</p>
+                <p className={`text-xs ${mutedClass}`}>{hasSubtypeData ? 'Subcategories' : 'Business Types'}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Location Breakdown */}
+        {/* Subtype Quick Filters - Show when a type is selected */}
+        {businessType !== 'all' && SUBTYPES[businessType] && (
+          <div className={`${surfaceClass} rounded-xl border ${borderClass} p-4`}>
+            <div className="flex items-center gap-2 mb-3">
+              {selectedTypeConfig && (
+                <div className={`w-6 h-6 rounded ${selectedTypeConfig.color} flex items-center justify-center`}>
+                  {(() => { const Icon = selectedTypeConfig.icon; return <Icon className="w-3.5 h-3.5 text-white" />; })()}
+                </div>
+              )}
+              <p className={`text-xs font-bold uppercase ${mutedClass}`}>
+                {selectedTypeConfig?.label} Subcategories
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setBusinessSubtype('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  businessSubtype === 'all'
+                    ? 'bg-indigo-600 text-white'
+                    : `${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-100 hover:bg-slate-200'} ${textClass}`
+                }`}
+              >
+                All
+              </button>
+              {SUBTYPES[businessType].map((sub) => {
+                const subtypeData = locationData.subtypeBreakdown?.find(s => s.subtype === sub.value);
+                return (
+                  <button
+                    key={sub.value}
+                    onClick={() => setBusinessSubtype(sub.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                      businessSubtype === sub.value
+                        ? 'bg-indigo-600 text-white'
+                        : `${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-100 hover:bg-slate-200'} ${textClass}`
+                    }`}
+                  >
+                    {sub.label}
+                    {subtypeData && (
+                      <span className={`text-[10px] ${businessSubtype === sub.value ? 'text-indigo-200' : mutedClass}`}>
+                        ({subtypeData.tenantCount})
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Subtype Breakdown - Show when a type is selected and viewing all subtypes */}
+        {hasSubtypeData && businessSubtype === 'all' && (
+          <div className={`${surfaceClass} rounded-2xl border ${borderClass} overflow-hidden`}>
+            <div className={`px-6 py-4 border-b ${borderClass}`}>
+              <h3 className={`text-sm font-bold uppercase ${mutedClass}`}>
+                {selectedTypeConfig?.label} - Subcategory Comparison
+              </h3>
+              <p className={`text-xs ${mutedClass}`}>Compare spending patterns across {selectedTypeConfig?.label.toLowerCase()} subcategories</p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {locationData.subtypeBreakdown.map((sub, index) => {
+                const subtypeLabel = SUBTYPES[businessType]?.find(s => s.value === sub.subtype)?.label || sub.subtype;
+                const maxRevenue = Math.max(...locationData.subtypeBreakdown.map(s => s.totalRevenue));
+                const barWidth = maxRevenue > 0 ? (sub.totalRevenue / maxRevenue) * 100 : 0;
+
+                return (
+                  <div
+                    key={index}
+                    onClick={() => setBusinessSubtype(sub.subtype)}
+                    className={`px-6 py-4 cursor-pointer hover:${darkMode ? 'bg-slate-700' : 'bg-slate-50'} transition-colors`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                          index === 0 ? 'bg-amber-100 text-amber-700' :
+                          index === 1 ? 'bg-slate-200 text-slate-700' :
+                          index === 2 ? 'bg-orange-100 text-orange-700' :
+                          darkMode ? 'bg-slate-600 text-slate-300' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {index + 1}
+                        </span>
+                        <div>
+                          <p className={`text-sm font-bold ${textClass}`}>{subtypeLabel}</p>
+                          <p className={`text-xs ${mutedClass}`}>{sub.tenantCount} businesses · {formatNumber(sub.totalTransactions)} transactions</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-sm font-bold ${textClass}`}>{formatCurrency(sub.totalRevenue)}</p>
+                        <p className={`text-xs ${mutedClass}`}>{sub.revenueShare}% of {selectedTypeConfig?.label}</p>
+                      </div>
+                    </div>
+                    {/* Revenue bar */}
+                    <div className={`h-2 rounded-full ${darkMode ? 'bg-slate-600' : 'bg-slate-100'} mt-2`}>
+                      <div
+                        className={`h-full rounded-full ${selectedTypeConfig?.color || 'bg-indigo-500'}`}
+                        style={{ width: `${barWidth}%` }}
+                      />
+                    </div>
+                    {/* Quick stats */}
+                    <div className="flex items-center gap-4 mt-3 text-xs">
+                      <span className={mutedClass}>Avg Ticket: <strong className={textClass}>{formatCurrency(sub.avgTicket)}</strong></span>
+                      <span className={mutedClass}>Peak: <strong className={textClass}>{sub.peakHours?.slice(0, 2).join(', ') || '-'}</strong></span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Main Location/Type Breakdown */}
         <div className={`${surfaceClass} rounded-2xl border ${borderClass} overflow-hidden`}>
           <div className={`px-6 py-4 border-b ${borderClass}`}>
-            <h3 className={`text-sm font-bold uppercase ${mutedClass}`}>Spending by Business Type</h3>
+            <h3 className={`text-sm font-bold uppercase ${mutedClass}`}>
+              {businessSubtype !== 'all'
+                ? `${SUBTYPES[businessType]?.find(s => s.value === businessSubtype)?.label || businessSubtype} Details`
+                : 'Spending by Business Type'}
+            </h3>
           </div>
           <div className="divide-y divide-slate-100">
             {(!locationData.locations || locationData.locations.length === 0) ? (
@@ -537,17 +743,18 @@ const MarketIntelligence = ({
                 <p className={`text-sm ${mutedClass}`}>No location data available</p>
               </div>
             ) : (
-              locationData.locations.map((loc, index) => (
+              locationData.locations.map((loc, index) => {
+                const typeConfig = getBusinessTypeConfig(loc.businessType);
+                const TypeIcon = typeConfig.icon;
+                return (
                 <div key={index} className={`px-6 py-4 hover:${darkMode ? 'bg-slate-700' : 'bg-slate-50'}`}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg ${darkMode ? 'bg-slate-600' : 'bg-indigo-100'} flex items-center justify-center`}>
-                        {loc.businessType === 'RESTAURANT' ? <Utensils className="w-5 h-5 text-indigo-600" /> :
-                         loc.businessType === 'RETAIL' ? <Store className="w-5 h-5 text-indigo-600" /> :
-                         <Building2 className="w-5 h-5 text-indigo-600" />}
+                      <div className={`w-10 h-10 rounded-lg ${typeConfig.color} flex items-center justify-center`}>
+                        <TypeIcon className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <p className={`text-sm font-bold ${textClass}`}>{loc.businessType}</p>
+                        <p className={`text-sm font-bold ${textClass}`}>{typeConfig.label}</p>
                         <p className={`text-xs ${mutedClass}`}>{loc.country} · {loc.tenantCount} tenants</p>
                       </div>
                     </div>
@@ -571,7 +778,7 @@ const MarketIntelligence = ({
                     </div>
                   </div>
                 </div>
-              ))
+              );})
             )}
           </div>
         </div>
@@ -929,7 +1136,101 @@ const MarketIntelligence = ({
           <h1 className={`text-2xl font-black ${textClass}`}>Market Intelligence</h1>
           <p className={`text-sm ${mutedClass}`}>Consumer behavior analytics and data insights</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Business Type Filter */}
+          <div className="relative" ref={typeFilterRef}>
+            <button
+              onClick={() => setShowTypeFilter(!showTypeFilter)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${borderClass} ${surfaceClass} ${textClass} text-sm font-bold hover:border-slate-400 transition-colors`}
+            >
+              {businessType === 'all' ? (
+                <Building2 className="w-4 h-4" />
+              ) : (
+                (() => {
+                  const Icon = BUSINESS_TYPES[businessType]?.icon || Building2;
+                  return <Icon className="w-4 h-4" />;
+                })()
+              )}
+              <span>{businessType === 'all' ? 'All Types' : BUSINESS_TYPES[businessType]?.label}</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${showTypeFilter ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showTypeFilter && (
+              <div className={`absolute left-0 mt-2 ${surfaceClass} border ${borderClass} rounded-xl shadow-xl z-50 overflow-hidden w-56`}>
+                <div className="p-2">
+                  <button
+                    onClick={() => { setBusinessType('all'); setShowTypeFilter(false); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                      businessType === 'all' ? 'bg-indigo-50 text-indigo-600' : `${textClass} hover:bg-slate-50`
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span>All Types</span>
+                  </button>
+                  {Object.entries(BUSINESS_TYPES).map(([key, config]) => {
+                    const Icon = config.icon;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => { setBusinessType(key); setShowTypeFilter(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                          businessType === key ? 'bg-indigo-50 text-indigo-600' : `${textClass} hover:bg-slate-50`
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span>{config.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Business Subtype Filter - only show when a type is selected */}
+          {businessType !== 'all' && (
+            <div className="relative" ref={subtypeFilterRef}>
+              <button
+                onClick={() => setShowSubtypeFilter(!showSubtypeFilter)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${borderClass} ${surfaceClass} ${textClass} text-sm font-bold hover:border-slate-400 transition-colors`}
+              >
+                <Filter className="w-4 h-4" />
+                <span>
+                  {businessSubtype === 'all'
+                    ? 'All Subtypes'
+                    : SUBTYPES[businessType]?.find(s => s.value === businessSubtype)?.label || businessSubtype}
+                </span>
+                <ChevronDown className={`w-4 h-4 transition-transform ${showSubtypeFilter ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showSubtypeFilter && (
+                <div className={`absolute left-0 mt-2 ${surfaceClass} border ${borderClass} rounded-xl shadow-xl z-50 overflow-hidden w-56 max-h-72 overflow-y-auto`}>
+                  <div className="p-2">
+                    <button
+                      onClick={() => { setBusinessSubtype('all'); setShowSubtypeFilter(false); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                        businessSubtype === 'all' ? 'bg-indigo-50 text-indigo-600' : `${textClass} hover:bg-slate-50`
+                      }`}
+                    >
+                      <span>All Subtypes</span>
+                    </button>
+                    {SUBTYPES[businessType]?.map((subtype) => (
+                      <button
+                        key={subtype.value}
+                        onClick={() => { setBusinessSubtype(subtype.value); setShowSubtypeFilter(false); }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+                          businessSubtype === subtype.value ? 'bg-indigo-50 text-indigo-600' : `${textClass} hover:bg-slate-50`
+                        }`}
+                      >
+                        {subtype.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Date Range Picker */}
           <div className="relative" ref={datePickerRef}>
             <button

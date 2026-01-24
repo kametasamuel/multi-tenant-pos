@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { usersAPI } from '../../api';
+import { usersAPI, IMAGE_BASE_URL } from '../../api';
 import {
   User,
   Phone,
@@ -9,11 +9,12 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
-  Shield,
   Clock,
   CheckCircle,
   XCircle,
   Briefcase,
+  Users,
+  Calendar,
   Plus,
   X,
   Eye,
@@ -21,8 +22,7 @@ import {
   UserPlus,
   Key,
   Camera,
-  Trash2,
-  Upload
+  Edit3
 } from 'lucide-react';
 
 const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, bgClass }) => {
@@ -33,19 +33,30 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
   const [expandedEmployee, setExpandedEmployee] = useState(null);
   const [filterRole, setFilterRole] = useState('All');
 
-  // Add Cashier Modal State
+  // Add Staff Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [newCashier, setNewCashier] = useState({
+  const [newStaff, setNewStaff] = useState({
     username: '',
     password: '',
     fullName: '',
     phone: '',
     email: '',
-    address: ''
+    address: '',
+    role: 'CASHIER',
+    specialty: '',
+    commissionRate: '',
+    gender: '',
+    dateOfBirth: ''
   });
+
+  // Edit Staff Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editEmployee, setEditEmployee] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
 
   // Reset Password Modal State
   const [showResetModal, setShowResetModal] = useState(false);
@@ -67,7 +78,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
   const loadEmployees = async () => {
     try {
       const response = await usersAPI.getAll();
-      // Filter to only show workers (MANAGER and CASHIER) - exclude ADMIN, OWNER, and super admin
+      // Filter to only show staff (MANAGER, CASHIER, ATTENDANT) - exclude ADMIN, OWNER, and super admin
       const allUsers = response.data.users || response.data || [];
       setEmployees(allUsers.filter(u =>
         !u.isSuperAdmin &&
@@ -79,6 +90,29 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
     } finally {
       setLoading(false);
     }
+  };
+
+  const calculateAge = (dateOfBirth) => {
+    if (!dateOfBirth) return null;
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const formatGender = (gender) => {
+    if (!gender) return 'Not specified';
+    const genderMap = {
+      'MALE': 'Male',
+      'FEMALE': 'Female',
+      'OTHER': 'Other',
+      'PREFER_NOT_TO_SAY': 'Prefer not to say'
+    };
+    return genderMap[gender] || gender;
   };
 
   const handleImageSelect = (e) => {
@@ -120,17 +154,43 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
     }
   };
 
-  const handleAddCashier = async (e) => {
+  const handleAddStaff = async (e) => {
     e.preventDefault();
     setAddLoading(true);
     setAddError('');
 
-    try {
-      const response = await usersAPI.create({
-        ...newCashier,
-        role: 'CASHIER'
-      });
+    const isAttendant = newStaff.role === 'ATTENDANT';
 
+    // Validate non-attendant requirements
+    if (!isAttendant && (!newStaff.username || !newStaff.password)) {
+      setAddError('Username and password are required');
+      setAddLoading(false);
+      return;
+    }
+
+    try {
+      const submitData = {
+        fullName: newStaff.fullName,
+        role: newStaff.role,
+        phone: newStaff.phone || null,
+        email: newStaff.email || null,
+        gender: newStaff.gender || null,
+        dateOfBirth: newStaff.dateOfBirth || null
+      };
+
+      // Add credentials for non-attendants
+      if (!isAttendant) {
+        submitData.username = newStaff.username;
+        submitData.password = newStaff.password;
+      }
+
+      // Add ATTENDANT-specific fields
+      if (isAttendant) {
+        submitData.specialty = newStaff.specialty || null;
+        submitData.commissionRate = newStaff.commissionRate ? parseFloat(newStaff.commissionRate) : 0;
+      }
+
+      const response = await usersAPI.create(submitData);
       const userId = response.data.user?.id;
 
       // Upload image if selected
@@ -139,21 +199,67 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       }
 
       setShowAddModal(false);
-      setNewCashier({
+      setNewStaff({
         username: '',
         password: '',
         fullName: '',
         phone: '',
         email: '',
-        address: ''
+        address: '',
+        role: 'CASHIER',
+        specialty: '',
+        commissionRate: '',
+        gender: '',
+        dateOfBirth: ''
       });
       setSelectedImage(null);
       setImagePreview(null);
       loadEmployees();
     } catch (error) {
-      setAddError(error.response?.data?.error || 'Failed to add cashier');
+      setAddError(error.response?.data?.error || 'Failed to add staff');
     } finally {
       setAddLoading(false);
+    }
+  };
+
+  const openEditModal = (employee) => {
+    setEditEmployee({
+      ...employee,
+      dateOfBirth: employee.dateOfBirth ? new Date(employee.dateOfBirth).toISOString().split('T')[0] : ''
+    });
+    setEditError('');
+    setShowEditModal(true);
+  };
+
+  const handleEditStaff = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    setEditError('');
+
+    try {
+      const updateData = {
+        fullName: editEmployee.fullName,
+        phone: editEmployee.phone || null,
+        email: editEmployee.email || null,
+        address: editEmployee.address || null,
+        gender: editEmployee.gender || null,
+        dateOfBirth: editEmployee.dateOfBirth || null
+      };
+
+      // Add ATTENDANT-specific fields
+      if (editEmployee.role === 'ATTENDANT') {
+        updateData.specialty = editEmployee.specialty || null;
+        updateData.commissionRate = editEmployee.commissionRate ? parseFloat(editEmployee.commissionRate) : 0;
+      }
+
+      await usersAPI.update(editEmployee.id, updateData);
+      setShowEditModal(false);
+      setEditEmployee(null);
+      loadEmployees();
+    } catch (error) {
+      setEditError(error.response?.data?.error || 'Failed to update staff');
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -180,6 +286,11 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
     setShowResetModal(true);
   };
 
+  // Check if manager can edit this employee (only cashiers and attendants)
+  const canEditEmployee = (employee) => {
+    return employee.role === 'CASHIER' || employee.role === 'ATTENDANT';
+  };
+
   const getRoleBadgeColor = (role) => {
     switch (role) {
       case 'ADMIN':
@@ -189,12 +300,13 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
         return darkMode ? 'bg-accent-900/30 text-accent-400' : 'bg-accent-100 text-accent-700';
       case 'CASHIER':
         return darkMode ? 'bg-positive-900/30 text-positive-400' : 'bg-positive-100 text-positive-700';
+      case 'ATTENDANT':
+        return darkMode ? 'bg-violet-900/30 text-violet-400' : 'bg-violet-100 text-violet-700';
       default:
         return darkMode ? 'bg-slate-700 text-slate-300' : 'bg-gray-100 text-gray-700';
     }
   };
 
-  // Display OWNER for both OWNER and ADMIN roles
   const getDisplayRole = (role) => {
     return role === 'ADMIN' ? 'OWNER' : role;
   };
@@ -214,8 +326,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
     return matchesSearch && matchesRole;
   });
 
-  // Only show MANAGER and CASHIER roles in filter
-  const roles = ['All', 'MANAGER', 'CASHIER'].filter(role =>
+  const roles = ['All', 'MANAGER', 'CASHIER', 'ATTENDANT'].filter(role =>
     role === 'All' || employees.some(e => e.role === role)
   );
 
@@ -233,10 +344,10 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       <div className="flex items-center justify-between">
         <div>
           <h1 className={`text-xl sm:text-2xl font-black uppercase tracking-tighter ${textClass}`}>
-            Workers
+            Staff
           </h1>
           <p className={`text-sm ${mutedClass}`}>
-            View and manage your team members
+            Manage your team members
           </p>
         </div>
         <button
@@ -244,26 +355,26 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
           className="flex items-center gap-2 px-4 py-2.5 bg-accent-500 text-white rounded-xl text-xs font-bold uppercase hover:bg-accent-600 transition-colors shadow-lg"
         >
           <UserPlus className="w-4 h-4" />
-          <span className="hidden sm:inline">Add Cashier</span>
+          <span className="hidden sm:inline">Add Staff</span>
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className={`${surfaceClass} border ${borderClass} rounded-xl p-4`}>
-          <p className={`text-[10px] font-bold uppercase ${mutedClass}`}>Total Workers</p>
+          <p className={`text-[10px] font-bold uppercase ${mutedClass}`}>Total Staff</p>
           <p className={`text-2xl font-black ${textClass}`}>{employees.length}</p>
-        </div>
-        <div className={`${surfaceClass} border ${borderClass} rounded-xl p-4`}>
-          <p className={`text-[10px] font-bold uppercase ${mutedClass}`}>Managers</p>
-          <p className={`text-2xl font-black text-accent-500`}>
-            {employees.filter(e => e.role === 'MANAGER').length}
-          </p>
         </div>
         <div className={`${surfaceClass} border ${borderClass} rounded-xl p-4`}>
           <p className={`text-[10px] font-bold uppercase ${mutedClass}`}>Cashiers</p>
           <p className={`text-2xl font-black text-positive-500`}>
             {employees.filter(e => e.role === 'CASHIER').length}
+          </p>
+        </div>
+        <div className={`${surfaceClass} border ${borderClass} rounded-xl p-4`}>
+          <p className={`text-[10px] font-bold uppercase ${mutedClass}`}>Attendants</p>
+          <p className={`text-2xl font-black text-violet-500`}>
+            {employees.filter(e => e.role === 'ATTENDANT').length}
           </p>
         </div>
         <div className={`${surfaceClass} border ${borderClass} rounded-xl p-4`}>
@@ -307,13 +418,16 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       <div className="space-y-3">
         {filteredEmployees.length === 0 ? (
           <div className={`${surfaceClass} border ${borderClass} rounded-2xl p-8 text-center`}>
-            <User className={`w-12 h-12 mx-auto mb-3 ${mutedClass}`} />
+            <Users className={`w-12 h-12 mx-auto mb-3 ${mutedClass}`} />
             <p className={`text-sm font-bold ${textClass}`}>No employees found</p>
             <p className={`text-xs ${mutedClass}`}>Try adjusting your search or filter</p>
           </div>
         ) : (
           filteredEmployees.map((employee) => {
             const isExpanded = expandedEmployee === employee.id;
+            const age = calculateAge(employee.dateOfBirth);
+            const canEdit = canEditEmployee(employee);
+
             return (
               <div key={employee.id}>
                 {/* Employee Card - Clickable Header */}
@@ -325,7 +439,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                     {/* Avatar */}
                     {employee.profileImage ? (
                       <img
-                        src={`http://localhost:5000${employee.profileImage}`}
+                        src={`${IMAGE_BASE_URL}${employee.profileImage}`}
                         alt={employee.fullName}
                         className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover shrink-0 ${!employee.isActive ? 'opacity-50' : ''}`}
                       />
@@ -354,7 +468,11 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                           </span>
                         )}
                       </div>
-                      <p className={`text-xs ${mutedClass}`}>@{employee.username}</p>
+                      {employee.role === 'ATTENDANT' ? (
+                        <p className={`text-xs ${mutedClass}`}>{employee.specialty || 'No specialty'}</p>
+                      ) : (
+                        <p className={`text-xs ${mutedClass}`}>@{employee.username}</p>
+                      )}
                       {employee.phone && (
                         <p className={`text-xs ${mutedClass} flex items-center gap-1 mt-1`}>
                           <Phone className="w-3 h-3" />
@@ -375,55 +493,64 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                   <div
                     className={`${surfaceClass} border border-accent-500 border-t-0 rounded-b-2xl p-5 ${darkMode ? 'bg-slate-800/50' : 'bg-accent-50/30'}`}
                   >
-                    <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="grid sm:grid-cols-2 gap-6">
+                      {/* Personal Info */}
+                      <div className="space-y-3">
+                        <h4 className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>Personal Information</h4>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                              <User className={`w-4 h-4 ${mutedClass}`} />
+                            </div>
+                            <div>
+                              <p className={`text-[10px] ${mutedClass}`}>Gender</p>
+                              <p className={`text-sm font-bold ${textClass}`}>{formatGender(employee.gender)}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                              <Calendar className={`w-4 h-4 ${mutedClass}`} />
+                            </div>
+                            <div>
+                              <p className={`text-[10px] ${mutedClass}`}>Age</p>
+                              <p className={`text-sm ${age ? `font-bold ${textClass}` : `${mutedClass} italic`}`}>
+                                {age ? `${age} years old` : 'Not specified'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Contact Info */}
                       <div className="space-y-3">
                         <h4 className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>Contact Information</h4>
 
                         <div className="space-y-2">
-                          {employee.phone ? (
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                                <Phone className={`w-4 h-4 ${mutedClass}`} />
-                              </div>
-                              <div>
-                                <p className={`text-[10px] ${mutedClass}`}>Phone</p>
-                                <p className={`text-sm font-bold ${textClass}`}>{employee.phone}</p>
-                              </div>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                              <Phone className={`w-4 h-4 ${mutedClass}`} />
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                                <Phone className={`w-4 h-4 ${mutedClass}`} />
-                              </div>
-                              <div>
-                                <p className={`text-[10px] ${mutedClass}`}>Phone</p>
-                                <p className={`text-sm ${mutedClass} italic`}>Not provided</p>
-                              </div>
+                            <div>
+                              <p className={`text-[10px] ${mutedClass}`}>Phone</p>
+                              <p className={`text-sm ${employee.phone ? `font-bold ${textClass}` : `${mutedClass} italic`}`}>
+                                {employee.phone || 'Not provided'}
+                              </p>
                             </div>
-                          )}
+                          </div>
 
-                          {employee.email ? (
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                                <Mail className={`w-4 h-4 ${mutedClass}`} />
-                              </div>
-                              <div>
-                                <p className={`text-[10px] ${mutedClass}`}>Email</p>
-                                <p className={`text-sm font-bold ${textClass} break-all`}>{employee.email}</p>
-                              </div>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                              <Mail className={`w-4 h-4 ${mutedClass}`} />
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                                <Mail className={`w-4 h-4 ${mutedClass}`} />
-                              </div>
-                              <div>
-                                <p className={`text-[10px] ${mutedClass}`}>Email</p>
-                                <p className={`text-sm ${mutedClass} italic`}>Not provided</p>
-                              </div>
+                            <div>
+                              <p className={`text-[10px] ${mutedClass}`}>Email</p>
+                              <p className={`text-sm ${employee.email ? `font-bold ${textClass} break-all` : `${mutedClass} italic`}`}>
+                                {employee.email || 'Not provided'}
+                              </p>
                             </div>
-                          )}
+                          </div>
 
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
@@ -485,29 +612,75 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                           </div>
                         </div>
                       </div>
+
+                      {/* ATTENDANT-specific info */}
+                      {employee.role === 'ATTENDANT' && (
+                        <div className="space-y-3">
+                          <h4 className={`text-[10px] font-black uppercase tracking-wider ${mutedClass}`}>Attendant Details</h4>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-violet-900/30' : 'bg-violet-100'}`}>
+                                <Briefcase className="w-4 h-4 text-violet-500" />
+                              </div>
+                              <div>
+                                <p className={`text-[10px] ${mutedClass}`}>Specialty</p>
+                                <p className={`text-sm ${employee.specialty ? `font-bold ${textClass}` : `${mutedClass} italic`}`}>
+                                  {employee.specialty || 'Not specified'}
+                                </p>
+                              </div>
+                            </div>
+
+                            {employee.commissionRate > 0 && (
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-violet-900/30' : 'bg-violet-100'}`}>
+                                  <span className="text-xs font-bold text-violet-500">%</span>
+                                </div>
+                                <div>
+                                  <p className={`text-[10px] ${mutedClass}`}>Commission Rate</p>
+                                  <p className={`text-sm font-bold text-violet-500`}>{employee.commissionRate}%</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Notes Section */}
-                    {employee.notes && (
-                      <div className={`mt-4 pt-4 border-t ${borderClass}`}>
-                        <h4 className={`text-[10px] font-black uppercase tracking-wider ${mutedClass} mb-2`}>Notes</h4>
-                        <p className={`text-sm ${textClass}`}>{employee.notes}</p>
-                      </div>
-                    )}
-
-                    {/* Actions - Only for cashiers */}
-                    {employee.role === 'CASHIER' && (
-                      <div className={`mt-4 pt-4 border-t ${borderClass} flex gap-2`}>
+                    {/* Actions - Only for cashiers and attendants */}
+                    {canEdit && (
+                      <div className={`mt-4 pt-4 border-t ${borderClass} flex flex-wrap gap-2`}>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            openResetModal(employee);
+                            openEditModal(employee);
                           }}
                           className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-gray-100 hover:bg-gray-200'} ${textClass} transition-colors`}
                         >
-                          <Key className="w-3.5 h-3.5" />
-                          Reset Password
+                          <Edit3 className="w-3.5 h-3.5" />
+                          Edit Details
                         </button>
+                        {employee.role === 'CASHIER' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openResetModal(employee);
+                            }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-gray-100 hover:bg-gray-200'} ${textClass} transition-colors`}
+                          >
+                            <Key className="w-3.5 h-3.5" />
+                            Reset Password
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* View-only notice for managers */}
+                    {!canEdit && (
+                      <div className={`mt-4 pt-4 border-t ${borderClass}`}>
+                        <p className={`text-xs ${mutedClass} italic text-center`}>
+                          Contact the owner to update manager information
+                        </p>
                       </div>
                     )}
                   </div>
@@ -518,161 +691,342 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
         )}
       </div>
 
-      {/* Add Cashier Modal */}
+      {/* Add Staff Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
           <div
-            className={`${surfaceClass} w-full max-w-md rounded-[32px] p-6 shadow-2xl border ${borderClass}`}
+            className={`${surfaceClass} w-full max-w-md rounded-2xl p-5 shadow-2xl border ${borderClass} max-h-[90vh] overflow-y-auto`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className={`text-lg font-black uppercase ${textClass}`}>Add Cashier</h2>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className={`p-2 rounded-xl ${mutedClass} hover:bg-gray-100 dark:hover:bg-slate-700`}
-              >
-                <X className="w-5 h-5" />
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={`text-base font-black uppercase ${textClass}`}>Add Staff</h2>
+              <button onClick={() => setShowAddModal(false)} className={`p-1.5 rounded-lg ${mutedClass} hover:bg-gray-100 dark:hover:bg-slate-700`}>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {addError && (
-              <div className="mb-4 p-3 bg-red-100 text-negative-700 rounded-xl text-sm">
+              <div className="mb-3 p-2 bg-red-100 text-negative-700 rounded-lg text-xs">
                 {addError}
               </div>
             )}
 
-            <form onSubmit={handleAddCashier} className="space-y-4">
-              {/* Profile Image Upload */}
-              <div className="flex flex-col items-center mb-2">
-                <div className="relative">
+            <form onSubmit={handleAddStaff} className="space-y-3">
+              {/* Top Row: Photo + Role */}
+              <div className="flex items-start gap-3">
+                <div className="relative shrink-0">
                   {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt="Profile preview"
-                      className="w-20 h-20 rounded-2xl object-cover border-4 border-accent-200 dark:border-slate-600"
-                    />
+                    <img src={imagePreview} alt="Profile" className="w-14 h-14 rounded-xl object-cover" />
                   ) : (
-                    <div className={`w-20 h-20 rounded-2xl ${darkMode ? 'bg-slate-600' : 'bg-gray-200'} flex items-center justify-center border-4 border-accent-200 dark:border-slate-600`}>
-                      <User className={`w-8 h-8 ${mutedClass}`} />
+                    <div className={`w-14 h-14 rounded-xl ${darkMode ? 'bg-slate-600' : 'bg-gray-200'} flex items-center justify-center`}>
+                      <User className={`w-6 h-6 ${mutedClass}`} />
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute -bottom-1 -right-1 w-7 h-7 bg-accent-500 text-white rounded-full flex items-center justify-center hover:bg-accent-600 transition-colors"
-                    title="Upload photo"
+                    className="absolute -bottom-1 -right-1 w-6 h-6 bg-accent-500 text-white rounded-full flex items-center justify-center hover:bg-accent-600"
                   >
-                    <Camera className="w-3.5 h-3.5" />
+                    <Camera className="w-3 h-3" />
                   </button>
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                />
-                {imagePreview && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    className="mt-2 text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
+                <div className="flex-1">
+                  <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Role</label>
+                  <select
+                    value={newStaff.role}
+                    onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
                   >
-                    <Trash2 className="w-3 h-3" />
-                    Remove
-                  </button>
-                )}
-              </div>
-
-              <div>
-                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Username *</label>
-                <input
-                  type="text"
-                  value={newCashier.username}
-                  onChange={(e) => setNewCashier({ ...newCashier, username: e.target.value })}
-                  className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Password *</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={newCashier.password}
-                    onChange={(e) => setNewCashier({ ...newCashier, password: e.target.value })}
-                    className={`w-full px-4 py-3 pr-12 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
-                    required
-                    minLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className={`absolute right-3 top-1/2 -translate-y-1/2 ${mutedClass}`}
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+                    <option value="CASHIER">Cashier</option>
+                    <option value="ATTENDANT">Attendant</option>
+                  </select>
+                  {newStaff.role === 'ATTENDANT' && (
+                    <p className={`text-[10px] ${mutedClass} mt-0.5`}>No login needed</p>
+                  )}
                 </div>
               </div>
 
+              {/* Full Name */}
               <div>
                 <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Full Name *</label>
                 <input
                   type="text"
-                  value={newCashier.fullName}
-                  onChange={(e) => setNewCashier({ ...newCashier, fullName: e.target.value })}
-                  className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
+                  value={newStaff.fullName}
+                  onChange={(e) => setNewStaff({ ...newStaff, fullName: e.target.value })}
+                  className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
                   required
                 />
               </div>
 
+              {/* Username/Password for non-ATTENDANT */}
+              {newStaff.role !== 'ATTENDANT' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Username *</label>
+                    <input
+                      type="text"
+                      value={newStaff.username}
+                      onChange={(e) => setNewStaff({ ...newStaff, username: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Password *</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={newStaff.password}
+                        onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
+                        className={`w-full px-3 py-2 pr-8 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                        placeholder="Min 6"
+                        required
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 ${mutedClass}`}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ATTENDANT fields */}
+              {newStaff.role === 'ATTENDANT' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Specialty</label>
+                    <input
+                      type="text"
+                      value={newStaff.specialty}
+                      onChange={(e) => setNewStaff({ ...newStaff, specialty: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                      placeholder="e.g., Stylist"
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Commission %</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={newStaff.commissionRate}
+                      onChange={(e) => setNewStaff({ ...newStaff, commissionRate: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                      placeholder="30"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Gender and DOB */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Gender</label>
+                  <select
+                    value={newStaff.gender}
+                    onChange={(e) => setNewStaff({ ...newStaff, gender: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                  >
+                    <option value="">Select...</option>
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="OTHER">Other</option>
+                    <option value="PREFER_NOT_TO_SAY">Prefer not to say</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Date of Birth</label>
+                  <input
+                    type="date"
+                    value={newStaff.dateOfBirth}
+                    onChange={(e) => setNewStaff({ ...newStaff, dateOfBirth: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                  />
+                </div>
+              </div>
+
+              {/* Phone */}
               <div>
                 <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Phone</label>
                 <input
                   type="tel"
-                  value={newCashier.phone}
-                  onChange={(e) => setNewCashier({ ...newCashier, phone: e.target.value })}
-                  className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
+                  value={newStaff.phone}
+                  onChange={(e) => setNewStaff({ ...newStaff, phone: e.target.value })}
+                  className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
                 />
               </div>
 
-              <div>
-                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Email</label>
-                <input
-                  type="email"
-                  value={newCashier.email}
-                  onChange={(e) => setNewCashier({ ...newCashier, email: e.target.value })}
-                  className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent-500/20`}
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
+              {/* Buttons */}
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setShowAddModal(false);
                     setSelectedImage(null);
                     setImagePreview(null);
+                    setNewStaff({ username: '', password: '', fullName: '', phone: '', email: '', address: '', role: 'CASHIER', specialty: '', commissionRate: '', gender: '', dateOfBirth: '' });
                   }}
                   disabled={addLoading || uploadingImage}
-                  className={`flex-1 py-3 rounded-xl text-sm font-bold ${mutedClass} border ${borderClass} hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50`}
+                  className={`flex-1 py-2.5 rounded-lg text-xs font-bold ${mutedClass} border ${borderClass} hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={addLoading || uploadingImage}
-                  className="flex-1 py-3 rounded-xl text-sm font-bold bg-accent-500 text-white hover:bg-accent-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 rounded-lg text-xs font-bold bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50"
                 >
-                  {addLoading || uploadingImage ? (
-                    <>
-                      <Upload className="w-4 h-4 animate-pulse" />
-                      {uploadingImage ? 'Uploading...' : 'Adding...'}
-                    </>
-                  ) : (
-                    'Add Cashier'
-                  )}
+                  {addLoading || uploadingImage ? 'Adding...' : `Add ${newStaff.role === 'ATTENDANT' ? 'Attendant' : 'Cashier'}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Staff Modal */}
+      {showEditModal && editEmployee && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowEditModal(false)}>
+          <div
+            className={`${surfaceClass} w-full max-w-md rounded-2xl p-5 shadow-2xl border ${borderClass} max-h-[90vh] overflow-y-auto`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={`text-base font-black uppercase ${textClass}`}>Edit Staff</h2>
+              <button onClick={() => setShowEditModal(false)} className={`p-1.5 rounded-lg ${mutedClass} hover:bg-gray-100 dark:hover:bg-slate-700`}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="mb-3 p-2 bg-red-100 text-negative-700 rounded-lg text-xs">
+                {editError}
+              </div>
+            )}
+
+            <form onSubmit={handleEditStaff} className="space-y-3">
+              {/* Full Name */}
+              <div>
+                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Full Name *</label>
+                <input
+                  type="text"
+                  value={editEmployee.fullName || ''}
+                  onChange={(e) => setEditEmployee({ ...editEmployee, fullName: e.target.value })}
+                  className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                  required
+                />
+              </div>
+
+              {/* Gender and DOB */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Gender</label>
+                  <select
+                    value={editEmployee.gender || ''}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, gender: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                  >
+                    <option value="">Select...</option>
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="OTHER">Other</option>
+                    <option value="PREFER_NOT_TO_SAY">Prefer not to say</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Date of Birth</label>
+                  <input
+                    type="date"
+                    value={editEmployee.dateOfBirth || ''}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, dateOfBirth: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                  />
+                </div>
+              </div>
+
+              {/* Phone and Email */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Phone</label>
+                  <input
+                    type="tel"
+                    value={editEmployee.phone || ''}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, phone: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Email</label>
+                  <input
+                    type="email"
+                    value={editEmployee.email || ''}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, email: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                  />
+                </div>
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Address</label>
+                <input
+                  type="text"
+                  value={editEmployee.address || ''}
+                  onChange={(e) => setEditEmployee({ ...editEmployee, address: e.target.value })}
+                  className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                />
+              </div>
+
+              {/* ATTENDANT fields */}
+              {editEmployee.role === 'ATTENDANT' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Specialty</label>
+                    <input
+                      type="text"
+                      value={editEmployee.specialty || ''}
+                      onChange={(e) => setEditEmployee({ ...editEmployee, specialty: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                      placeholder="e.g., Stylist"
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-[10px] font-bold uppercase ${mutedClass} mb-1`}>Commission %</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={editEmployee.commissionRate || ''}
+                      onChange={(e) => setEditEmployee({ ...editEmployee, commissionRate: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${bgClass} ${textClass} text-sm font-semibold`}
+                      placeholder="30"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  disabled={editLoading}
+                  className={`flex-1 py-2.5 rounded-lg text-xs font-bold ${mutedClass} border ${borderClass} hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="flex-1 py-2.5 rounded-lg text-xs font-bold bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50"
+                >
+                  {editLoading ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
@@ -684,7 +1038,7 @@ const ManagerEmployees = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       {showResetModal && resetEmployee && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowResetModal(false)}>
           <div
-            className={`${surfaceClass} w-full max-w-sm rounded-[32px] p-6 shadow-2xl border ${borderClass}`}
+            className={`${surfaceClass} w-full max-w-sm rounded-2xl p-6 shadow-2xl border ${borderClass}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">

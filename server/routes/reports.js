@@ -245,4 +245,172 @@ router.get('/staff-performance', authenticate, requireAdmin, async (req, res) =>
   }
 });
 
+// Get attendant performance (for SERVICES business type)
+router.get('/stylist-performance', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate, branchId } = req.query;
+
+    const dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.createdAt = {};
+      if (startDate) dateFilter.createdAt.gte = new Date(startDate);
+      if (endDate) dateFilter.createdAt.lte = new Date(endDate);
+    }
+
+    // Build branch filter
+    const branchFilter = {};
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      branchFilter.sale = { branchId: req.branchId };
+    } else if (branchId) {
+      branchFilter.sale = { branchId };
+    }
+
+    // Get all sale items with attendant assigned
+    const attendantSales = await prisma.saleItem.findMany({
+      where: {
+        attendantId: { not: null },
+        sale: {
+          tenantId: req.tenantId,
+          paymentStatus: 'completed',
+          ...dateFilter,
+          ...(branchFilter.sale || {})
+        }
+      },
+      include: {
+        attendant: {
+          select: {
+            id: true,
+            fullName: true,
+            commissionRate: true,
+            profileImage: true,
+            specialty: true
+          }
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
+            type: true
+          }
+        },
+        sale: {
+          select: {
+            createdAt: true
+          }
+        }
+      }
+    });
+
+    // Aggregate by attendant
+    const attendantMap = {};
+    attendantSales.forEach(item => {
+      const attendantId = item.attendantId;
+      if (!attendantMap[attendantId]) {
+        attendantMap[attendantId] = {
+          attendant: item.attendant,
+          totalSales: 0,
+          serviceCount: 0,
+          commission: 0
+        };
+      }
+      attendantMap[attendantId].totalSales += item.subtotal;
+      attendantMap[attendantId].serviceCount += item.quantity;
+      // Calculate commission based on attendant's rate
+      const commissionRate = item.attendant?.commissionRate || 0;
+      attendantMap[attendantId].commission += (item.subtotal * commissionRate) / 100;
+    });
+
+    // Convert to array and sort by total sales
+    const performance = Object.values(attendantMap).sort((a, b) => b.totalSales - a.totalSales);
+
+    res.json({ performance });
+  } catch (error) {
+    console.error('Attendant performance error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get individual attendant earnings
+router.get('/attendant/:id/earnings', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate } = req.query;
+
+    // Verify attendant exists and belongs to tenant
+    const attendant = await prisma.attendant.findFirst({
+      where: { id, tenantId: req.tenantId }
+    });
+
+    if (!attendant) {
+      return res.status(404).json({ error: 'Attendant not found' });
+    }
+
+    // Check access - Admins can view any, users can view their own
+    if (req.user.role === 'CASHIER' && req.user.id !== id) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.createdAt = {};
+      if (startDate) dateFilter.createdAt.gte = new Date(startDate);
+      if (endDate) dateFilter.createdAt.lte = new Date(endDate);
+    }
+
+    // Get sale items for this attendant
+    const saleItems = await prisma.saleItem.findMany({
+      where: {
+        attendantId: id,
+        sale: {
+          tenantId: req.tenantId,
+          paymentStatus: 'completed',
+          ...dateFilter
+        }
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        sale: {
+          select: {
+            id: true,
+            transactionNumber: true,
+            createdAt: true
+          }
+        }
+      },
+      orderBy: {
+        sale: { createdAt: 'desc' }
+      }
+    });
+
+    // Calculate totals
+    const totalSales = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const serviceCount = saleItems.reduce((sum, item) => sum + item.quantity, 0);
+    const commissionRate = attendant.commissionRate || 0;
+    const totalCommission = (totalSales * commissionRate) / 100;
+
+    res.json({
+      attendant: {
+        id: attendant.id,
+        fullName: attendant.fullName,
+        commissionRate: attendant.commissionRate
+      },
+      summary: {
+        totalSales,
+        serviceCount,
+        commissionRate,
+        totalCommission
+      },
+      recentSales: saleItems.slice(0, 20) // Last 20 sales
+    });
+  } catch (error) {
+    console.error('Attendant earnings error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

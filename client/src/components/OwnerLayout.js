@@ -41,7 +41,9 @@ import {
   Phone,
   KeyRound,
   Sparkles,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Briefcase,
+  UserCog
 } from 'lucide-react';
 
 const OwnerLayout = ({ children }) => {
@@ -253,13 +255,19 @@ const OwnerLayout = ({ children }) => {
 
   const isActive = (path) => location.pathname === path;
 
+  // Check if this is a services-type business
+  const isServicesType = ['SERVICES', 'SALON'].includes(user?.businessType);
+
   // Full navigation - Owner has access to everything
   const navLinks = [
     { path: `/${tenantSlug}/owner/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
     { path: `/${tenantSlug}/owner/sales`, label: 'Sales & Revenue', icon: BarChart3 },
-    { path: `/${tenantSlug}/owner/inventory`, label: 'Inventory', icon: Package },
-    { path: `/${tenantSlug}/owner/stock-transfers`, label: 'Transfers', icon: ArrowLeftRight },
+    { path: `/${tenantSlug}/owner/inventory`, label: isServicesType ? 'Services' : 'Inventory', icon: isServicesType ? Briefcase : Package },
+    // Transfers - hide for SERVICES/SALON business types
+    ...(!isServicesType ? [{ path: `/${tenantSlug}/owner/stock-transfers`, label: 'Transfers', icon: ArrowLeftRight }] : []),
     { path: `/${tenantSlug}/owner/staff`, label: 'Staff', icon: Users },
+    // Commission Tracking - only for SERVICES/SALON business types
+    ...(isServicesType ? [{ path: `/${tenantSlug}/owner/attendants`, label: 'Commission', icon: UserCog }] : []),
     { path: `/${tenantSlug}/owner/customers`, label: 'Customers', icon: UserCheck },
     { path: `/${tenantSlug}/owner/requests`, label: 'Void Requests', icon: Bell },
     { path: `/${tenantSlug}/owner/expenses`, label: 'Expenses', icon: Wallet },

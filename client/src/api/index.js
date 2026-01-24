@@ -1,6 +1,8 @@
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// Base URL for images (without /api)
+export const IMAGE_BASE_URL = process.env.REACT_APP_IMAGE_URL || 'http://localhost:5000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -60,9 +62,26 @@ export const authAPI = {
 export const productsAPI = {
   getAll: (params) => api.get('/products', { params }),
   getById: (id) => api.get(`/products/${id}`),
-  create: (data) => api.post('/products', data),
-  update: (id, data) => api.put(`/products/${id}`, data),
-  getLowStock: () => api.get('/products/inventory/low-stock')
+  create: (data) => {
+    // Check if data is FormData (has image), otherwise use JSON
+    if (data instanceof FormData) {
+      return api.post('/products', data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
+    return api.post('/products', data);
+  },
+  update: (id, data) => {
+    // Check if data is FormData (has image), otherwise use JSON
+    if (data instanceof FormData) {
+      return api.put(`/products/${id}`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
+    return api.put(`/products/${id}`, data);
+  },
+  getLowStock: () => api.get('/products/inventory/low-stock'),
+  delete: (id) => api.delete(`/products/${id}`)
 };
 
 // Sales API
@@ -85,7 +104,8 @@ export const reportsAPI = {
   getDashboard: (params) => api.get('/reports/dashboard', { params }),
   getDailySales: (params) => api.get('/reports/daily-sales', { params }),
   getSalesTrends: (params) => api.get('/reports/sales-trends', { params }),
-  getStaffPerformance: (params) => api.get('/reports/staff-performance', { params })
+  getStaffPerformance: (params) => api.get('/reports/staff-performance', { params }),
+  getStylistPerformance: (params) => api.get('/reports/stylist-performance', { params })
 };
 
 // Users API
@@ -283,6 +303,8 @@ export const ownerAPI = {
   getBranchComparison: (params) => api.get('/owner/reports/branch-comparison', { params }),
   getProductProfitability: (params) => api.get('/owner/reports/product-profitability', { params }),
   getStaffPerformance: (params) => api.get('/owner/reports/staff-performance', { params }),
+  // Stylist Performance (SERVICES/SALON business types)
+  getStylistPerformance: (params) => api.get('/owner/reports/stylist-performance', { params }),
   // Settings
   getSettings: () => api.get('/owner/settings'),
   updateSettings: (data) => api.put('/owner/settings', data)
@@ -316,6 +338,19 @@ export const stockAdjustmentsAPI = {
   getByProduct: (productId, params) => api.get(`/stock-adjustments/product/${productId}`, { params }),
   create: (data) => api.post('/stock-adjustments', data),
   bulkCount: (data) => api.post('/stock-adjustments/bulk', data)
+};
+
+// Attendants API (Services Module)
+export const attendantsAPI = {
+  getAll: (params) => api.get('/attendants', { params }),
+  getById: (id, params) => api.get(`/attendants/${id}`, { params }),
+  create: (data) => api.post('/attendants', data),
+  update: (id, data) => api.put(`/attendants/${id}`, data),
+  delete: (id) => api.delete(`/attendants/${id}`),
+  getPerformanceSummary: (params) => api.get('/attendants/performance/summary', { params }),
+  uploadImage: (id, formData) => api.post(`/attendants/${id}/upload-image`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
 };
 
 // Branches API

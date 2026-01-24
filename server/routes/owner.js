@@ -308,6 +308,13 @@ router.get('/staff', async (req, res) => {
         isActive: true,
         branchId: true,
         createdAt: true,
+        phone: true,
+        email: true,
+        address: true,
+        gender: true,
+        dateOfBirth: true,
+        specialty: true,
+        commissionRate: true,
         branch: {
           select: { id: true, name: true }
         },
@@ -577,13 +584,9 @@ router.get('/activity', async (req, res) => {
     if (userId) where.userId = userId;
     if (action) where.action = { contains: action, mode: 'insensitive' };
 
-    // If branchId filter, get users in that branch first
+    // Filter by branchId directly on the log
     if (branchId) {
-      const branchUsers = await prisma.user.findMany({
-        where: { branchId, tenantId: req.tenantId },
-        select: { id: true }
-      });
-      where.userId = { in: branchUsers.map(u => u.id) };
+      where.branchId = branchId;
     }
 
     const [logs, total] = await Promise.all([
@@ -604,10 +607,10 @@ router.get('/activity', async (req, res) => {
       prisma.auditLog.count({ where })
     ]);
 
-    // Get action type counts
+    // Get action type counts using same where filter as logs
     const actionCounts = await prisma.auditLog.groupBy({
       by: ['action'],
-      where: { tenantId: req.tenantId },
+      where,
       _count: true,
       orderBy: { _count: { action: 'desc' } },
       take: 10
@@ -902,6 +905,109 @@ router.get('/reports/product-profitability', async (req, res) => {
   } catch (error) {
     console.error('Get product profitability error:', error);
     res.status(500).json({ error: 'Failed to get product profitability' });
+  }
+});
+
+// GET /api/owner/reports/stylist-performance - Attendant performance report (for SERVICES business type)
+// Legacy endpoint name kept for backwards compatibility
+router.get('/reports/stylist-performance', async (req, res) => {
+  try {
+    const { startDate, endDate, branchId } = req.query;
+
+    const dateFilter = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) dateFilter.lte = new Date(endDate);
+    const hasDateFilter = startDate || endDate;
+
+    // Get all sale items with attendant assigned
+    const saleItemsWhere = {
+      attendantId: { not: null },
+      sale: {
+        tenantId: req.tenantId,
+        paymentStatus: 'completed',
+        ...(hasDateFilter && { createdAt: dateFilter }),
+        ...(branchId && { branchId })
+      }
+    };
+
+    const attendantSales = await prisma.saleItem.findMany({
+      where: saleItemsWhere,
+      include: {
+        attendant: {
+          select: {
+            id: true,
+            fullName: true,
+            profileImage: true,
+            commissionRate: true
+          }
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
+            type: true
+          }
+        },
+        sale: {
+          select: {
+            createdAt: true,
+            transactionNumber: true
+          }
+        }
+      }
+    });
+
+    // Aggregate by attendant
+    const attendantMap = {};
+    attendantSales.forEach(item => {
+      const attendantId = item.attendantId;
+      if (!attendantMap[attendantId]) {
+        attendantMap[attendantId] = {
+          stylist: item.attendant, // Keep 'stylist' key for frontend compatibility
+          totalSales: 0,
+          serviceCount: 0,
+          commission: 0,
+          services: {}
+        };
+      }
+      attendantMap[attendantId].totalSales += item.subtotal;
+      attendantMap[attendantId].serviceCount += item.quantity;
+
+      // Calculate commission
+      const commissionRate = item.attendant?.commissionRate || 0;
+      attendantMap[attendantId].commission += (item.subtotal * commissionRate) / 100;
+
+      // Track services performed
+      const serviceName = item.product.name;
+      if (!attendantMap[attendantId].services[serviceName]) {
+        attendantMap[attendantId].services[serviceName] = 0;
+      }
+      attendantMap[attendantId].services[serviceName] += item.quantity;
+    });
+
+    // Convert to array and format
+    const performance = Object.values(attendantMap).map(s => ({
+      ...s,
+      topServices: Object.entries(s.services)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([name, count]) => ({ name, count }))
+    }));
+
+    // Sort by total sales
+    performance.sort((a, b) => b.totalSales - a.totalSales);
+
+    // Calculate totals
+    const totals = {
+      totalSales: performance.reduce((sum, s) => sum + s.totalSales, 0),
+      totalServices: performance.reduce((sum, s) => sum + s.serviceCount, 0),
+      totalCommission: performance.reduce((sum, s) => sum + s.commission, 0)
+    };
+
+    res.json({ performance, totals });
+  } catch (error) {
+    console.error('Get attendant performance error:', error);
+    res.status(500).json({ error: 'Failed to get attendant performance' });
   }
 });
 

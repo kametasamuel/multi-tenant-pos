@@ -15,7 +15,7 @@ import {
   Store,
   Utensils,
   Hotel,
-  Scissors,
+  Briefcase,
   Copy,
   ExternalLink,
   Eye,
@@ -28,28 +28,74 @@ const businessTypes = [
     label: 'Retail',
     icon: Store,
     description: 'Shops, electronics, groceries, pharmacy, clothing & general merchandise',
-    features: ['Inventory Management', 'Barcode Scanning', 'Stock Alerts', 'Supplier Management']
+    features: ['Inventory Management', 'Barcode Scanning', 'Stock Alerts', 'Supplier Management'],
+    subtypes: [
+      { value: 'grocery', label: 'Grocery Store' },
+      { value: 'electronics', label: 'Electronics Store' },
+      { value: 'clothing', label: 'Clothing & Fashion' },
+      { value: 'pharmacy', label: 'Pharmacy' },
+      { value: 'supermarket', label: 'Supermarket' },
+      { value: 'convenience', label: 'Convenience Store' },
+      { value: 'hardware', label: 'Hardware Store' },
+      { value: 'cosmetics', label: 'Cosmetics & Beauty' },
+      { value: 'general', label: 'General Merchandise' },
+      { value: 'other_retail', label: 'Other Retail' }
+    ]
   },
   {
     value: 'FOOD_AND_BEVERAGE',
     label: 'Food & Beverage',
     icon: Utensils,
     description: 'Restaurants, cafes, bars, quick service & food trucks',
-    features: ['Table Management', 'Kitchen Display', 'Menu Modifiers', 'Split Bills']
+    features: ['Table Management', 'Kitchen Display', 'Menu Modifiers', 'Split Bills'],
+    subtypes: [
+      { value: 'restaurant', label: 'Restaurant' },
+      { value: 'cafe', label: 'Cafe / Coffee Shop' },
+      { value: 'fast_food', label: 'Fast Food / QSR' },
+      { value: 'bar', label: 'Bar / Lounge' },
+      { value: 'bakery', label: 'Bakery' },
+      { value: 'food_truck', label: 'Food Truck' },
+      { value: 'catering', label: 'Catering Service' },
+      { value: 'juice_bar', label: 'Juice Bar / Smoothies' },
+      { value: 'other_food', label: 'Other Food & Beverage' }
+    ]
   },
   {
     value: 'HOSPITALITY',
     label: 'Hospitality',
     icon: Hotel,
     description: 'Hotels, lodges, guest houses, rentals & vacation properties',
-    features: ['Room Management', 'Reservations', 'Housekeeping', 'Guest Folios']
+    features: ['Room Management', 'Reservations', 'Housekeeping', 'Guest Folios'],
+    subtypes: [
+      { value: 'hotel', label: 'Hotel' },
+      { value: 'lodge', label: 'Lodge' },
+      { value: 'guest_house', label: 'Guest House' },
+      { value: 'hostel', label: 'Hostel' },
+      { value: 'resort', label: 'Resort' },
+      { value: 'vacation_rental', label: 'Vacation Rental' },
+      { value: 'motel', label: 'Motel' },
+      { value: 'bnb', label: 'Bed & Breakfast' },
+      { value: 'other_hospitality', label: 'Other Hospitality' }
+    ]
   },
   {
     value: 'SERVICES',
     label: 'Services',
-    icon: Scissors,
+    icon: Briefcase,
     description: 'Salons, spas, auto repair, laundry & professional services',
-    features: ['Appointment Booking', 'Staff Scheduling', 'Commission Tracking', 'Client History']
+    features: ['Appointment Booking', 'Staff Scheduling', 'Commission Tracking', 'Client History'],
+    subtypes: [
+      { value: 'salon', label: 'Salon / Barbershop' },
+      { value: 'spa', label: 'Spa & Wellness' },
+      { value: 'auto_repair', label: 'Auto Repair / Garage' },
+      { value: 'laundry', label: 'Laundry / Dry Cleaning' },
+      { value: 'cleaning', label: 'Cleaning Services' },
+      { value: 'consulting', label: 'Consulting / Professional' },
+      { value: 'repair', label: 'Repair Services' },
+      { value: 'tutoring', label: 'Tutoring / Education' },
+      { value: 'fitness', label: 'Fitness / Gym' },
+      { value: 'other_services', label: 'Other Services' }
+    ]
   }
 ];
 
@@ -68,6 +114,7 @@ const Signup = () => {
   const [formData, setFormData] = useState({
     businessName: '',
     businessType: '',
+    businessSubtype: '',
     businessEmail: '',
     businessPhone: '',
     businessAddress: '',
@@ -89,9 +136,16 @@ const Signup = () => {
   };
 
   const handleBusinessTypeSelect = (type) => {
-    setFormData(prev => ({ ...prev, businessType: type }));
+    setFormData(prev => ({ ...prev, businessType: type, businessSubtype: '' }));
     if (errors.businessType) {
-      setErrors(prev => ({ ...prev, businessType: '' }));
+      setErrors(prev => ({ ...prev, businessType: '', businessSubtype: '' }));
+    }
+  };
+
+  const handleSubtypeSelect = (subtype) => {
+    setFormData(prev => ({ ...prev, businessSubtype: subtype }));
+    if (errors.businessSubtype) {
+      setErrors(prev => ({ ...prev, businessSubtype: '' }));
     }
   };
 
@@ -114,6 +168,9 @@ const Signup = () => {
     }
     if (!formData.businessType) {
       newErrors.businessType = 'Please select a business type';
+    }
+    if (formData.businessType && !formData.businessSubtype) {
+      newErrors.businessSubtype = 'Please select a specific business category';
     }
     if (!formData.businessEmail.trim()) {
       newErrors.businessEmail = 'Business email is required';
@@ -290,6 +347,35 @@ const Signup = () => {
         </div>
         {errors.businessType && <p className="mt-2 text-sm text-negative-500">{errors.businessType}</p>}
       </div>
+
+      {/* Business Subtype - only show when a type is selected */}
+      {formData.businessType && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            What specific type of {getSelectedBusinessType()?.label.toLowerCase()} is this? <span className="text-negative-500">*</span>
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {getSelectedBusinessType()?.subtypes.map((subtype) => {
+              const isSelected = formData.businessSubtype === subtype.value;
+              return (
+                <button
+                  key={subtype.value}
+                  type="button"
+                  onClick={() => handleSubtypeSelect(subtype.value)}
+                  className={`px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {subtype.label}
+                </button>
+              );
+            })}
+          </div>
+          {errors.businessSubtype && <p className="mt-2 text-sm text-negative-500">{errors.businessSubtype}</p>}
+        </div>
+      )}
 
       {/* Business Email */}
       <div>
@@ -480,6 +566,7 @@ const Signup = () => {
   const renderStep3 = () => {
     const selectedType = getSelectedBusinessType();
     const TypeIcon = selectedType?.icon || Building2;
+    const selectedSubtype = selectedType?.subtypes.find(s => s.value === formData.businessSubtype);
 
     return (
       <div className="space-y-6">
@@ -538,6 +625,10 @@ const Signup = () => {
                   <TypeIcon className="w-3.5 h-3.5" />
                   {selectedType?.label}
                 </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">Category</span>
+                <span className="text-sm font-medium text-gray-900">{selectedSubtype?.label}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-500">Email</span>

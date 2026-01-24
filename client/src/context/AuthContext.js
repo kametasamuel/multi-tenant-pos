@@ -139,6 +139,11 @@ export const AuthProvider = ({ children }) => {
   const canViewAnalytics = () => user?.role === 'ADMIN' || user?.role === 'OWNER' || user?.role === 'MANAGER' || user?.isSuperAdmin;
   const clearError = () => setError(null);
 
+  // Business type helpers for salon/services features
+  const businessType = user?.businessType || null;
+  const isServicesType = () => ['SERVICES', 'SALON'].includes(user?.businessType);
+  const hasStylistFeature = () => isServicesType();
+
   const value = {
     user,
     token,
@@ -151,6 +156,9 @@ export const AuthProvider = ({ children }) => {
     isCashier,
     isSuperAdmin,
     canViewAnalytics,
+    businessType,
+    isServicesType,
+    hasStylistFeature,
     loading,
     isImpersonating,
     error,

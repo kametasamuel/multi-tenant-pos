@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { productsAPI } from '../../api';
+import { productsAPI, IMAGE_BASE_URL } from '../../api';
 import { exportInventory } from '../../utils/exportUtils';
 import {
   Search,
@@ -50,6 +50,13 @@ const ManagerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borde
     lowStockThreshold: '10'
   });
   const [toast, setToast] = useState({ show: false, message: '' });
+  // Image upload state
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [editImageFile, setEditImageFile] = useState(null);
+  const [editImagePreview, setEditImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
+  const editFileInputRef = useRef(null);
 
   const currencySymbol = user?.currencySymbol || '$';
 
@@ -143,6 +150,10 @@ const ManagerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borde
       lowStockThreshold: product.lowStockThreshold || 10,
       expiryDate: product.expiryDate ? new Date(product.expiryDate).toISOString().split('T')[0] : ''
     });
+    // Clear any previous edit image state
+    setEditImageFile(null);
+    setEditImagePreview(null);
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
     setShowEditModal(true);
   };
 
@@ -158,17 +169,36 @@ const ManagerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borde
 
   const saveProductEdit = async () => {
     try {
-      await productsAPI.update(editingProduct.id, {
-        name: editingProduct.name,
-        costPrice: parseFloat(editingProduct.costPrice) || 0,
-        sellingPrice: parseFloat(editingProduct.price),
-        stockQuantity: parseInt(editingProduct.stock) || 0,
-        expiryDate: editingProduct.expiryDate || null,
-        lowStockThreshold: parseInt(editingProduct.lowStockThreshold) || 10,
-        customCategory: editingProduct.customCategory
-      });
+      let updateData;
+      if (editImageFile) {
+        // Use FormData when there's a new image
+        updateData = new FormData();
+        updateData.append('image', editImageFile);
+        updateData.append('name', editingProduct.name);
+        updateData.append('costPrice', editingProduct.costPrice || '0');
+        updateData.append('sellingPrice', editingProduct.price);
+        updateData.append('stockQuantity', editingProduct.stock || '0');
+        if (editingProduct.expiryDate) updateData.append('expiryDate', editingProduct.expiryDate);
+        updateData.append('lowStockThreshold', editingProduct.lowStockThreshold || '10');
+        if (editingProduct.customCategory) updateData.append('customCategory', editingProduct.customCategory);
+      } else {
+        // Use JSON when no image change
+        updateData = {
+          name: editingProduct.name,
+          costPrice: parseFloat(editingProduct.costPrice) || 0,
+          sellingPrice: parseFloat(editingProduct.price),
+          stockQuantity: parseInt(editingProduct.stock) || 0,
+          expiryDate: editingProduct.expiryDate || null,
+          lowStockThreshold: parseInt(editingProduct.lowStockThreshold) || 10,
+          customCategory: editingProduct.customCategory
+        };
+      }
+      await productsAPI.update(editingProduct.id, updateData);
       setShowEditModal(false);
       setEditingProduct(null);
+      setEditImageFile(null);
+      setEditImagePreview(null);
+      if (editFileInputRef.current) editFileInputRef.current.value = '';
       showToast('Product Updated');
       loadProducts();
     } catch (error) {
@@ -440,11 +470,22 @@ const ManagerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                     </div>
                   )}
 
-                  {/* Image Placeholder */}
+                  {/* Product Image */}
                   <div className={`aspect-square ${darkMode ? 'bg-slate-800' : 'bg-slate-50'} rounded-[20px] mb-4 overflow-hidden flex items-center justify-center`}>
+                    {product.image ? (
+                      <img
+                        src={`${IMAGE_BASE_URL}${product.image}`}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'block';
+                        }}
+                      />
+                    ) : null}
                     <div className={`text-6xl grayscale group-hover:grayscale-0 transition-all ${
                       product.type === 'SERVICE' ? 'opacity-50' : ''
-                    }`}>
+                    } ${product.image ? 'hidden' : ''}`}>
                       {product.type === 'SERVICE' ? '✂️' : '📦'}
                     </div>
                   </div>
@@ -548,8 +589,17 @@ const ManagerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                       <tr key={product.id} className={`border-b ${borderClass} last:border-b-0 hover:bg-accent-50 ${darkMode ? 'hover:bg-slate-700/50' : ''}`}>
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} flex items-center justify-center text-xl`}>
-                              {product.type === 'SERVICE' ? '✂️' : '📦'}
+                            <div className={`w-10 h-10 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} flex items-center justify-center text-xl overflow-hidden`}>
+                              {product.image ? (
+                                <img
+                                  src={`${IMAGE_BASE_URL}${product.image}`}
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              ) : (
+                                product.type === 'SERVICE' ? '✂️' : '📦'
+                              )}
                             </div>
                             <div>
                               <p className={textClass}>{product.name}</p>
@@ -656,11 +706,50 @@ const ManagerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borde
             <h2 className={`text-xl font-black uppercase mb-6 ${textClass} text-center`}>Add New Item</h2>
 
             <div className="space-y-4">
-              {/* Image Upload Placeholder */}
-              <div className={`${darkMode ? 'bg-slate-800' : 'bg-slate-50'} border-2 border-dashed ${borderClass} rounded-2xl p-8 text-center cursor-pointer hover:border-accent-500 transition-colors`}>
-                <Image className={`w-8 h-8 mx-auto mb-2 ${mutedClass}`} />
-                <p className={`text-xs font-bold ${mutedClass}`}>Click to upload image</p>
-                <p className={`text-[10px] ${mutedClass}`}>PNG, JPG up to 5MB</p>
+              {/* Image Upload */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                      showToast('Image must be less than 5MB');
+                      return;
+                    }
+                    setImageFile(file);
+                    setImagePreview(URL.createObjectURL(file));
+                  }
+                }}
+              />
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className={`${darkMode ? 'bg-slate-800' : 'bg-slate-50'} border-2 border-dashed ${borderClass} rounded-2xl p-8 text-center cursor-pointer hover:border-accent-500 transition-colors relative overflow-hidden`}
+              >
+                {imagePreview ? (
+                  <>
+                    <img src={imagePreview} alt="Preview" className="w-full h-32 object-contain mx-auto" />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setImageFile(null);
+                        setImagePreview(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="absolute top-2 right-2 p-1 bg-negative-500 text-white rounded-full hover:bg-negative-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Image className={`w-8 h-8 mx-auto mb-2 ${mutedClass}`} />
+                    <p className={`text-xs font-bold ${mutedClass}`}>Click to upload image</p>
+                    <p className={`text-[10px] ${mutedClass}`}>PNG, JPG up to 5MB</p>
+                  </>
+                )}
               </div>
 
               <input
@@ -779,19 +868,38 @@ const ManagerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borde
                     return;
                   }
                   try {
-                    await productsAPI.create({
-                      name: newProduct.name,
-                      category: newProduct.category,
-                      customCategory: newProduct.customCategory || null,
-                      costPrice: newProduct.category === 'SERVICE' ? 0 : (parseFloat(newProduct.costPrice) || 0),
-                      sellingPrice: parseFloat(newProduct.price),
-                      stockQuantity: parseInt(newProduct.stock) || 0,
-                      lowStockThreshold: parseInt(newProduct.lowStockThreshold) || 10,
-                      expiryDate: newProduct.expiryDate || null,
-                      isActive: true
-                    });
+                    // Use FormData if there's an image, otherwise use JSON
+                    let productData;
+                    if (imageFile) {
+                      productData = new FormData();
+                      productData.append('image', imageFile);
+                      productData.append('name', newProduct.name);
+                      productData.append('category', newProduct.category);
+                      if (newProduct.customCategory) productData.append('customCategory', newProduct.customCategory);
+                      productData.append('costPrice', newProduct.category === 'SERVICE' ? '0' : (newProduct.costPrice || '0'));
+                      productData.append('sellingPrice', newProduct.price);
+                      productData.append('stockQuantity', newProduct.stock || '0');
+                      productData.append('lowStockThreshold', newProduct.lowStockThreshold || '10');
+                      if (newProduct.expiryDate) productData.append('expiryDate', newProduct.expiryDate);
+                    } else {
+                      productData = {
+                        name: newProduct.name,
+                        category: newProduct.category,
+                        customCategory: newProduct.customCategory || null,
+                        costPrice: newProduct.category === 'SERVICE' ? 0 : (parseFloat(newProduct.costPrice) || 0),
+                        sellingPrice: parseFloat(newProduct.price),
+                        stockQuantity: parseInt(newProduct.stock) || 0,
+                        lowStockThreshold: parseInt(newProduct.lowStockThreshold) || 10,
+                        expiryDate: newProduct.expiryDate || null,
+                        isActive: true
+                      };
+                    }
+                    await productsAPI.create(productData);
                     setShowAddModal(false);
                     setNewProduct({ name: '', category: 'PRODUCT', customCategory: '', costPrice: '', price: '', stock: '', expiryDate: '', lowStockThreshold: '10' });
+                    setImageFile(null);
+                    setImagePreview(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
                     showToast('Item Added');
                     loadProducts();
                   } catch (error) {
@@ -824,6 +932,59 @@ const ManagerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borde
             <h2 className={`text-xl font-black uppercase mb-6 ${textClass} text-center`}>Edit Item</h2>
 
             <div className="space-y-4">
+              {/* Image Upload for Edit */}
+              <input
+                type="file"
+                ref={editFileInputRef}
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                      showToast('Image must be less than 5MB');
+                      return;
+                    }
+                    setEditImageFile(file);
+                    setEditImagePreview(URL.createObjectURL(file));
+                  }
+                }}
+              />
+              <div
+                onClick={() => editFileInputRef.current?.click()}
+                className={`${darkMode ? 'bg-slate-800' : 'bg-slate-50'} border-2 border-dashed ${borderClass} rounded-2xl p-4 text-center cursor-pointer hover:border-accent-500 transition-colors relative overflow-hidden`}
+              >
+                {editImagePreview || editingProduct.image ? (
+                  <>
+                    <img
+                      src={editImagePreview || `${IMAGE_BASE_URL}${editingProduct.image}`}
+                      alt="Product"
+                      className="w-full h-32 object-contain mx-auto"
+                    />
+                    <p className={`text-[10px] ${mutedClass} mt-2`}>Click to change image</p>
+                    {(editImagePreview || editImageFile) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditImageFile(null);
+                          setEditImagePreview(null);
+                          if (editFileInputRef.current) editFileInputRef.current.value = '';
+                        }}
+                        className="absolute top-2 right-2 p-1 bg-negative-500 text-white rounded-full hover:bg-negative-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Image className={`w-8 h-8 mx-auto mb-2 ${mutedClass}`} />
+                    <p className={`text-xs font-bold ${mutedClass}`}>Click to upload image</p>
+                    <p className={`text-[10px] ${mutedClass}`}>PNG, JPG up to 5MB</p>
+                  </>
+                )}
+              </div>
+
               <input
                 type="text"
                 placeholder="Product Name"

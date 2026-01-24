@@ -84,6 +84,14 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
           isActive: true,
           createdAt: true,
           branchId: true,
+          phone: true,
+          email: true,
+          address: true,
+          gender: true,
+          dateOfBirth: true,
+          // ATTENDANT-specific fields
+          specialty: true,
+          commissionRate: true,
           branch: {
             select: {
               id: true,
@@ -112,31 +120,49 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-// Create user (Admin/Manager - Managers can only create CASHIER role)
-router.post('/', authenticate, requireAdmin, validateCreateUser, async (req, res) => {
+// Create user (Admin/Manager - Managers can only create CASHIER/ATTENDANT role)
+router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { username, password, fullName, role, branchId } = req.body;
+    const { username, password, fullName, role, branchId, phone, email, gender, dateOfBirth, specialty, commissionRate } = req.body;
 
-    // Managers can only create CASHIER role
+    // Validate required fields
+    if (!fullName || !fullName.trim()) {
+      return res.status(400).json({ error: 'Full name is required' });
+    }
+
+    // Managers can only create CASHIER or ATTENDANT role
     if (req.user.role === 'MANAGER') {
-      if (role !== 'CASHIER') {
-        return res.status(403).json({ error: 'Managers can only create cashier accounts' });
+      if (role !== 'CASHIER' && role !== 'ATTENDANT') {
+        return res.status(403).json({ error: 'Managers can only create cashier or attendant accounts' });
       }
     }
 
-    // Check if username already exists for this tenant
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        username: {
-          equals: username,
-          mode: 'insensitive'
-        },
-        tenantId: req.tenantId
-      }
-    });
+    // ATTENDANT role doesn't require username/password
+    const isAttendant = role === 'ATTENDANT';
 
-    if (existingUser) {
-      return res.status(400).json({ error: 'Username already exists in this business' });
+    // For non-attendants, username and password are required
+    if (!isAttendant) {
+      if (!username || !username.trim()) {
+        return res.status(400).json({ error: 'Username is required' });
+      }
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+      }
+
+      // Check if username already exists for this tenant
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          username: {
+            equals: username.trim(),
+            mode: 'insensitive'
+          },
+          tenantId: req.tenantId
+        }
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: 'Username already exists in this business' });
+      }
     }
 
     // Determine branch assignment
@@ -149,18 +175,32 @@ router.post('/', authenticate, requireAdmin, validateCreateUser, async (req, res
       assignedBranchId = branchId || req.branchId || null;
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Prepare user data
+    const userData = {
+      fullName: fullName.trim(),
+      role,
+      branchId: assignedBranchId,
+      tenantId: req.tenantId,
+      phone: phone || null,
+      email: email || null,
+      gender: gender || null,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null
+    };
+
+    // Add username/password for non-attendants
+    if (!isAttendant) {
+      userData.username = username.trim();
+      userData.password = await bcrypt.hash(password, 10);
+    }
+
+    // Add ATTENDANT-specific fields
+    if (isAttendant) {
+      userData.specialty = specialty || null;
+      userData.commissionRate = commissionRate ? parseFloat(commissionRate) : 0;
+    }
 
     const user = await prisma.user.create({
-      data: {
-        username,
-        password: hashedPassword,
-        fullName,
-        role,
-        branchId: assignedBranchId,
-        tenantId: req.tenantId
-      },
+      data: userData,
       select: {
         id: true,
         username: true,
@@ -169,6 +209,13 @@ router.post('/', authenticate, requireAdmin, validateCreateUser, async (req, res
         role: true,
         isActive: true,
         branchId: true,
+        phone: true,
+        email: true,
+        address: true,
+        gender: true,
+        dateOfBirth: true,
+        specialty: true,
+        commissionRate: true,
         branch: {
           select: {
             id: true,
@@ -178,7 +225,22 @@ router.post('/', authenticate, requireAdmin, validateCreateUser, async (req, res
       }
     });
 
-    await logAudit(req.tenantId, req.user.id, 'user_created', `Created user: ${username} (${role})`, {
+    // For ATTENDANT users, also create a linked Attendant record for POS compatibility
+    if (isAttendant) {
+      await prisma.attendant.create({
+        data: {
+          fullName: fullName.trim(),
+          phone: phone || null,
+          email: email || null,
+          specialty: specialty || null,
+          commissionRate: commissionRate ? parseFloat(commissionRate) : 0,
+          branchId: assignedBranchId,
+          tenantId: req.tenantId
+        }
+      });
+    }
+
+    await logAudit(req.tenantId, req.user.id, 'user_created', `Created ${role.toLowerCase()}: ${fullName}`, {
       userId: user.id,
       role,
       branchId: assignedBranchId
@@ -194,7 +256,7 @@ router.post('/', authenticate, requireAdmin, validateCreateUser, async (req, res
 // Update user (Admin only)
 router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { fullName, role, isActive, password } = req.body;
+    const { fullName, role, isActive, password, phone, email, address, gender, dateOfBirth, specialty, commissionRate } = req.body;
 
     const user = await prisma.user.findFirst({
       where: {
@@ -211,9 +273,17 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
     if (fullName !== undefined) updateData.fullName = fullName;
     if (role !== undefined) updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
-    if (password !== undefined) {
+    if (phone !== undefined) updateData.phone = phone || null;
+    if (email !== undefined) updateData.email = email || null;
+    if (address !== undefined) updateData.address = address || null;
+    if (gender !== undefined) updateData.gender = gender || null;
+    if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+    if (password !== undefined && password.length >= 6) {
       updateData.password = await bcrypt.hash(password, 10);
     }
+    // ATTENDANT-specific fields
+    if (specialty !== undefined) updateData.specialty = specialty || null;
+    if (commissionRate !== undefined) updateData.commissionRate = commissionRate ? parseFloat(commissionRate) : null;
 
     const updatedUser = await prisma.user.update({
       where: { id: req.params.id },
@@ -226,6 +296,13 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
         role: true,
         isActive: true,
         branchId: true,
+        phone: true,
+        email: true,
+        address: true,
+        gender: true,
+        dateOfBirth: true,
+        specialty: true,
+        commissionRate: true,
         branch: {
           select: {
             id: true,
@@ -235,7 +312,7 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
       }
     });
 
-    await logAudit(req.tenantId, req.user.id, 'user_updated', `Updated user: ${user.username}`, {
+    await logAudit(req.tenantId, req.user.id, 'user_updated', `Updated user: ${user.fullName}`, {
       userId: user.id,
       changes: Object.keys(updateData)
     });

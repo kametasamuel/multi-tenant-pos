@@ -32,7 +32,9 @@ import {
   Lock,
   KeyRound,
   Sparkles,
-  Info
+  Info,
+  Briefcase,
+  UserCog
 } from 'lucide-react';
 
 const ManagerLayout = ({ children }) => {
@@ -193,12 +195,17 @@ const ManagerLayout = ({ children }) => {
 
   const isActive = (path) => location.pathname === path;
 
+  // Check if this is a services-type business
+  const isServicesType = ['SERVICES', 'SALON'].includes(user?.businessType);
+
   const navLinks = [
     { path: `/${tenantSlug}/manager/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
-    { path: `/${tenantSlug}/manager/employees`, label: 'Workers', icon: Users },
+    { path: `/${tenantSlug}/manager/employees`, label: 'Staff', icon: Users },
+    // Commission Tracking - only for SERVICES/SALON business types
+    ...(isServicesType ? [{ path: `/${tenantSlug}/manager/attendants`, label: 'Commission', icon: UserCog }] : []),
     { path: `/${tenantSlug}/manager/customers`, label: 'Customers', icon: UserCheck },
     { path: `/${tenantSlug}/manager/sales`, label: 'Shift Revenue', icon: BarChart3 },
-    { path: `/${tenantSlug}/manager/inventory`, label: 'Inventory', icon: Package },
+    { path: `/${tenantSlug}/manager/inventory`, label: isServicesType ? 'Services' : 'Inventory', icon: isServicesType ? Briefcase : Package },
     { path: `/${tenantSlug}/manager/requests`, label: 'Security Requests', icon: Bell },
     { path: `/${tenantSlug}/manager/expenses`, label: 'Expenses', icon: Wallet }
   ];

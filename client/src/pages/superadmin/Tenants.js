@@ -45,8 +45,83 @@ import {
   ArrowUpRight,
   Layers,
   Globe,
-  Trash2
+  Trash2,
+  Store,
+  Utensils,
+  Hotel,
+  Briefcase,
+  Filter
 } from 'lucide-react';
+
+// Business type configuration with icons and subtypes
+const BUSINESS_TYPES = {
+  RETAIL: {
+    label: 'Retail',
+    icon: Store,
+    color: 'bg-blue-500',
+    subtypes: {
+      grocery: 'Grocery Store',
+      electronics: 'Electronics',
+      clothing: 'Clothing & Fashion',
+      pharmacy: 'Pharmacy',
+      supermarket: 'Supermarket',
+      convenience: 'Convenience Store',
+      hardware: 'Hardware Store',
+      cosmetics: 'Cosmetics & Beauty',
+      general: 'General Merchandise',
+      other_retail: 'Other Retail'
+    }
+  },
+  FOOD_AND_BEVERAGE: {
+    label: 'Food & Beverage',
+    icon: Utensils,
+    color: 'bg-orange-500',
+    subtypes: {
+      restaurant: 'Restaurant',
+      cafe: 'Cafe / Coffee Shop',
+      fast_food: 'Fast Food / QSR',
+      bar: 'Bar / Lounge',
+      bakery: 'Bakery',
+      food_truck: 'Food Truck',
+      catering: 'Catering Service',
+      juice_bar: 'Juice Bar / Smoothies',
+      other_food: 'Other Food & Beverage'
+    }
+  },
+  HOSPITALITY: {
+    label: 'Hospitality',
+    icon: Hotel,
+    color: 'bg-purple-500',
+    subtypes: {
+      hotel: 'Hotel',
+      lodge: 'Lodge',
+      guest_house: 'Guest House',
+      hostel: 'Hostel',
+      resort: 'Resort',
+      vacation_rental: 'Vacation Rental',
+      motel: 'Motel',
+      bnb: 'Bed & Breakfast',
+      other_hospitality: 'Other Hospitality'
+    }
+  },
+  SERVICES: {
+    label: 'Services',
+    icon: Briefcase,
+    color: 'bg-emerald-500',
+    subtypes: {
+      salon: 'Salon / Barbershop',
+      spa: 'Spa & Wellness',
+      auto_repair: 'Auto Repair / Garage',
+      laundry: 'Laundry / Dry Cleaning',
+      cleaning: 'Cleaning Services',
+      consulting: 'Consulting / Professional',
+      repair: 'Repair Services',
+      tutoring: 'Tutoring / Education',
+      fitness: 'Fitness / Gym',
+      other_services: 'Other Services'
+    }
+  }
+};
 
 const Tenants = ({
   darkMode = false,
@@ -85,16 +160,19 @@ const Tenants = ({
     total: 0,
     active: 0,
     inactive: 0,
-    expiringWeek: 0
+    expiringWeek: 0,
+    byType: {}
   });
+  const [showTypeFilter, setShowTypeFilter] = useState(false);
 
   const currentStatus = searchParams.get('status') || 'all';
   const currentPage = parseInt(searchParams.get('page')) || 1;
+  const currentBusinessType = searchParams.get('businessType') || 'all';
   const tenantIdParam = searchParams.get('id');
 
   useEffect(() => {
     fetchTenants();
-  }, [currentStatus, currentPage]);
+  }, [currentStatus, currentPage, currentBusinessType]);
 
   // Auto-open tenant detail if ID is in URL
   useEffect(() => {
@@ -129,6 +207,9 @@ const Tenants = ({
       if (currentStatus !== 'all') {
         params.status = currentStatus;
       }
+      if (currentBusinessType !== 'all') {
+        params.businessType = currentBusinessType;
+      }
       if (searchTerm) {
         params.search = searchTerm;
       }
@@ -142,6 +223,13 @@ const Tenants = ({
       const now = new Date();
       const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
+      // Calculate stats by business type
+      const byType = allTenants.reduce((acc, t) => {
+        const type = t.businessType || 'RETAIL';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {});
+
       setStats({
         total: allTenants.length,
         active: allTenants.filter(t => t.isActive).length,
@@ -149,7 +237,8 @@ const Tenants = ({
         expiringWeek: allTenants.filter(t => {
           const endDate = new Date(t.subscriptionEnd || t.subscriptionEndDate);
           return endDate > now && endDate <= weekFromNow;
-        }).length
+        }).length,
+        byType
       });
     } catch (err) {
       setError('Failed to load tenants');
@@ -274,6 +363,26 @@ const Tenants = ({
     }
     searchParams.set('page', '1');
     setSearchParams(searchParams);
+  };
+
+  const handleBusinessTypeFilter = (type) => {
+    if (type === 'all') {
+      searchParams.delete('businessType');
+    } else {
+      searchParams.set('businessType', type);
+    }
+    searchParams.set('page', '1');
+    setSearchParams(searchParams);
+    setShowTypeFilter(false);
+  };
+
+  const getBusinessTypeInfo = (tenant) => {
+    const type = tenant.businessType || 'RETAIL';
+    const typeConfig = BUSINESS_TYPES[type] || BUSINESS_TYPES.RETAIL;
+    const subtypeLabel = tenant.businessSubtype
+      ? (typeConfig.subtypes[tenant.businessSubtype] || tenant.businessSubtype)
+      : null;
+    return { type, typeConfig, subtypeLabel };
   };
 
   const handlePageChange = (page) => {
@@ -538,20 +647,67 @@ const Tenants = ({
         </div>
       )}
 
-      {/* Search */}
+      {/* Search and Filters */}
       <div className={`${surfaceClass} rounded-2xl p-4 border ${borderClass}`}>
-        <form onSubmit={handleSearch}>
+        <div className="flex flex-col md:flex-row gap-4">
+          <form onSubmit={handleSearch} className="flex-1">
+            <div className="relative">
+              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedClass}`} />
+              <input
+                type="text"
+                placeholder="Search by business name, email, or industry..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full pl-10 pr-4 py-2 rounded-xl border ${borderClass} ${surfaceClass} ${textClass} text-sm`}
+              />
+            </div>
+          </form>
+
+          {/* Business Type Filter */}
           <div className="relative">
-            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${mutedClass}`} />
-            <input
-              type="text"
-              placeholder="Search by business name, email, or industry..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full pl-10 pr-4 py-2 rounded-xl border ${borderClass} ${surfaceClass} ${textClass} text-sm`}
-            />
+            <button
+              onClick={() => setShowTypeFilter(!showTypeFilter)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${borderClass} ${surfaceClass} ${textClass} text-sm font-medium hover:bg-slate-50`}
+            >
+              <Filter className="w-4 h-4" />
+              {currentBusinessType === 'all' ? 'All Types' : BUSINESS_TYPES[currentBusinessType]?.label || 'All Types'}
+              <ChevronDown className={`w-4 h-4 transition-transform ${showTypeFilter ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showTypeFilter && (
+              <div className={`absolute right-0 mt-2 w-56 ${surfaceClass} rounded-xl border ${borderClass} shadow-lg z-50`}>
+                <div className="p-2">
+                  <button
+                    onClick={() => handleBusinessTypeFilter('all')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                      currentBusinessType === 'all' ? 'bg-indigo-50 text-indigo-600' : `${textClass} hover:bg-slate-50`
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span className="flex-1 text-left">All Types</span>
+                    <span className={`text-xs ${mutedClass}`}>{stats.total}</span>
+                  </button>
+                  {Object.entries(BUSINESS_TYPES).map(([key, config]) => {
+                    const Icon = config.icon;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleBusinessTypeFilter(key)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                          currentBusinessType === key ? 'bg-indigo-50 text-indigo-600' : `${textClass} hover:bg-slate-50`
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="flex-1 text-left">{config.label}</span>
+                        <span className={`text-xs ${mutedClass}`}>{stats.byType[key] || 0}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
-        </form>
+        </div>
       </div>
 
       {/* Error */}
@@ -599,8 +755,17 @@ const Tenants = ({
                           )}
                           <div>
                             <p className={`text-sm font-bold ${textClass}`}>{tenant.businessName}</p>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-xs ${mutedClass} capitalize`}>{tenant.businessType?.toLowerCase() || 'retail'}</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {(() => {
+                                const { typeConfig, subtypeLabel } = getBusinessTypeInfo(tenant);
+                                const TypeIcon = typeConfig.icon;
+                                return (
+                                  <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${typeConfig.color} text-white`}>
+                                    <TypeIcon className="w-3 h-3" />
+                                    {subtypeLabel || typeConfig.label}
+                                  </span>
+                                );
+                              })()}
                               <span className={`text-xs px-1.5 py-0.5 rounded ${darkMode ? 'bg-slate-600' : 'bg-slate-200'} font-mono`}>
                                 {tenant.currencySymbol || '$'}{tenant.currency || 'USD'}
                               </span>

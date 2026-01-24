@@ -69,6 +69,12 @@ const ActivityLogs = ({ darkMode, surfaceClass, textClass, mutedClass, borderCla
     }
   };
 
+  // Filter out login-related actions
+  const isLoginAction = (action) => {
+    const loginActions = ['LOGIN', 'USER_LOGIN', 'LOGOUT', 'USER_LOGOUT', 'AUTH', 'SESSION_START', 'SESSION_END'];
+    return loginActions.some(la => action?.toUpperCase().includes(la));
+  };
+
   const loadLogs = async () => {
     try {
       setLoading(true);
@@ -89,13 +95,24 @@ const ActivityLogs = ({ darkMode, surfaceClass, textClass, mutedClass, borderCla
       });
 
       const response = await ownerAPI.getActivity(params);
-      setLogs(response.data.logs || []);
+      const allLogs = response.data.logs || [];
+      const allActionCounts = response.data.actionCounts || [];
+
+      // Filter out login activities to reduce noise, but only if there are other activities
+      const nonLoginLogs = allLogs.filter(log => !isLoginAction(log.action));
+      const nonLoginActionCounts = allActionCounts.filter(item => !isLoginAction(item.action));
+
+      // If filtering would leave no results, show all logs
+      const finalLogs = nonLoginLogs.length > 0 ? nonLoginLogs : allLogs;
+      const finalActionCounts = nonLoginActionCounts.length > 0 ? nonLoginActionCounts : allActionCounts;
+
+      setLogs(finalLogs);
       setPagination(prev => ({
         ...prev,
         total: response.data.pagination?.total || 0,
         pages: response.data.pagination?.pages || 0
       }));
-      setActionCounts(response.data.actionCounts || []);
+      setActionCounts(finalActionCounts);
     } catch (error) {
       console.error('Failed to load logs:', error);
     } finally {
@@ -141,17 +158,21 @@ const ActivityLogs = ({ darkMode, surfaceClass, textClass, mutedClass, borderCla
   };
 
   const getActionStyle = (action) => {
-    if (action.includes('void') || action.includes('delete')) {
+    const actionLower = action?.toLowerCase() || '';
+    if (actionLower.includes('void') || actionLower.includes('delete')) {
       return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
     }
-    if (action.includes('create') || action.includes('add')) {
+    if (actionLower.includes('create') || actionLower.includes('add') || actionLower.includes('sale')) {
       return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
     }
-    if (action.includes('update') || action.includes('edit')) {
+    if (actionLower.includes('update') || actionLower.includes('edit')) {
       return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
     }
-    if (action.includes('login') || action.includes('auth')) {
+    if (actionLower.includes('login') || actionLower.includes('auth') || actionLower.includes('logout')) {
       return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+    }
+    if (actionLower.includes('transfer') || actionLower.includes('adjust')) {
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
     }
     return 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300';
   };

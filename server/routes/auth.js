@@ -189,6 +189,7 @@ router.post('/login', validateLogin, async (req, res) => {
         currency: user.tenant?.currency || 'USD',
         currencySymbol: user.tenant?.currencySymbol || '$',
         taxRate: user.tenant?.taxRate || 0,
+        businessType: user.tenant?.businessType || null,
         branchId: user.branchId,
         branchName: user.branch?.name || null
       }
@@ -214,6 +215,7 @@ router.get('/me', authenticate, async (req, res) => {
           select: {
             businessName: true,
             businessLogo: true,
+            businessType: true,
             slug: true,
             subscriptionEnd: true,
             currency: true,
@@ -238,6 +240,7 @@ router.get('/me', authenticate, async (req, res) => {
       currency: user.tenant?.currency || 'USD',
       currencySymbol: user.tenant?.currencySymbol || '$',
       taxRate: user.tenant?.taxRate || 0,
+      businessType: user.tenant?.businessType || null,
       branchId: user.branchId,
       branchName: user.branch?.name || null
     } });

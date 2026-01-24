@@ -144,6 +144,10 @@ const Applications = ({
       setSlugStatus({ checking: false, available: null, error: 'Slug must be at most 30 characters' });
       return;
     }
+    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slugValue) && slugValue.length >= 3) {
+      setSlugStatus({ checking: false, available: null, error: 'Must start and end with letter/number, only hyphens in between' });
+      return;
+    }
     if (!/^[a-z0-9-]+$/.test(slugValue)) {
       setSlugStatus({ checking: false, available: null, error: 'Only lowercase letters, numbers, and hyphens allowed' });
       return;
@@ -705,7 +709,7 @@ const Applications = ({
                     </div>
                     <div>
                       <p className={`text-xs ${mutedClass}`}>Subscription Ends</p>
-                      <p className={`text-sm ${textClass}`}>{formatDate(selectedApp.tenant.subscriptionEndDate)}</p>
+                      <p className={`text-sm ${textClass}`}>{formatDate(selectedApp.tenant.subscriptionEnd)}</p>
                     </div>
                   </div>
                 </div>

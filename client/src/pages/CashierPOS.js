@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { productsAPI, salesAPI, customersAPI, usersAPI, securityRequestsAPI } from '../api';
+import { productsAPI, salesAPI, customersAPI, usersAPI, securityRequestsAPI, attendantsAPI } from '../api';
 import {
   Search,
   Sun,
@@ -22,7 +22,7 @@ import {
   HelpCircle,
   CheckCircle,
   Package,
-  Scissors,
+  UserCog,
   Store,
   Phone,
   Mail,
@@ -73,8 +73,8 @@ const CashierPOS = ({
   const [lowStockItems, setLowStockItems] = useState([]);
   const [todaySales, setTodaySales] = useState([]);
 
-  // Workers/Stylists state
-  const [workers, setWorkers] = useState([]);
+  // Attendants state (for service assignment)
+  const [attendants, setAttendants] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
   const [sendingRequest, setSendingRequest] = useState(false);
   // Request tracking: { saleId: { type: 'void'|'review', status: 'pending'|'approved', reason: '' } }
@@ -132,7 +132,7 @@ const CashierPOS = ({
   useEffect(() => {
     loadProducts();
     loadTodaySales();
-    loadWorkers();
+    loadAttendants();
     loadSecurityRequests();
   }, []);
 
@@ -189,14 +189,12 @@ const CashierPOS = ({
     }
   };
 
-  const loadWorkers = async () => {
+  const loadAttendants = async () => {
     try {
-      const response = await usersAPI.getAll();
-      // Filter only active workers (cashiers) for stylist selection
-      const activeWorkers = (response.data.users || []).filter(u => u.isActive);
-      setWorkers(activeWorkers);
+      const response = await attendantsAPI.getAll({ isActive: 'true' });
+      setAttendants(response.data.attendants || []);
     } catch (error) {
-      console.error('Error loading workers:', error);
+      console.error('Error loading attendants:', error);
     }
   };
 
@@ -435,10 +433,10 @@ const CashierPOS = ({
     });
   };
 
-  // Update stylist for a cart item (service only)
-  const updateStylist = (index, worker) => {
+  // Update attendant for a cart item (service only)
+  const updateAttendant = (index, attendant) => {
     setCart(prev => prev.map((item, i) =>
-      i === index ? { ...item, stylist: worker } : item
+      i === index ? { ...item, attendant: attendant } : item
     ));
   };
 
@@ -623,7 +621,7 @@ const CashierPOS = ({
           quantity: item.qty,
           unitPrice: item.sellingPrice,
           discount: 0,
-          stylistId: item.stylist?.id || null
+          attendantId: item.attendant?.id || null
         })),
         paymentMethod: methodMap[primaryMethod] || 'CASH',
         customerId: selectedCustomer?.id || null,
@@ -701,7 +699,7 @@ const CashierPOS = ({
       name: item.product?.name || 'Item',
       qty: item.quantity,
       sellingPrice: item.unitPrice || item.product?.sellingPrice || 0,
-      stylist: item.worker || null
+      attendant: item.attendant || null
     }));
 
     const subtotal = items.reduce((sum, item) => sum + (item.sellingPrice * item.qty), 0);
@@ -903,7 +901,7 @@ const CashierPOS = ({
                   >
                     <div className={`aspect-square ${bgClass} rounded-lg sm:rounded-xl mb-1.5 sm:mb-2 flex items-center justify-center`}>
                       {product.type === 'SERVICE' ? (
-                        <Scissors className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} group-hover:text-accent-500`} />
+                        <UserCog className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} group-hover:text-accent-500`} />
                       ) : (
                         <Package className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} group-hover:text-accent-500`} />
                       )}
@@ -1403,21 +1401,21 @@ const CashierPOS = ({
                                 </span>
                               </div>
                             </div>
-                            {/* Stylist Selection for Services */}
-                            {item.type === 'SERVICE' && workers.length > 0 && (
+                            {/* Attendant Selection for Services - Only show for SERVICES/SALON business type */}
+                            {item.type === 'SERVICE' && attendants.length > 0 && ['SERVICES', 'SALON'].includes(user?.businessType) && (
                               <div className="mt-1.5 flex items-center gap-2">
-                                <Users className={`w-3 h-3 ${mutedClass}`} />
+                                <UserCog className={`w-3 h-3 ${mutedClass}`} />
                                 <select
-                                  value={item.stylist?.id || ''}
+                                  value={item.attendant?.id || ''}
                                   onChange={(e) => {
-                                    const worker = workers.find(w => w.id === e.target.value);
-                                    updateStylist(idx, worker || null);
+                                    const attendant = attendants.find(a => a.id === e.target.value);
+                                    updateAttendant(idx, attendant || null);
                                   }}
                                   className={`flex-1 text-[9px] py-1 px-2 rounded-md ${bgClass} border ${borderClass} ${textClass} focus:outline-none focus:border-accent-500`}
                                 >
-                                  <option value="">Select stylist...</option>
-                                  {workers.map(w => (
-                                    <option key={w.id} value={w.id}>{w.fullName}</option>
+                                  <option value="">Select attendant (optional)...</option>
+                                  {attendants.map(a => (
+                                    <option key={a.id} value={a.id}>{a.fullName}</option>
                                   ))}
                                 </select>
                               </div>
@@ -1807,8 +1805,8 @@ const CashierPOS = ({
                           <td className="py-1.5 text-left">{item.qty}</td>
                           <td className="py-1.5 text-left">
                             <span className={textClass}>{item.name}</span>
-                            {item.stylist && (
-                              <span className={`block text-[7px] ${mutedClass}`}>by {item.stylist.fullName}</span>
+                            {item.attendant && (
+                              <span className={`block text-[7px] ${mutedClass}`}>by {item.attendant.fullName}</span>
                             )}
                           </td>
                           <td className="py-1.5 text-right">{formatCurrency(item.sellingPrice)}</td>
@@ -2300,8 +2298,8 @@ const CashierPOS = ({
                       <td className="py-1.5 text-left">{item.qty}</td>
                       <td className="py-1.5 text-left">
                         <span className={textClass}>{item.name}</span>
-                        {item.stylist && (
-                          <span className={`block text-[7px] ${mutedClass}`}>by {item.stylist.fullName}</span>
+                        {item.attendant && (
+                          <span className={`block text-[7px] ${mutedClass}`}>by {item.attendant.fullName}</span>
                         )}
                       </td>
                       <td className="py-1.5 text-right">{formatCurrency(item.sellingPrice)}</td>
