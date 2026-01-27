@@ -2448,9 +2448,26 @@ const CashierPOS = ({
                     </div>
                   )}
 
-                  {/* Fixed Total */}
+                  {/* Fixed Total with Tax Breakdown */}
                   <div className={`pt-2 sm:pt-3 mt-2 sm:mt-3 border-t ${borderClass}`}>
-                    <div className="flex justify-between items-end">
+                    {/* Subtotal */}
+                    <div className="flex justify-between items-center mb-1">
+                      <span className={`text-[9px] font-bold uppercase ${mutedClass}`}>Subtotal</span>
+                      <span className={`text-[11px] font-bold ${textClass}`}>
+                        {formatCurrency(getSubtotal())}
+                      </span>
+                    </div>
+                    {/* Tax - only show if there's a tax rate */}
+                    {user?.taxRate > 0 && (
+                      <div className="flex justify-between items-center mb-1">
+                        <span className={`text-[9px] font-bold uppercase ${mutedClass}`}>Tax ({(user.taxRate * 100).toFixed(0)}%)</span>
+                        <span className={`text-[11px] font-bold ${textClass}`}>
+                          {formatCurrency(getSubtotal() * user.taxRate)}
+                        </span>
+                      </div>
+                    )}
+                    {/* Total */}
+                    <div className="flex justify-between items-end pt-1">
                       <span className={`text-[9px] sm:text-[10px] font-black uppercase ${mutedClass} leading-none`}>Total</span>
                       <span className="text-lg sm:text-xl font-black text-accent-500 leading-none">
                         {formatCurrency(getCartTotal())}
