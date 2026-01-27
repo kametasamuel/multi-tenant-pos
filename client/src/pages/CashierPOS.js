@@ -380,7 +380,12 @@ const CashierPOS = ({
           cart,
           customer: selectedCustomer,
           discount: 0,
-          paymentMethod: selectedPayment
+          paymentMethod: selectedPayment,
+          // Restaurant-specific state
+          selectedTable: isRestaurant ? selectedTable : null,
+          activeOrder: isRestaurant ? activeOrder : null,
+          orderType: isRestaurant ? orderType : null,
+          orderNotes: isRestaurant ? orderNotes : null
         }).catch(err => console.error('Error saving draft:', err));
       } else {
         // Clear draft when cart is empty
@@ -389,7 +394,7 @@ const CashierPOS = ({
     }, 1000); // Save after 1 second of no changes
 
     return () => clearTimeout(saveTimer);
-  }, [cart, selectedCustomer, selectedPayment, saveDraft, clearDraft]);
+  }, [cart, selectedCustomer, selectedPayment, selectedTable, activeOrder, orderType, orderNotes, isRestaurant, saveDraft, clearDraft]);
 
   // Check for low stock items when products load
   useEffect(() => {
@@ -4204,6 +4209,19 @@ const CashierPOS = ({
             }
             if (draftData.paymentMethod) {
               setSelectedPayment(draftData.paymentMethod);
+            }
+            // Restore restaurant-specific state
+            if (draftData.selectedTable) {
+              setSelectedTable(draftData.selectedTable);
+            }
+            if (draftData.activeOrder) {
+              setActiveOrder(draftData.activeOrder);
+            }
+            if (draftData.orderType) {
+              setOrderType(draftData.orderType);
+            }
+            if (draftData.orderNotes) {
+              setOrderNotes(draftData.orderNotes);
             }
             // Clear the draft from storage after restoring
             await clearDraft();
