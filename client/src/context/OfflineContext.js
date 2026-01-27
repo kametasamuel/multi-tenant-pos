@@ -120,7 +120,12 @@ export const OfflineProvider = ({ children }) => {
         customer: cartData.customer,
         discount: cartData.discount,
         paymentMethod: cartData.paymentMethod,
-        tenantId: user?.tenantId
+        tenantId: user?.tenantId,
+        // Restaurant-specific state
+        selectedTable: cartData.selectedTable || null,
+        activeOrder: cartData.activeOrder || null,
+        orderType: cartData.orderType || null,
+        orderNotes: cartData.orderNotes || null
       });
       setHasDraftTransaction(true);
     } catch (error) {
