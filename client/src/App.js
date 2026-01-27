@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { OfflineProvider } from './context/OfflineContext';
 import TenantRoutes from './components/TenantRoutes';
 import Signup from './pages/Signup';
 import ApplicationStatus from './pages/ApplicationStatus';
@@ -107,7 +108,9 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <AppRoutes />
+        <OfflineProvider>
+          <AppRoutes />
+        </OfflineProvider>
       </AuthProvider>
     </Router>
   );

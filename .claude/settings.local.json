@@ -50,7 +50,28 @@
       "Bash(timeout:*)",
       "Bash(curl:*)",
       "Bash(source /tmp/test_tokens.sh)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3YzY0Y2I2My00MTJmLTQ3YjAtOGY0MS00OWEzM2Q5MmFlOTciLCJ0ZW5hbnRJZCI6IjQ5NTBlZTA1LTUzODItNGI3Ny05ZjAyLWFmYTVkYWJhZTUyMCIsInJvbGUiOiJPV05FUiIsInVzZXJuYW1lIjoiZWxlY293bmVyIiwiaXNTdXBlckFkbWluIjpmYWxzZSwiaWF0IjoxNzY5MjAxNjExLCJleHAiOjE3NjkyMzA0MTF9.AKonU1UFpk7mAIHmD5yPhktM2BzZ1E8rriJQVsICIi0\")",
+      "Bash(__NEW_LINE_7ef6fb45d3732dc4__ echo \"=== Testing Returns List ===\")",
+      "Bash(__NEW_LINE_4bd7c525367615c0__ echo -e \"\\\\n\\\\n=== Testing Returns by Sale ID ===\")",
+      "Bash(tasklist:*)",
+      "Bash(SUPERADMIN_TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIwYjc5MGJkMS1kZWZkLTQ4OWItYTYyYi1kZjJlMDA1MjMzYmUiLCJ0ZW5hbnRJZCI6ImVlZThmNzI0LTg2ZTktNGY4MC05ZjEzLWI5YzU5OGVkM2RiYSIsInJvbGUiOiJBRE1JTiIsInVzZXJuYW1lIjoic3VwZXJhZG1pbiIsImlzU3VwZXJBZG1pbiI6dHJ1ZSwiaWF0IjoxNzY5MjA2MTkwLCJleHAiOjE3NjkyMzQ5OTB9.lRj5f8wtCay99Vw5SPD_YXmDt2xGs_-9H-apZOEXrgI\" echo \"=== Testing SuperAdmin Dashboard Stats ===\" curl -s http://localhost:5000/api/super-admin/stats -H \"Authorization: Bearer $SUPERADMIN_TOKEN\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIwYjc5MGJkMS1kZWZkLTQ4OWItYTYyYi1kZjJlMDA1MjMzYmUiLCJ0ZW5hbnRJZCI6ImVlZThmNzI0LTg2ZTktNGY4MC05ZjEzLWI5YzU5OGVkM2RiYSIsInJvbGUiOiJBRE1JTiIsInVzZXJuYW1lIjoic3VwZXJhZG1pbiIsImlzU3VwZXJBZG1pbiI6dHJ1ZSwiaWF0IjoxNzY5MjA2MTkwLCJleHAiOjE3NjkyMzQ5OTB9.lRj5f8wtCay99Vw5SPD_YXmDt2xGs_-9H-apZOEXrgI\")",
+      "Bash(OWNER_TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIzN2JiNDY2NC1mY2I4LTQ0NTQtODdkNi03NDljM2QxMzhjNjgiLCJ0ZW5hbnRJZCI6ImM2Mjc3NDdmLWI3YjUtNDBiMy1iYzQ0LTdiYzY5MTc3NDE0ZiIsInJvbGUiOiJPV05FUiIsInVzZXJuYW1lIjoic2Fsb25vd25lciIsImlzU3VwZXJBZG1pbiI6ZmFsc2UsImlhdCI6MTc2OTIwNjM3NCwiZXhwIjoxNzY5MjM1MTc0fQ.glpzgfHkscniPH28sNgK7SaDFfDj5y5t3f35nlwxX4k\")",
+      "Bash(MANAGER_TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhODMxNDU4Mi1jYzNkLTRiMDMtYWIzYi02NjBlZWVmZDA0ZDgiLCJ0ZW5hbnRJZCI6ImM2Mjc3NDdmLWI3YjUtNDBiMy1iYzQ0LTdiYzY5MTc3NDE0ZiIsInJvbGUiOiJNQU5BR0VSIiwidXNlcm5hbWUiOiJzYWxvbm1hbmFnZXIiLCJpc1N1cGVyQWRtaW4iOmZhbHNlLCJpYXQiOjE3NjkyMDY0NDYsImV4cCI6MTc2OTIzNTI0Nn0.dekOMlDPEFlbbAJiwsTRKWekJW--ZD6JtS-wIr3uGZk\")",
+      "Bash(CASHIER_TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxNTY3YzZlMC1kNzIwLTRhZTgtYWFjMi01YmYyMjZiODZlYWEiLCJ0ZW5hbnRJZCI6ImM2Mjc3NDdmLWI3YjUtNDBiMy1iYzQ0LTdiYzY5MTc3NDE0ZiIsInJvbGUiOiJDQVNISUVSIiwidXNlcm5hbWUiOiJzYWxvbmNhc2hpZXIiLCJpc1N1cGVyQWRtaW4iOmZhbHNlLCJpYXQiOjE3NjkyMDY1MTUsImV4cCI6MTc2OTIzNTMxNX0.I9foCbcMMJLHEHoAlWFLjvObX_Q2vy0bbK2KvWhq8SE\")",
+      "Bash(Get-Content serverroutesreports.js)",
+      "Bash(Select-String \"performance\" -CaseSensitive)",
+      "Bash(cmd /c \"taskkill /F /PID 44744\")",
+      "Bash(cmd /c \"taskkill /F /PID 43312\")",
+      "Bash(cmd /c \"taskkill /F /IM node.exe\")",
+      "Bash(cmd /c \"rmdir /s /q node_modules\\\\.prisma\")",
+      "Bash(cmd /c \"del /f node_modules\\\\.prisma\\\\client\\\\query_engine-windows.dll.node 2>nul\")",
+      "Bash(cmd /c \"for /f \"\"tokens=5\"\" %a in \\(''netstat -aon ^| findstr :5000 ^| findstr LISTENING''\\) do taskkill /F /PID %a\")",
+      "Bash(start /b npm run dev --prefix server)",
+      "Bash(done)",
+      "Bash(xargs:*)",
+      "Bash(ls:*)"
     ]
   }
 }

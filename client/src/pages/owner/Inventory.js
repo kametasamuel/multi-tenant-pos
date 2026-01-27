@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { productsAPI, IMAGE_BASE_URL } from '../../api';
 import { exportInventory } from '../../utils/exportUtils';
+import ModifierManager from '../../components/ModifierManager';
 import {
   Search,
   Package,
@@ -21,7 +22,8 @@ import {
   Tag,
   Building2,
   Download,
-  ChevronDown
+  ChevronDown,
+  Settings2
 } from 'lucide-react';
 
 const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, bgClass, currentBranch, isAllBranches, branches = [] }) => {
@@ -64,11 +66,16 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
   const [editImagePreview, setEditImagePreview] = useState(null);
   const fileInputRef = useRef(null);
   const editFileInputRef = useRef(null);
+  // Modifier manager state
+  const [showModifierManager, setShowModifierManager] = useState(false);
+  const [modifierProduct, setModifierProduct] = useState(null);
 
   const currencySymbol = user?.currencySymbol || '$';
 
   // Use the already defined isServicesTypeBusiness
   const isServicesType = isServicesTypeBusiness;
+  // Check if restaurant type
+  const isRestaurantType = user?.businessType === 'FOOD_AND_BEVERAGE';
 
   // Get the effective branchId for API calls
   const getEffectiveBranchId = () => {
@@ -198,6 +205,11 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
     return ((getProfit(product) / product.sellingPrice) * 100).toFixed(1);
   };
 
+  const openModifierManager = (product) => {
+    setModifierProduct(product);
+    setShowModifierManager(true);
+  };
+
   const saveProductEdit = async () => {
     try {
       let updateData;
@@ -298,7 +310,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className={`text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-tighter ${textClass}`}>
-            {isServicesType ? 'Services Menu' : 'Inventory Control'}
+            {isServicesType ? 'Services Menu' : isRestaurantType ? 'Menu Management' : 'Inventory Control'}
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <Building2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
@@ -390,7 +402,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
             className="px-6 py-3 bg-slate-800 dark:bg-slate-700 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg hover:opacity-90 transition-opacity flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Add Item
+            {isRestaurantType ? 'Add Menu Item' : 'Add Item'}
           </button>
         </div>
       </div>
@@ -408,7 +420,9 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
           onClick={() => setActiveStatsFilter(activeStatsFilter === 'services' ? null : 'services')}
           className={`${surfaceClass} border-2 ${activeStatsFilter === 'services' ? 'border-slate-500' : borderClass} rounded-2xl sm:rounded-[28px] p-3 sm:p-5 cursor-pointer hover:border-slate-400 transition-all`}
         >
-          <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} mb-0.5 sm:mb-1`}>Services</p>
+          <p className={`text-[8px] sm:text-[10px] font-black uppercase ${mutedClass} mb-0.5 sm:mb-1`}>
+            {isRestaurantType ? 'Menu Items' : 'Services'}
+          </p>
           <p className="text-lg sm:text-2xl font-black text-slate-600 dark:text-slate-400">{stats.services}</p>
         </div>
         <div
@@ -446,7 +460,7 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
         <div className={`flex items-center justify-between ${surfaceClass} border ${borderClass} rounded-xl px-4 py-3`}>
           <p className={`text-xs font-bold ${mutedClass}`}>
             Showing: <span className={textClass}>
-              {activeStatsFilter === 'services' && 'Services Only'}
+              {activeStatsFilter === 'services' && (isRestaurantType ? 'Menu Items Only' : 'Services Only')}
               {activeStatsFilter === 'lowStock' && 'Low Stock Items'}
               {activeStatsFilter === 'outOfStock' && 'Out of Stock Items'}
               {activeStatsFilter === 'expiringSoon' && 'Expiring Soon Items'}
@@ -767,7 +781,9 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
               <X className="w-6 h-6" />
             </button>
 
-            <h2 className={`text-xl font-black uppercase mb-6 ${textClass} text-center`}>Add New Item</h2>
+            <h2 className={`text-xl font-black uppercase mb-6 ${textClass} text-center`}>
+              {isRestaurantType ? 'Add Menu Item' : 'Add New Item'}
+            </h2>
 
             <div className="space-y-4">
               <input
@@ -1022,7 +1038,9 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
               <X className="w-6 h-6" />
             </button>
 
-            <h2 className={`text-xl font-black uppercase mb-6 ${textClass} text-center`}>Edit Item</h2>
+            <h2 className={`text-xl font-black uppercase mb-6 ${textClass} text-center`}>
+              {isRestaurantType ? 'Edit Menu Item' : 'Edit Item'}
+            </h2>
 
             <div className="space-y-4">
               {/* Image Upload for Edit */}
@@ -1176,6 +1194,20 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
                 </>
               )}
 
+              {/* Manage Modifiers Button - Only for restaurants */}
+              {isRestaurantType && (
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    openModifierManager(editingProduct);
+                  }}
+                  className={`w-full py-4 border ${borderClass} rounded-xl font-black text-[10px] uppercase ${textClass} hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2`}
+                >
+                  <Settings2 className="w-4 h-4" />
+                  Manage Modifiers (Add-ons)
+                </button>
+              )}
+
               <button
                 onClick={saveProductEdit}
                 className="w-full py-4 bg-slate-800 dark:bg-slate-700 text-white rounded-xl font-black text-[10px] uppercase shadow-lg mt-2"
@@ -1185,6 +1217,19 @@ const OwnerInventory = ({ darkMode, surfaceClass, textClass, mutedClass, borderC
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modifier Manager Modal */}
+      {showModifierManager && modifierProduct && (
+        <ModifierManager
+          product={modifierProduct}
+          onClose={() => {
+            setShowModifierManager(false);
+            setModifierProduct(null);
+          }}
+          darkMode={darkMode}
+          currencySymbol={currencySymbol}
+        />
       )}
 
       {/* Toast */}

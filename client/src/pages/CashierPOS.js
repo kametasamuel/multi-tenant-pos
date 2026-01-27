@@ -1,7 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { productsAPI, salesAPI, customersAPI, usersAPI, securityRequestsAPI, attendantsAPI } from '../api';
+import { useOffline } from '../context/OfflineContext';
+import { productsAPI, salesAPI, customersAPI, usersAPI, securityRequestsAPI, attendantsAPI, tablesAPI, ordersAPI, modifiersAPI } from '../api';
+import { useSocket } from '../hooks/useSocket';
+import TableSelector from '../components/TableSelector';
+import ModifierModal from '../components/ModifierModal';
+import OfflineIndicator from '../components/OfflineIndicator';
+import DraftRecoveryDialog from '../components/DraftRecoveryDialog';
+import { savePendingSale, getCachedProducts } from '../utils/offlineDB';
 import {
   Search,
   Sun,
@@ -37,8 +44,134 @@ import {
   XCircle,
   Calendar,
   Edit2,
-  Building2
+  Building2,
+  UtensilsCrossed,
+  ChefHat,
+  Armchair,
+  Send,
+  Receipt
 } from 'lucide-react';
+
+// Switch Table Modal Component
+const SwitchTableModal = ({ currentTable, onSwitch, onClose, darkMode }) => {
+  const [tables, setTables] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(null);
+
+  const surfaceClass = darkMode ? 'bg-slate-800' : 'bg-white';
+  const textClass = darkMode ? 'text-white' : 'text-gray-900';
+  const mutedClass = darkMode ? 'text-slate-400' : 'text-gray-500';
+  const borderClass = darkMode ? 'border-slate-700' : 'border-gray-200';
+
+  useEffect(() => {
+    loadAvailableTables();
+  }, []);
+
+  const loadAvailableTables = async () => {
+    try {
+      const response = await tablesAPI.getAll({ status: 'available' });
+      // Filter out the current table
+      const availableTables = (response.data.tables || []).filter(
+        t => t.id !== currentTable?.id && (t.status === 'available' || !t.orders?.length)
+      );
+      setTables(availableTables);
+    } catch (error) {
+      console.error('Failed to load tables:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSwitch = async (tableId) => {
+    setSwitching(tableId);
+    await onSwitch(tableId);
+    setSwitching(null);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className={`${surfaceClass} rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col animate-fade-in`}>
+        {/* Header */}
+        <div className={`p-4 border-b ${borderClass} flex items-center justify-between`}>
+          <div>
+            <h2 className={`text-lg font-black uppercase ${textClass}`}>
+              Switch Table
+            </h2>
+            <p className={`text-xs ${mutedClass}`}>
+              Move order from Table {currentTable?.tableNumber} to another table
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className={`p-2 rounded-lg ${darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500"></div>
+            </div>
+          ) : tables.length === 0 ? (
+            <div className={`text-center py-8 ${mutedClass}`}>
+              <Armchair className="w-12 h-12 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No available tables</p>
+              <p className="text-xs">All tables are currently occupied</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {tables.map(table => (
+                <button
+                  key={table.id}
+                  onClick={() => handleSwitch(table.id)}
+                  disabled={switching !== null}
+                  className={`p-3 rounded-xl border-2 ${
+                    switching === table.id
+                      ? 'border-accent-500 bg-accent-50'
+                      : darkMode
+                        ? 'border-slate-600 hover:border-accent-500'
+                        : 'border-gray-200 hover:border-accent-500'
+                  } transition-all disabled:opacity-50`}
+                >
+                  <div className={`text-lg font-black ${textClass}`}>
+                    {table.tableNumber}
+                  </div>
+                  <div className={`text-[10px] ${mutedClass}`}>
+                    {table.capacity} seats
+                  </div>
+                  {table.section && (
+                    <div className={`text-[9px] ${mutedClass}`}>
+                      {table.section}
+                    </div>
+                  )}
+                  {switching === table.id && (
+                    <div className="text-[10px] text-accent-500 font-bold mt-1">
+                      Moving...
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className={`p-4 border-t ${borderClass}`}>
+          <button
+            onClick={onClose}
+            disabled={switching !== null}
+            className={`w-full py-2.5 border ${darkMode ? 'border-slate-600 text-slate-300' : 'border-gray-300 text-gray-600'} rounded-xl font-bold text-sm uppercase hover:opacity-80 disabled:opacity-50`}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const CashierPOS = ({
   embedded = false,
@@ -120,8 +253,95 @@ const CashierPOS = ({
   // Mobile responsiveness - toggle between products and cart on small screens
   const [mobileView, setMobileView] = useState('products'); // 'products' or 'cart'
 
+  // Restaurant features (FOOD_AND_BEVERAGE only)
+  const [showTableSelector, setShowTableSelector] = useState(false);
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [openTabs, setOpenTabs] = useState([]);
+  const [activeOrder, setActiveOrder] = useState(null);
+  const [sendingToKitchen, setSendingToKitchen] = useState(false);
+  const [orderNotes, setOrderNotes] = useState('');
+  const [showModifierModal, setShowModifierModal] = useState(false);
+  const [selectedProductForModifier, setSelectedProductForModifier] = useState(null);
+  const [pendingProduct, setPendingProduct] = useState(null); // Product waiting for table selection
+  const [showTabSummary, setShowTabSummary] = useState(false); // Tab Summary modal
+  const [tabSummaryMode, setTabSummaryMode] = useState('view'); // 'view', 'payment', 'amount', 'receipt'
+  const [tableSummary, setTableSummary] = useState(null); // Summary data for all table orders
+  const [loadingTabSummary, setLoadingTabSummary] = useState(false);
+  const [closingTable, setClosingTable] = useState(false);
+  const [showSwitchTable, setShowSwitchTable] = useState(false); // Switch table modal
+  // Restaurant payment flow state
+  const [tabPaymentMethod, setTabPaymentMethod] = useState('');
+  const [tabSplitPayment, setTabSplitPayment] = useState(false);
+  const [tabSplitMethods, setTabSplitMethods] = useState([]); // [{method: 'cash', amount: 100}]
+  const [tabAmountTendered, setTabAmountTendered] = useState('');
+  const [tabReceiptData, setTabReceiptData] = useState(null);
+  const [showCancelRequest, setShowCancelRequest] = useState(false); // Cancel request modal
+  const [cancelRequestReason, setCancelRequestReason] = useState('');
+  const [sendingCancelRequest, setSendingCancelRequest] = useState(false);
+
+  // Offline state
+  const { isOnline, saveDraft, getDraft, clearDraft, pendingSalesCount } = useOffline();
+  const [showDraftRecovery, setShowDraftRecovery] = useState(false);
+  const [draftData, setDraftData] = useState(null);
+
+  // Check if restaurant features should be shown
+  const isRestaurant = user?.businessType === 'FOOD_AND_BEVERAGE';
+
   // Currency from tenant settings
   const currencySymbol = user?.currencySymbol || '$';
+
+  // Socket connection for real-time kitchen updates
+  const { on: socketOn, isConnected: socketConnected } = useSocket({
+    autoConnect: isRestaurant,
+    room: 'kitchen'
+  });
+
+  // Handle real-time order updates from kitchen
+  useEffect(() => {
+    if (!socketConnected || !isRestaurant) return;
+
+    // When kitchen updates an order
+    socketOn('order:updated', (data) => {
+      if (activeOrder && data.order.id === activeOrder.id) {
+        console.log('Order updated via WebSocket:', data.order.status);
+        setActiveOrder(data.order);
+        // Update cart item statuses
+        if (data.order.items) {
+          setCart(prevCart => prevCart.map(cartItem => {
+            const orderItem = data.order.items.find(oi =>
+              oi.id === cartItem.orderItemId ||
+              (oi.productId === cartItem.id && cartItem.isExisting)
+            );
+            if (orderItem) {
+              return { ...cartItem, itemStatus: orderItem.status, orderItemId: orderItem.id };
+            }
+            return cartItem;
+          }));
+        }
+      }
+    });
+
+    // When a single item is updated
+    socketOn('order:item-updated', (data) => {
+      if (activeOrder && data.orderId === activeOrder.id) {
+        console.log('Item updated via WebSocket:', data.item.status);
+        setCart(prevCart => prevCart.map(cartItem => {
+          if (cartItem.orderItemId === data.item.id) {
+            return { ...cartItem, itemStatus: data.item.status };
+          }
+          return cartItem;
+        }));
+      }
+    });
+
+    // When order is completed by kitchen
+    socketOn('order:completed', (data) => {
+      if (activeOrder && data.orderId === activeOrder.id) {
+        console.log('Order completed via WebSocket');
+        // Could show a notification here
+      }
+    });
+  }, [socketConnected, isRestaurant, activeOrder?.id, socketOn]);
 
   // Update time every second
   useEffect(() => {
@@ -134,7 +354,42 @@ const CashierPOS = ({
     loadTodaySales();
     loadAttendants();
     loadSecurityRequests();
-  }, []);
+  }, [isOnline]); // Re-load when online status changes
+
+  // Check for draft transaction on load (power interruption recovery)
+  useEffect(() => {
+    const checkForDraft = async () => {
+      try {
+        const draft = await getDraft();
+        if (draft && draft.cart?.length > 0) {
+          setDraftData(draft);
+          setShowDraftRecovery(true);
+        }
+      } catch (error) {
+        console.error('Error checking for draft:', error);
+      }
+    };
+    checkForDraft();
+  }, [getDraft]);
+
+  // Auto-save cart as draft (for power interruption recovery)
+  useEffect(() => {
+    const saveTimer = setTimeout(() => {
+      if (cart.length > 0) {
+        saveDraft({
+          cart,
+          customer: selectedCustomer,
+          discount: 0,
+          paymentMethod: selectedPayment
+        }).catch(err => console.error('Error saving draft:', err));
+      } else {
+        // Clear draft when cart is empty
+        clearDraft().catch(err => console.error('Error clearing draft:', err));
+      }
+    }, 1000); // Save after 1 second of no changes
+
+    return () => clearTimeout(saveTimer);
+  }, [cart, selectedCustomer, selectedPayment, saveDraft, clearDraft]);
 
   // Check for low stock items when products load
   useEffect(() => {
@@ -158,13 +413,33 @@ const CashierPOS = ({
 
   const loadProducts = async () => {
     try {
-      const response = await productsAPI.getAll();
-      setProducts(response.data.products.filter(p => p.isActive));
+      // Try to load from API first
+      if (isOnline) {
+        const response = await productsAPI.getAll();
+        const activeProducts = response.data.products.filter(p => p.isActive);
+        setProducts(activeProducts);
+        setLoading(false);
+        return;
+      }
     } catch (error) {
-      console.error('Error loading products:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error loading products from API:', error);
     }
+
+    // Fall back to cached products when offline or API fails
+    try {
+      if (user?.tenantId) {
+        const cachedProducts = await getCachedProducts(user.tenantId);
+        if (cachedProducts && cachedProducts.length > 0) {
+          console.log(`Loaded ${cachedProducts.length} products from cache`);
+          setProducts(cachedProducts.filter(p => p.isActive));
+        } else {
+          console.warn('No cached products available');
+        }
+      }
+    } catch (cacheError) {
+      console.error('Error loading cached products:', cacheError);
+    }
+    setLoading(false);
   };
 
   const loadTodaySales = async () => {
@@ -219,6 +494,438 @@ const CashierPOS = ({
     } catch (error) {
       console.error('Error loading security requests:', error);
     }
+  };
+
+  // Load open tabs for restaurant mode
+  const loadOpenTabs = async () => {
+    if (!isRestaurant) return;
+    try {
+      const response = await ordersAPI.getOpenTabs();
+      setOpenTabs(response.data.orders || []);
+    } catch (error) {
+      console.error('Error loading open tabs:', error);
+    }
+  };
+
+  // Load open tabs on mount for restaurants
+  useEffect(() => {
+    if (isRestaurant) {
+      loadOpenTabs();
+    }
+  }, [isRestaurant]);
+
+  // Auto-refresh order status from kitchen (every 15 seconds)
+  useEffect(() => {
+    if (!isRestaurant || !activeOrder) return;
+
+    const refreshOrderStatus = async () => {
+      try {
+        const response = await ordersAPI.refreshOrder(activeOrder.id);
+        const updatedOrder = response.data.order;
+
+        // Update activeOrder with fresh status
+        setActiveOrder(updatedOrder);
+
+        // Update cart items with their latest statuses
+        if (updatedOrder.items && updatedOrder.items.length > 0) {
+          setCart(prevCart => {
+            return prevCart.map(cartItem => {
+              // Find matching order item by orderItemId or productId
+              const orderItem = updatedOrder.items.find(oi =>
+                oi.id === cartItem.orderItemId ||
+                (oi.productId === cartItem.id && cartItem.isExisting)
+              );
+
+              if (orderItem) {
+                return {
+                  ...cartItem,
+                  itemStatus: orderItem.status, // pending, preparing, ready, served
+                  orderItemId: orderItem.id
+                };
+              }
+              return cartItem;
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Error refreshing order status:', error);
+      }
+    };
+
+    // Initial refresh
+    refreshOrderStatus();
+
+    // Set up polling interval as fallback (less frequent if socket connected)
+    const interval = setInterval(refreshOrderStatus, socketConnected ? 30000 : 5000);
+    return () => clearInterval(interval);
+  }, [isRestaurant, activeOrder?.id, socketConnected]);
+
+  // Auto-refresh table summary when tab modal is open (for real-time kitchen status)
+  useEffect(() => {
+    if (!showTabSummary || !selectedTable) return;
+
+    const refreshTableSummary = async () => {
+      try {
+        const response = await ordersAPI.getTableSummary(selectedTable.id);
+        setTableSummary(response.data);
+      } catch (error) {
+        console.error('Error refreshing table summary:', error);
+      }
+    };
+
+    // Poll every 5 seconds while modal is open
+    const interval = setInterval(refreshTableSummary, 5000);
+    return () => clearInterval(interval);
+  }, [showTabSummary, selectedTable?.id]);
+
+
+  // Handle table selection
+  const handleTableSelect = async (table) => {
+    setSelectedTable(table);
+    setShowTableSelector(false);
+
+    // If table has an open order, load it
+    if (table.orders && table.orders.length > 0) {
+      const openOrder = table.orders[0];
+      setActiveOrder(openOrder);
+      setOrderNotes(openOrder.notes || '');
+      // Load order items into cart for display (but don't add to new items)
+      if (openOrder.items && openOrder.items.length > 0) {
+        const cartItems = openOrder.items.map(item => ({
+          id: item.product?.id || item.productId,
+          name: item.product?.name || 'Item',
+          sellingPrice: item.unitPrice,
+          quantity: item.quantity,
+          qty: item.quantity,
+          image: item.product?.image,
+          orderItemId: item.id,
+          modifiers: item.modifiers ? JSON.parse(item.modifiers) : [],
+          specialRequest: item.specialRequest,
+          itemStatus: item.status, // Include item status from kitchen
+          isExisting: true // Mark as existing item
+        }));
+        setCart(cartItems);
+      }
+      showToast(`Loaded order ${openOrder.orderNumber} for Table ${table.tableNumber}`);
+    } else {
+      // New order for this table
+      setActiveOrder(null);
+      setOrderNotes('');
+      setCart([]);
+    }
+    setOrderType('Dine-in');
+
+    // If there was a pending product, add it now
+    if (pendingProduct) {
+      const productToAdd = pendingProduct;
+      setPendingProduct(null);
+
+      // Check for modifiers
+      try {
+        const response = await modifiersAPI.getForProduct(productToAdd.id);
+        const modifiers = response.data.modifiers || [];
+
+        if (modifiers.length > 0) {
+          // Show modifier modal
+          setSelectedProductForModifier(productToAdd);
+          setShowModifierModal(true);
+          return;
+        }
+      } catch (err) {
+        console.log('No modifiers found or error:', err);
+      }
+
+      // Add directly if no modifiers
+      addToCart(productToAdd);
+    }
+  };
+
+  // Send order to kitchen (restaurant mode)
+  const sendToKitchen = async () => {
+    // Get only new items (not existing ones from loaded order)
+    const newItems = cart.filter(item => !item.isExisting);
+
+    if (newItems.length === 0) {
+      showToast('Add new items to send to kitchen');
+      return;
+    }
+
+    if (orderType === 'Dine-in' && !selectedTable) {
+      showToast('Please select a table first');
+      setShowTableSelector(true);
+      return;
+    }
+
+    setSendingToKitchen(true);
+    try {
+      const items = newItems.map(item => ({
+        productId: item.id,
+        quantity: parseInt(item.qty || item.quantity || 1, 10),
+        modifiers: item.modifiers || [],
+        specialRequest: item.specialRequest || null
+      }));
+
+      console.log('Sending items to kitchen:', items); // Debug log
+
+      if (activeOrder) {
+        // Add items to existing order
+        await ordersAPI.addItems(activeOrder.id, items);
+        showToast(`Items added to order ${activeOrder.orderNumber}`);
+        // Mark all cart items as existing now
+        setCart(cart.map(item => ({ ...item, isExisting: true })));
+      } else {
+        // Create new order - only include optional fields if they have values
+        const orderData = {
+          orderType: orderType.toLowerCase(), // 'Dine-in' -> 'dine-in', 'Walk-in' -> 'walk-in', 'Takeout' -> 'takeout'
+          items
+        };
+        // Only add optional fields if they have actual values
+        if (selectedTable?.id) orderData.tableId = selectedTable.id;
+        if (selectedCustomer?.id) orderData.customerId = selectedCustomer.id;
+        if (orderNotes) orderData.notes = orderNotes;
+
+        console.log('Creating order with data:', orderData); // Debug log
+        const response = await ordersAPI.create(orderData);
+        setActiveOrder(response.data.order);
+        // Mark all cart items as existing now
+        setCart(cart.map(item => ({ ...item, isExisting: true })));
+        showToast(`Order ${response.data.order.orderNumber} sent to kitchen`);
+      }
+
+      loadOpenTabs();
+    } catch (error) {
+      console.error('Error sending to kitchen:', error);
+      console.error('Error response:', error.response?.data); // Debug full error
+      const errorMessage = error.response?.data?.error ||
+                          error.response?.data?.errors?.[0]?.msg ||
+                          'Failed to send order to kitchen';
+      showToast(errorMessage);
+    } finally {
+      setSendingToKitchen(false);
+    }
+  };
+
+  // Load table summary for Tab modal (view or close mode)
+  const loadTableSummary = async (mode = 'view') => {
+    if (!selectedTable) {
+      showToast('No table selected');
+      return;
+    }
+
+    setLoadingTabSummary(true);
+    setTabSummaryMode(mode);
+    try {
+      const response = await ordersAPI.getTableSummary(selectedTable.id);
+      setTableSummary(response.data);
+      setShowTabSummary(true);
+    } catch (error) {
+      console.error('Error loading table summary:', error);
+      showToast(error.response?.data?.error || 'Failed to load table summary');
+    } finally {
+      setLoadingTabSummary(false);
+    }
+  };
+
+  // View tab - show summary and allow payment
+  const viewTab = () => {
+    if (!activeOrder && !selectedTable) {
+      showToast('No active order to view');
+      return;
+    }
+    // Reset payment state
+    setTabSummaryMode('view');
+    setTabPaymentMethod('');
+    setTabSplitPayment(false);
+    setTabSplitMethods([]);
+    setTabAmountTendered('');
+    setTabReceiptData(null);
+    loadTableSummary('view');
+  };
+
+  // No longer used - payment is done through viewTab modal
+  const closeTab = () => {
+    viewTab();
+  };
+
+  // Check if all items are served (for enabling close tab)
+  const allItemsServed = () => {
+    if (!tableSummary?.allItems) return false;
+    return tableSummary.allItems.every(item => item.status === 'served');
+  };
+
+  // Switch table - move order to different table
+  const handleSwitchTable = async (newTableId) => {
+    if (!activeOrder || !newTableId) return;
+
+    try {
+      const response = await ordersAPI.switchTable(activeOrder.id, newTableId);
+      showToast(`Order moved to Table ${response.data.order.table?.tableNumber}`);
+      setShowSwitchTable(false);
+      // Update local state with new table
+      setSelectedTable(response.data.order.table);
+      setActiveOrder(response.data.order);
+      loadOpenTabs();
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Failed to switch table');
+    }
+  };
+
+  // Request cancel for order (cashier can't cancel directly once sent to kitchen)
+  const requestCancelOrder = async () => {
+    if (!activeOrder || !cancelRequestReason.trim()) {
+      showToast('Please provide a reason for cancellation');
+      return;
+    }
+
+    setSendingCancelRequest(true);
+    try {
+      const response = await ordersAPI.requestCancel(activeOrder.id, cancelRequestReason);
+
+      if (response.data.requiresKitchenApproval) {
+        showToast('Cancel request sent to kitchen for approval');
+      } else {
+        showToast('Cancel request submitted for manager approval');
+      }
+
+      setShowCancelRequest(false);
+      setCancelRequestReason('');
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Failed to send cancel request');
+    } finally {
+      setSendingCancelRequest(false);
+    }
+  };
+
+  // Process restaurant payment (from tab summary modal)
+  const processTabPayment = async () => {
+    if (!selectedTable) return;
+
+    const total = tableSummary?.summary?.total || 0;
+
+    // Validate payment
+    if (tabSplitPayment) {
+      const splitTotal = tabSplitMethods.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
+      if (splitTotal < total) {
+        showToast(`Split payments (${formatCurrency(splitTotal)}) don't cover the total (${formatCurrency(total)})`);
+        return;
+      }
+    } else if (!tabPaymentMethod) {
+      showToast('Please select a payment method');
+      return;
+    }
+
+    // For cash, validate amount
+    if (!tabSplitPayment && tabPaymentMethod === 'cash') {
+      const tendered = parseFloat(tabAmountTendered) || 0;
+      if (tendered < total) {
+        showToast('Amount tendered is less than total');
+        return;
+      }
+    }
+
+    setClosingTable(true);
+    try {
+      // Determine payment method and amount
+      let paymentMethod = tabPaymentMethod;
+      let amountReceived = total;
+
+      if (tabSplitPayment) {
+        // For split payment, use 'split' as method and pass details
+        paymentMethod = 'split';
+        amountReceived = tabSplitMethods.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
+      } else if (tabPaymentMethod === 'cash') {
+        amountReceived = parseFloat(tabAmountTendered) || total;
+      }
+
+      const response = await ordersAPI.closeTable(selectedTable.id, {
+        paymentMethod,
+        amountReceived,
+        splitPayments: tabSplitPayment ? tabSplitMethods : null
+      });
+
+      // Update stats
+      if (response.data.sale) {
+        setStats(prev => ({
+          orders: prev.orders + 1,
+          revenue: prev.revenue + response.data.sale.finalAmount
+        }));
+      }
+
+      // Store receipt data for the modal
+      const calculatedChange = tabPaymentMethod === 'cash' && !tabSplitPayment
+        ? (parseFloat(tabAmountTendered) || 0) - total
+        : 0;
+
+      setTabReceiptData({
+        ...response.data.sale,
+        items: tableSummary?.allItems || [],
+        table: selectedTable,
+        paymentMethod: tabSplitPayment ? 'Split Payment' : tabPaymentMethod,
+        splitPayments: tabSplitPayment ? tabSplitMethods : null,
+        amountTendered: tabPaymentMethod === 'cash' ? parseFloat(tabAmountTendered) : null,
+        change: response.data.change || calculatedChange
+      });
+
+      // Switch to receipt view in modal
+      setTabSummaryMode('receipt');
+
+    } catch (error) {
+      console.error('Error closing table:', error);
+      showToast(error.response?.data?.error || 'Failed to process payment');
+    } finally {
+      setClosingTable(false);
+    }
+  };
+
+  // Complete and close the tab summary modal after receipt
+  const completeTabPayment = () => {
+    setShowTabSummary(false);
+    setTableSummary(null);
+    setTabReceiptData(null);
+    clearRestaurantOrder();
+    loadTodaySales();
+    loadOpenTabs();
+    showToast(`Table ${selectedTable?.tableNumber} closed successfully`);
+  };
+
+  // Add split payment method
+  const addSplitMethod = (method) => {
+    if (tabSplitMethods.some(m => m.method === method)) {
+      // Remove if already exists
+      setTabSplitMethods(tabSplitMethods.filter(m => m.method !== method));
+    } else {
+      // Add new method
+      setTabSplitMethods([...tabSplitMethods, { method, amount: '' }]);
+    }
+  };
+
+  // Update tab split payment amount
+  const updateTabSplitAmount = (method, amount) => {
+    setTabSplitMethods(tabSplitMethods.map(m =>
+      m.method === method ? { ...m, amount } : m
+    ));
+  };
+
+  // Legacy function - kept for compatibility
+  const handleCloseTable = async (paymentMethod, amountReceived, tipAmount = 0) => {
+    setTabPaymentMethod(paymentMethod);
+    setTabAmountTendered(amountReceived?.toString() || '');
+    await processTabPayment();
+  };
+
+  // Clear restaurant order state
+  const clearRestaurantOrder = () => {
+    setSelectedTable(null);
+    setActiveOrder(null);
+    setOrderNotes('');
+    setCart([]);
+    loadOpenTabs();
+  };
+
+  // Start new table (show table selector)
+  const startNewTable = () => {
+    clearRestaurantOrder();
+    setShowTableSelector(true);
   };
 
   // Open request modal (for entering reason)
@@ -388,11 +1095,67 @@ const CashierPOS = ({
     return matchesType && matchesSearch && hasStock;
   });
 
+  // Handle product click - for restaurant, require table selection first
+  const handleProductClick = async (product) => {
+    // For restaurants, require table selection first
+    if (isRestaurant && !selectedTable) {
+      // Store the pending product and show table selector
+      setPendingProduct(product);
+      setShowTableSelector(true);
+      showToast('Please select a table first');
+      return;
+    }
+
+    // For restaurants, check if product has modifiers
+    if (isRestaurant) {
+      try {
+        const response = await modifiersAPI.getForProduct(product.id);
+        const modifiers = response.data.modifiers || [];
+
+        if (modifiers.length > 0) {
+          // Show modifier modal
+          setSelectedProductForModifier(product);
+          setShowModifierModal(true);
+          return;
+        }
+      } catch (err) {
+        // If error checking modifiers, just add without modifiers
+        console.log('No modifiers found or error:', err);
+      }
+    }
+
+    // No modifiers or not restaurant - add directly
+    addToCart(product);
+  };
+
+  // Handle adding item with modifiers from modal
+  const handleAddWithModifiers = ({ product, quantity, modifiers, specialRequest, modifierPrice }) => {
+    const totalPrice = product.sellingPrice + (modifierPrice || 0);
+
+    setCart(prev => [
+      ...prev,
+      {
+        ...product,
+        qty: quantity,
+        quantity: quantity,
+        sellingPrice: totalPrice,
+        basePrice: product.sellingPrice,
+        modifiers: modifiers || [],
+        specialRequest: specialRequest,
+        isExisting: false
+      }
+    ]);
+
+    setShowModifierModal(false);
+    setSelectedProductForModifier(null);
+    showToast(`${product.name} added to cart`);
+  };
+
   // Cart functions
   const addToCart = (product) => {
     if (product.type === 'PRODUCT') {
-      const cartItem = cart.find(item => item.id === product.id);
-      const currentQty = cartItem ? cartItem.qty : 0;
+      const cartItem = cart.find(item => item.id === product.id && !item.modifiers?.length);
+      const currentQty = cartItem ? (cartItem.qty || cartItem.quantity || 0) : 0;
       if (currentQty >= product.stockQuantity) {
         showToast('Not enough stock');
         return;
@@ -400,6 +1163,19 @@ const CashierPOS = ({
     }
 
     setCart(prev => {
+      // For restaurant, always add as new item (don't combine because of modifiers)
+      if (isRestaurant) {
+        return [...prev, {
+          ...product,
+          qty: 1,
+          quantity: 1,
+          modifiers: [],
+          specialRequest: null,
+          isExisting: false
+        }];
+      }
+
+      // For non-restaurant, combine same products
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
         return prev.map(item =>
@@ -417,7 +1193,8 @@ const CashierPOS = ({
   const updateQty = (index, delta) => {
     setCart(prev => {
       const item = prev[index];
-      const newQty = item.qty + delta;
+      const currentQty = item.qty || item.quantity || 1;
+      const newQty = currentQty + delta;
 
       if (item.type === 'PRODUCT' && newQty > item.stockQuantity) {
         showToast('Not enough stock');
@@ -427,8 +1204,8 @@ const CashierPOS = ({
       if (newQty <= 0) {
         return prev.filter((_, i) => i !== index);
       }
-      return prev.map((item, i) =>
-        i === index ? { ...item, qty: newQty } : item
+      return prev.map((cartItem, i) =>
+        i === index ? { ...cartItem, qty: newQty, quantity: newQty } : cartItem
       );
     });
   };
@@ -441,13 +1218,19 @@ const CashierPOS = ({
   };
 
   const getCartTotal = () => {
-    const subtotal = cart.reduce((sum, item) => sum + (item.sellingPrice * item.qty), 0);
+    const subtotal = cart.reduce((sum, item) => {
+      const itemQty = item.qty || item.quantity || 1;
+      return sum + (item.sellingPrice * itemQty);
+    }, 0);
     const tax = subtotal * (user?.taxRate || 0);
     return subtotal + tax;
   };
 
   const getSubtotal = () => {
-    return cart.reduce((sum, item) => sum + (item.sellingPrice * item.qty), 0);
+    return cart.reduce((sum, item) => {
+      const itemQty = item.qty || item.quantity || 1;
+      return sum + (item.sellingPrice * itemQty);
+    }, 0);
   };
 
   // Toast notification
@@ -534,7 +1317,12 @@ const CashierPOS = ({
   const selectSingleMethod = (method) => {
     setSelectedPayment(method);
     setPaymentStep('amount');
-    setAmountTendered('');
+    // For non-cash payments, auto-fill the exact total (no change needed)
+    if (method !== 'Cash') {
+      setAmountTendered(getCartTotal().toString());
+    } else {
+      setAmountTendered('');
+    }
   };
 
   // Proceed to amount entry for split payment
@@ -575,8 +1363,12 @@ const CashierPOS = ({
     const total = getCartTotal();
     if (isSplitPayment) {
       return getSplitTotal() >= total;
-    } else {
+    } else if (selectedPayment === 'Cash') {
+      // For cash, must enter amount >= total
       return (parseFloat(amountTendered) || 0) >= total;
+    } else {
+      // For card/momo/transfer, just need a payment method selected
+      return selectedPayment !== '';
     }
   };
 
@@ -628,11 +1420,76 @@ const CashierPOS = ({
         discountAmount: 0
       };
 
-      const response = await salesAPI.create(saleData);
-
       const total = getCartTotal();
       const tendered = isSplitPayment ? getSplitTotal() : parseFloat(amountTendered) || total;
       const change = Math.max(0, tendered - total);
+
+      let response;
+      let isOfflineSale = false;
+
+      // Try online first, fall back to offline
+      if (isOnline) {
+        try {
+          response = await salesAPI.create(saleData);
+        } catch (error) {
+          // If network error (no response), save offline
+          if (!error.response) {
+            isOfflineSale = true;
+          } else {
+            throw error; // Re-throw server errors
+          }
+        }
+      } else {
+        isOfflineSale = true;
+      }
+
+      // Handle offline sale
+      if (isOfflineSale) {
+        const localSale = await savePendingSale({
+          ...saleData,
+          offlineMode: true,
+          cartItems: cart, // Save full cart for receipt
+          total,
+          tendered,
+          change
+        });
+
+        // Generate local transaction number
+        const localTransactionNumber = `OFF-${Date.now().toString(36).toUpperCase()}`;
+
+        // Clear draft
+        await clearDraft();
+
+        setLastReceipt({
+          invoiceNo: localTransactionNumber,
+          date: new Date().toLocaleDateString(),
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          orderType: orderType,
+          isSplitPayment,
+          method: isSplitPayment ? null : selectedPayment,
+          payments: isSplitPayment ? paymentAmounts : { [selectedPayment]: tendered },
+          items: [...cart],
+          customer: selectedCustomer,
+          subtotal: getSubtotal(),
+          total: total,
+          amountTendered: tendered,
+          change: change,
+          offline: true
+        });
+
+        setStats(prev => ({
+          orders: prev.orders + 1,
+          revenue: prev.revenue + total
+        }));
+
+        setSidebarView('receipt');
+        showToast('Sale saved offline - will sync when connected');
+        setProcessingPayment(false);
+        return;
+      }
+
+      // Online sale successful - clear draft
+      await clearDraft();
 
       setStats(prev => ({
         orders: prev.orders + 1,
@@ -675,10 +1532,12 @@ const CashierPOS = ({
   };
 
   // New transaction
-  const newTransaction = () => {
+  const newTransaction = async () => {
     setCart([]);
     clearCustomer();
     setSidebarView('cart');
+    // Clear any saved draft
+    await clearDraft();
     showToast('Ready for new transaction');
   };
 
@@ -784,6 +1643,8 @@ const CashierPOS = ({
               {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
+          {/* Offline Status Indicator */}
+          <OfflineIndicator compact darkMode={darkMode} />
           {/* Low Stock Alert Button */}
           <button
             onClick={() => setView(view === 'lowStock' ? 'menu' : 'lowStock')}
@@ -874,6 +1735,69 @@ const CashierPOS = ({
                 </div>
               </div>
 
+              {/* Restaurant Table Indicator - Show selected table or prompt to select */}
+              {isRestaurant && (
+                <div className={`mb-3 p-2 sm:p-3 rounded-xl border-2 ${
+                  selectedTable
+                    ? 'border-blue-500 bg-blue-50 ' + (darkMode ? 'bg-blue-900/20' : '')
+                    : 'border-orange-400 bg-orange-50 ' + (darkMode ? 'bg-orange-900/20' : '')
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <Armchair className={`w-5 h-5 ${selectedTable ? 'text-blue-600' : 'text-orange-500'}`} />
+                      <div>
+                        {selectedTable ? (
+                          <>
+                            <div className={`text-sm font-black ${textClass}`}>
+                              Table {selectedTable.tableNumber}
+                              {activeOrder && (
+                                <span className="ml-2 text-xs font-medium text-blue-600">
+                                  {activeOrder.orderNumber}
+                                </span>
+                              )}
+                            </div>
+                            <div className={`text-[10px] ${mutedClass}`}>
+                              {selectedTable.section && `${selectedTable.section} • `}
+                              {selectedTable.capacity} seats
+                              {activeOrder && ` • ${cart.length} items`}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className={`text-sm font-bold text-orange-600`}>
+                              No table selected
+                            </div>
+                            <div className={`text-[10px] ${mutedClass}`}>
+                              Select a table to start taking orders
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {selectedTable && activeOrder && (
+                        <button
+                          onClick={startNewTable}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-lg ${bgClass} ${textClass} hover:bg-slate-200 transition-colors`}
+                        >
+                          New Table
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowTableSelector(true)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg ${
+                          selectedTable
+                            ? 'bg-blue-500 text-white hover:bg-blue-600'
+                            : 'bg-orange-500 text-white hover:bg-orange-600'
+                        } transition-colors`}
+                      >
+                        {selectedTable ? 'Change Table' : 'Select Table'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Type Filters - All / Products / Services */}
               <div className="flex gap-1.5 sm:gap-2 mb-3 sm:mb-4 overflow-x-auto pb-1 scrollbar-hide">
                 {typeTabs.map((tab) => (
@@ -896,17 +1820,33 @@ const CashierPOS = ({
                 {filteredProducts.map((product) => (
                   <div
                     key={product.id}
-                    onClick={() => addToCart(product)}
-                    className={`${surfaceClass} border ${borderClass} rounded-xl sm:rounded-2xl p-2 sm:p-3 cursor-pointer hover:border-accent-500 hover:shadow-lg transition-all group`}
+                    onClick={() => {
+                      if (product.is86d) {
+                        showToast(`${product.name} is currently unavailable (86'd)`);
+                        return;
+                      }
+                      isRestaurant ? handleProductClick(product) : addToCart(product);
+                    }}
+                    className={`${surfaceClass} border ${borderClass} rounded-xl sm:rounded-2xl p-2 sm:p-3 transition-all group relative ${
+                      product.is86d
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'cursor-pointer hover:border-accent-500 hover:shadow-lg'
+                    }`}
                   >
+                    {/* 86'd Badge */}
+                    {product.is86d && (
+                      <div className="absolute top-1 right-1 bg-red-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase">
+                        86'd
+                      </div>
+                    )}
                     <div className={`aspect-square ${bgClass} rounded-lg sm:rounded-xl mb-1.5 sm:mb-2 flex items-center justify-center`}>
                       {product.type === 'SERVICE' ? (
-                        <UserCog className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} group-hover:text-accent-500`} />
+                        <UserCog className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} ${!product.is86d && 'group-hover:text-accent-500'}`} />
                       ) : (
-                        <Package className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} group-hover:text-accent-500`} />
+                        <Package className={`w-5 h-5 sm:w-6 sm:h-6 ${mutedClass} ${!product.is86d && 'group-hover:text-accent-500'}`} />
                       )}
                     </div>
-                    <h3 className={`font-bold text-[9px] sm:text-[10px] uppercase tracking-tight mb-0.5 ${textClass} truncate`}>
+                    <h3 className={`font-bold text-[9px] sm:text-[10px] uppercase tracking-tight mb-0.5 ${textClass} truncate ${product.is86d && 'line-through'}`}>
                       {product.name}
                     </h3>
                     <div className="flex justify-between items-center">
@@ -1361,48 +2301,113 @@ const CashierPOS = ({
                       </div>
                     ) : (
                       <div className="space-y-1">
-                        {cart.map((item, idx) => (
-                          <div key={idx} className={`group py-2 border-b ${borderClass} last:border-0`}>
+                        {cart.map((item, idx) => {
+                          const itemQty = item.qty || item.quantity || 1;
+                          const isExistingItem = item.isExisting && isRestaurant;
+                          return (
+                          <div key={idx} className={`group py-2 border-b ${borderClass} last:border-0 ${isExistingItem ? 'opacity-70' : ''}`}>
                             <div className="flex flex-col gap-1.5">
                               {/* Product Name and Delete */}
                               <div className="flex justify-between items-start gap-2">
                                 <div className="flex-1 min-w-0">
-                                  <h4 className={`text-[10px] font-bold uppercase ${textClass} truncate`} title={item.name}>{item.name}</h4>
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <h4 className={`text-[10px] font-bold uppercase ${textClass} truncate`} title={item.name}>{item.name}</h4>
+                                    {/* Show kitchen status for existing items */}
+                                    {isExistingItem && item.itemStatus && (
+                                      <span className={`px-1.5 py-0.5 text-[7px] font-bold rounded ${
+                                        item.itemStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                        item.itemStatus === 'preparing' ? 'bg-blue-100 text-blue-700' :
+                                        item.itemStatus === 'ready' ? 'bg-green-100 text-green-700' :
+                                        item.itemStatus === 'served' ? 'bg-purple-100 text-purple-700' :
+                                        'bg-gray-100 text-gray-700'
+                                      }`}>
+                                        {item.itemStatus === 'pending' ? '⏳ PENDING' :
+                                         item.itemStatus === 'preparing' ? '🍳 PREPARING' :
+                                         item.itemStatus === 'ready' ? '✅ READY' :
+                                         item.itemStatus === 'served' ? '🍽️ SERVED' :
+                                         item.itemStatus?.toUpperCase()}
+                                      </span>
+                                    )}
+                                    {/* Fallback: Show SENT for existing items without status */}
+                                    {isExistingItem && !item.itemStatus && (
+                                      <span className="px-1.5 py-0.5 text-[7px] font-bold bg-green-100 text-green-700 rounded">
+                                        SENT
+                                      </span>
+                                    )}
+                                    {!item.isExisting && isRestaurant && selectedTable && (
+                                      <span className="px-1.5 py-0.5 text-[7px] font-bold bg-orange-100 text-orange-700 rounded">
+                                        NEW
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className={`text-[9px] font-bold ${mutedClass}`}>
                                     {formatCurrency(item.sellingPrice)} each
+                                    {item.modifiers && item.modifiers.length > 0 && (
+                                      <span className="ml-1 text-accent-500">
+                                        +{item.modifiers.length} modifier{item.modifiers.length > 1 ? 's' : ''}
+                                      </span>
+                                    )}
                                   </p>
+                                  {item.specialRequest && (
+                                    <p className={`text-[8px] italic ${mutedClass}`}>
+                                      Note: {item.specialRequest}
+                                    </p>
+                                  )}
                                 </div>
-                                <button
-                                  onClick={() => removeFromCart(idx)}
-                                  className={`${mutedClass} hover:text-negative-500 shrink-0`}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {!isExistingItem ? (
+                                  <button
+                                    onClick={() => removeFromCart(idx)}
+                                    className={`${mutedClass} hover:text-negative-500 shrink-0`}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                ) : (
+                                  /* Show cancel request for items not yet served */
+                                  item.itemStatus && item.itemStatus !== 'served' && (
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm(`Request to cancel "${item.name}"? Kitchen staff will need to approve.`)) {
+                                          ordersAPI.requestCancel(activeOrder?.id, `Cancel item: ${item.name}`)
+                                            .then(() => showToast('Cancel request sent to kitchen'))
+                                            .catch(err => showToast(err.response?.data?.error || 'Failed to request cancel'));
+                                        }
+                                      }}
+                                      className="text-[7px] px-1.5 py-0.5 bg-red-100 text-red-600 hover:bg-red-200 rounded font-bold shrink-0"
+                                      title="Request cancellation (requires kitchen approval)"
+                                    >
+                                      Cancel
+                                    </button>
+                                  )
+                                )}
                               </div>
                               {/* Quantity and Subtotal */}
                               <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => updateQty(idx, -1)}
-                                    className={`w-6 h-6 rounded-md ${bgClass} border ${borderClass} flex items-center justify-center hover:border-accent-500`}
-                                  >
-                                    <Minus className="w-3 h-3" />
-                                  </button>
-                                  <span className={`w-6 text-center text-[11px] font-black ${textClass}`}>{item.qty}</span>
-                                  <button
-                                    onClick={() => updateQty(idx, 1)}
-                                    className={`w-6 h-6 rounded-md ${bgClass} border ${borderClass} flex items-center justify-center hover:border-accent-500`}
-                                  >
-                                    <Plus className="w-3 h-3" />
-                                  </button>
-                                </div>
+                                {isExistingItem ? (
+                                  <span className={`text-[11px] font-black ${textClass}`}>x{itemQty}</span>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => updateQty(idx, -1)}
+                                      className={`w-6 h-6 rounded-md ${bgClass} border ${borderClass} flex items-center justify-center hover:border-accent-500`}
+                                    >
+                                      <Minus className="w-3 h-3" />
+                                    </button>
+                                    <span className={`w-6 text-center text-[11px] font-black ${textClass}`}>{itemQty}</span>
+                                    <button
+                                      onClick={() => updateQty(idx, 1)}
+                                      className={`w-6 h-6 rounded-md ${bgClass} border ${borderClass} flex items-center justify-center hover:border-accent-500`}
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                )}
                                 <span className={`text-[11px] font-black text-accent-500`}>
-                                  {formatCurrency(item.sellingPrice * item.qty)}
+                                  {formatCurrency(item.sellingPrice * itemQty)}
                                 </span>
                               </div>
                             </div>
                             {/* Attendant Selection for Services - Only show for SERVICES/SALON business type */}
-                            {item.type === 'SERVICE' && attendants.length > 0 && ['SERVICES', 'SALON'].includes(user?.businessType) && (
+                            {item.type === 'SERVICE' && attendants.length > 0 && ['SERVICES', 'SALON'].includes(user?.businessType) && !isExistingItem && (
                               <div className="mt-1.5 flex items-center gap-2">
                                 <UserCog className={`w-3 h-3 ${mutedClass}`} />
                                 <select
@@ -1421,10 +2426,27 @@ const CashierPOS = ({
                               </div>
                             )}
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
                     )}
                   </div>
+
+                  {/* Order Notes for Restaurant */}
+                  {isRestaurant && selectedTable && !activeOrder && cart.length > 0 && (
+                    <div className={`pt-2 mt-2 border-t ${borderClass}`}>
+                      <label className={`text-[9px] font-bold uppercase ${mutedClass} block mb-1`}>
+                        Order Notes
+                      </label>
+                      <textarea
+                        value={orderNotes}
+                        onChange={(e) => setOrderNotes(e.target.value)}
+                        placeholder="Special instructions, allergies, etc..."
+                        className={`w-full text-[10px] p-2 rounded-lg ${bgClass} border ${borderClass} ${textClass} focus:outline-none focus:border-accent-500 resize-none`}
+                        rows={2}
+                      />
+                    </div>
+                  )}
 
                   {/* Fixed Total */}
                   <div className={`pt-2 sm:pt-3 mt-2 sm:mt-3 border-t ${borderClass}`}>
@@ -1439,26 +2461,126 @@ const CashierPOS = ({
 
                 {/* Fixed Action Buttons */}
                 <div className="flex flex-col gap-1.5 sm:gap-2">
-                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-                    <button
-                      onClick={() => openConfirm('Clear cart?', 'This will remove all items.', clearCart)}
-                      className={`py-2.5 sm:py-3 border border-negative-200 rounded-lg sm:rounded-xl text-negative-500 font-bold text-[9px] sm:text-[10px] uppercase hover:bg-negative-50 ${surfaceClass}`}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={showPayment}
-                      className="py-2.5 sm:py-3 bg-green-600 text-white rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase hover:bg-green-700 shadow-lg"
-                    >
-                      Pay Now
-                    </button>
-                  </div>
-                  <button
-                    onClick={holdOrder}
-                    className={`w-full py-2.5 sm:py-3 ${darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-900 border-slate-900'} border rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase hover:opacity-80 transition-all flex items-center justify-center gap-1.5`}
-                  >
-                    <PauseCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Hold
-                  </button>
+                  {/* Restaurant mode actions */}
+                  {isRestaurant ? (
+                    <>
+                      {/* Active order info */}
+                      {activeOrder && (
+                        <div className={`p-2 rounded-lg ${bgClass} border ${borderClass} mb-1`}>
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[10px] font-bold ${textClass}`}>
+                              {activeOrder.orderNumber}
+                            </span>
+                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${
+                              activeOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                              activeOrder.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
+                              activeOrder.status === 'ready' ? 'bg-green-100 text-green-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {activeOrder.status}
+                            </span>
+                          </div>
+                          {selectedTable && (
+                            <span className={`text-[9px] ${mutedClass}`}>Table {selectedTable.tableNumber}</span>
+                          )}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                        <button
+                          onClick={() => {
+                            // If there's an active order (sent to kitchen), check for served items
+                            if (activeOrder) {
+                              const existingItems = cart.filter(i => i.isExisting);
+                              const allServed = existingItems.length > 0 && existingItems.every(i => i.itemStatus === 'served');
+                              if (allServed) {
+                                showToast('Cannot cancel - all items have been served');
+                                return;
+                              }
+                              setShowCancelRequest(true);
+                            } else if (cart.length === 0) {
+                              clearRestaurantOrder();
+                            } else {
+                              openConfirm('Clear cart?', 'This will remove all items.', () => {
+                                setCart([]);
+                                clearRestaurantOrder();
+                              });
+                            }
+                          }}
+                          className={`py-2.5 sm:py-3 border border-negative-200 rounded-lg sm:rounded-xl text-negative-500 font-bold text-[9px] sm:text-[10px] uppercase hover:bg-negative-50 ${surfaceClass}`}
+                        >
+                          {activeOrder ? 'Request Cancel' : 'Cancel'}
+                        </button>
+                        <button
+                          onClick={sendToKitchen}
+                          disabled={cart.filter(i => !i.isExisting).length === 0 || sendingToKitchen}
+                          className="py-2.5 sm:py-3 bg-orange-500 text-white rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase hover:bg-orange-600 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                        >
+                          <Send className="w-3 h-3" />
+                          {sendingToKitchen ? 'Sending...' : `Send ${cart.filter(i => !i.isExisting).length} to Kitchen`}
+                        </button>
+                      </div>
+                      {/* Action buttons when there's an active order */}
+                      {activeOrder && (
+                        <>
+                          {/* View Tab / Pay and New Table row */}
+                          <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                            <button
+                              onClick={viewTab}
+                              disabled={loadingTabSummary}
+                              className="py-2.5 sm:py-3 bg-green-600 text-white rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase hover:bg-green-700 shadow-lg flex items-center justify-center gap-1.5 disabled:opacity-50"
+                            >
+                              <Receipt className="w-3 h-3" />
+                              {loadingTabSummary ? 'Loading...' : 'View Tab / Pay'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Start a new order on a different table
+                                clearRestaurantOrder();
+                                setShowTableSelector(true);
+                              }}
+                              className={`py-2.5 sm:py-3 ${darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'} border rounded-lg sm:rounded-xl font-bold text-[9px] sm:text-[10px] uppercase hover:opacity-80 transition-all flex items-center justify-center gap-1.5`}
+                            >
+                              <Plus className="w-3 h-3" />
+                              New Table
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {/* Table selection for dine-in */}
+                      {!selectedTable && (
+                        <button
+                          onClick={() => setShowTableSelector(true)}
+                          className={`w-full py-2.5 sm:py-3 ${darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-900 border-slate-900'} border rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase hover:opacity-80 transition-all flex items-center justify-center gap-1.5`}
+                        >
+                          <Armchair className="w-3 h-3" /> Select Table
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* Standard POS actions */}
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                        <button
+                          onClick={() => openConfirm('Clear cart?', 'This will remove all items.', clearCart)}
+                          className={`py-2.5 sm:py-3 border border-negative-200 rounded-lg sm:rounded-xl text-negative-500 font-bold text-[9px] sm:text-[10px] uppercase hover:bg-negative-50 ${surfaceClass}`}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={showPayment}
+                          className="py-2.5 sm:py-3 bg-green-600 text-white rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase hover:bg-green-700 shadow-lg"
+                        >
+                          Pay Now
+                        </button>
+                      </div>
+                      <button
+                        onClick={holdOrder}
+                        className={`w-full py-2.5 sm:py-3 ${darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-900 border-slate-900'} border rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase hover:opacity-80 transition-all flex items-center justify-center gap-1.5`}
+                      >
+                        <PauseCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Hold
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -1485,15 +2607,25 @@ const CashierPOS = ({
                   <div className="flex-1 overflow-y-auto">
                     <p className={`text-[9px] sm:text-[10px] font-bold ${mutedClass} mb-2`}>Select order type</p>
                     <div className="grid grid-cols-2 gap-1.5 sm:space-y-0 sm:grid-cols-1 sm:gap-2">
-                      {[
+                      {(isRestaurant ? [
+                        { id: 'Dine-in', label: 'Dine-in', icon: Armchair },
+                        { id: 'Takeout', label: 'Takeout', icon: ShoppingBag },
+                        { id: 'Delivery', label: 'Delivery', icon: Package }
+                      ] : [
                         { id: 'Walk-in', label: 'Walk-in' },
                         { id: 'Delivery', label: 'Delivery' },
                         { id: 'Pickup', label: 'Pickup' },
                         { id: 'Out-service', label: 'Out-svc' }
-                      ].map(({ id, label }) => (
+                      ]).map(({ id, label, icon: Icon }) => (
                         <button
                           key={id}
-                          onClick={() => setOrderType(id)}
+                          onClick={() => {
+                            setOrderType(id);
+                            // Show table selector for dine-in if no table selected
+                            if (id === 'Dine-in' && !selectedTable) {
+                              setShowTableSelector(true);
+                            }
+                          }}
                           className={`p-2 sm:p-2.5 border rounded-lg sm:rounded-xl text-left transition-all ${
                             orderType === id
                               ? 'border-accent-500 bg-accent-50 ' + (darkMode ? 'bg-accent-900/30' : '')
@@ -1501,7 +2633,10 @@ const CashierPOS = ({
                           }`}
                         >
                           <div className="flex items-center justify-between">
-                            <span className={`font-bold text-[10px] sm:text-xs ${textClass}`}>{label}</span>
+                            <div className="flex items-center gap-2">
+                              {Icon && <Icon className={`w-4 h-4 ${orderType === id ? 'text-accent-500' : mutedClass}`} />}
+                              <span className={`font-bold text-[10px] sm:text-xs ${textClass}`}>{label}</span>
+                            </div>
                             {orderType === id && (
                               <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-accent-500" />
                             )}
@@ -1509,6 +2644,26 @@ const CashierPOS = ({
                         </button>
                       ))}
                     </div>
+
+                    {/* Show selected table for Dine-in */}
+                    {isRestaurant && orderType === 'Dine-in' && (
+                      <div className="mt-3">
+                        <button
+                          onClick={() => setShowTableSelector(true)}
+                          className={`w-full p-2.5 border rounded-lg ${borderClass} flex items-center justify-between ${
+                            selectedTable ? 'border-green-500 bg-green-50' : ''
+                          } ${darkMode && selectedTable ? 'bg-green-900/20' : ''}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Armchair className={`w-4 h-4 ${selectedTable ? 'text-green-600' : mutedClass}`} />
+                            <span className={`font-bold text-xs ${textClass}`}>
+                              {selectedTable ? `Table ${selectedTable.tableNumber}` : 'Select Table'}
+                            </span>
+                          </div>
+                          {selectedTable && <CheckCircle className="w-4 h-4 text-green-500" />}
+                        </button>
+                      </div>
+                    )}
 
                     <button
                       onClick={() => setPaymentStep('select')}
@@ -2368,6 +3523,610 @@ const CashierPOS = ({
         </div>
       )}
 
+      {/* Table Selector Modal (Restaurant Mode) */}
+      {showTableSelector && (
+        <TableSelector
+          onSelect={handleTableSelect}
+          onClose={() => {
+            setShowTableSelector(false);
+            setPendingProduct(null); // Clear pending product if closed without selecting
+          }}
+          darkMode={darkMode}
+          selectedTableId={selectedTable?.id}
+        />
+      )}
+
+      {/* Modifier Modal (Restaurant Mode) */}
+      {showModifierModal && selectedProductForModifier && (
+        <ModifierModal
+          product={selectedProductForModifier}
+          onAdd={handleAddWithModifiers}
+          onClose={() => {
+            setShowModifierModal(false);
+            setSelectedProductForModifier(null);
+          }}
+          darkMode={darkMode}
+          currencySymbol={currencySymbol}
+        />
+      )}
+
+      {/* Tab Summary Modal (Restaurant Mode) - Multi-step payment flow */}
+      {showTabSummary && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`${darkMode ? 'bg-slate-800' : 'bg-white'} rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col animate-fade-in`}>
+            {/* Header */}
+            <div className={`p-4 border-b ${darkMode ? 'border-slate-700' : 'border-gray-200'} flex items-center justify-between`}>
+              <div>
+                <h2 className={`text-lg font-black uppercase ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {tabSummaryMode === 'receipt' ? 'Receipt' :
+                   tabSummaryMode === 'payment' ? 'Payment' :
+                   tabSummaryMode === 'amount' ? 'Amount' :
+                   'Tab Summary'} - Table {selectedTable?.tableNumber}
+                </h2>
+                <p className="text-xl font-black text-accent-500">
+                  {formatCurrency(tableSummary?.summary?.total || 0)}
+                </p>
+              </div>
+              {tabSummaryMode !== 'receipt' && (
+                <button
+                  onClick={() => {
+                    setShowTabSummary(false);
+                    setTableSummary(null);
+                  }}
+                  className={`p-2 rounded-lg ${darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            {/* Loading State */}
+            {loadingTabSummary ? (
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500"></div>
+              </div>
+            ) : tableSummary ? (
+              <>
+                {/* VIEW MODE - Show items */}
+                {tabSummaryMode === 'view' && (
+                  <>
+                    <div className="flex-1 overflow-y-auto p-4">
+                      {/* Not all served warning */}
+                      {!allItemsServed() && (
+                        <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-yellow-900/30 border-yellow-700' : 'bg-yellow-50 border-yellow-200'} border`}>
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
+                            <p className={`text-xs ${darkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
+                              Some items are still being prepared
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      <div className={`rounded-xl p-3 ${darkMode ? 'bg-slate-700' : 'bg-gray-50'}`}>
+                        <div className="space-y-2">
+                          {tableSummary.allItems?.map((item, idx) => (
+                            <div key={idx} className={`flex items-center justify-between py-2 border-b ${darkMode ? 'border-slate-600' : 'border-gray-200'} last:border-0`}>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {item.name}
+                                  </span>
+                                  <span className={`px-1.5 py-0.5 text-[7px] font-bold rounded ${
+                                    item.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                    item.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
+                                    item.status === 'ready' ? 'bg-green-100 text-green-700' :
+                                    item.status === 'served' ? 'bg-purple-100 text-purple-700' :
+                                    'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {item.status?.toUpperCase()}
+                                  </span>
+                                </div>
+                                {item.modifiers?.length > 0 && (
+                                  <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                                    {item.modifiers.map(m => `${m.name}: ${m.value}`).join(', ')}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>x{item.quantity}</span>
+                                <p className="text-sm font-bold text-accent-500">{formatCurrency(item.total)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`p-4 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'} space-y-2`}>
+                      <button
+                        onClick={() => setTabSummaryMode('payment')}
+                        className="w-full py-3 bg-green-600 text-white rounded-xl font-bold text-sm uppercase hover:bg-green-700 flex items-center justify-center gap-2"
+                      >
+                        <Receipt className="w-4 h-4" />
+                        Proceed to Payment
+                      </button>
+                      <button
+                        onClick={() => { setShowTabSummary(false); setTableSummary(null); }}
+                        className={`w-full py-2.5 border ${darkMode ? 'border-slate-600 text-slate-300' : 'border-gray-300 text-gray-600'} rounded-xl font-bold text-sm uppercase hover:opacity-80`}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* PAYMENT MODE - Select payment method */}
+                {tabSummaryMode === 'payment' && (
+                  <>
+                    <div className="flex-1 overflow-y-auto p-4">
+                      {/* Split payment toggle */}
+                      <div className={`flex items-center justify-between p-3 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-gray-50'} mb-4`}>
+                        <span className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Split Payment</span>
+                        <button
+                          onClick={() => {
+                            setTabSplitPayment(!tabSplitPayment);
+                            setTabPaymentMethod('');
+                            setTabSplitMethods([]);
+                          }}
+                          className={`w-12 h-6 rounded-full transition-colors ${tabSplitPayment ? 'bg-accent-500' : darkMode ? 'bg-slate-600' : 'bg-gray-300'}`}
+                        >
+                          <div className={`w-5 h-5 rounded-full bg-white shadow transform transition-transform ${tabSplitPayment ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+
+                      {!tabSplitPayment ? (
+                        /* Single payment method selection */
+                        <div className="grid grid-cols-2 gap-3">
+                          {[
+                            { id: 'cash', label: 'Cash', icon: Banknote, color: 'bg-green-600 hover:bg-green-700' },
+                            { id: 'card', label: 'Card', icon: CreditCard, color: 'bg-blue-600 hover:bg-blue-700' },
+                            { id: 'mobile_money', label: 'Mobile Money', icon: Smartphone, color: 'bg-purple-600 hover:bg-purple-700' },
+                            { id: 'bank_transfer', label: 'Bank Transfer', icon: Building2, color: 'bg-orange-600 hover:bg-orange-700' }
+                          ].map(method => (
+                            <button
+                              key={method.id}
+                              onClick={() => setTabPaymentMethod(method.id)}
+                              className={`p-4 rounded-xl font-bold text-sm uppercase flex flex-col items-center justify-center gap-2 transition-all ${
+                                tabPaymentMethod === method.id
+                                  ? `${method.color} text-white ring-2 ring-offset-2 ring-accent-500`
+                                  : darkMode
+                                    ? 'bg-slate-700 text-white hover:bg-slate-600'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              <method.icon className="w-6 h-6" />
+                              {method.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        /* Split payment - select multiple methods */
+                        <div className="space-y-3">
+                          <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                            Select payment methods and enter amounts:
+                          </p>
+                          {[
+                            { id: 'cash', label: 'Cash', icon: Banknote },
+                            { id: 'card', label: 'Card', icon: CreditCard },
+                            { id: 'mobile_money', label: 'Mobile', icon: Smartphone },
+                            { id: 'bank_transfer', label: 'Transfer', icon: Building2 }
+                          ].map(method => {
+                            const isSelected = tabSplitMethods.some(m => m.method === method.id);
+                            const splitItem = tabSplitMethods.find(m => m.method === method.id);
+                            return (
+                              <div key={method.id} className={`p-3 rounded-xl border-2 transition-all ${
+                                isSelected
+                                  ? 'border-accent-500'
+                                  : darkMode ? 'border-slate-600' : 'border-gray-200'
+                              }`}>
+                                <button
+                                  onClick={() => addSplitMethod(method.id)}
+                                  className="w-full flex items-center gap-3"
+                                >
+                                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                    isSelected ? 'border-accent-500 bg-accent-500' : darkMode ? 'border-slate-500' : 'border-gray-300'
+                                  }`}>
+                                    {isSelected && <CheckCircle className="w-4 h-4 text-white" />}
+                                  </div>
+                                  <method.icon className={`w-5 h-5 ${darkMode ? 'text-white' : 'text-gray-700'}`} />
+                                  <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{method.label}</span>
+                                </button>
+                                {isSelected && (
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <span className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>{currencySymbol}</span>
+                                    <input
+                                      type="number"
+                                      value={splitItem?.amount || ''}
+                                      onChange={(e) => updateTabSplitAmount(method.id, e.target.value)}
+                                      placeholder="0.00"
+                                      className={`flex-1 p-2 rounded-lg ${darkMode ? 'bg-slate-600 text-white' : 'bg-gray-100 text-gray-900'} border-0 focus:ring-2 focus:ring-accent-500`}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {tabSplitMethods.length > 0 && (
+                            <div className={`p-3 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-gray-50'}`}>
+                              <div className="flex justify-between">
+                                <span className={darkMode ? 'text-slate-400' : 'text-gray-500'}>Split Total:</span>
+                                <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {formatCurrency(tabSplitMethods.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0))}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className={darkMode ? 'text-slate-400' : 'text-gray-500'}>Remaining:</span>
+                                <span className={`font-bold ${
+                                  (tableSummary?.summary?.total || 0) - tabSplitMethods.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0) > 0
+                                    ? 'text-negative-500'
+                                    : 'text-positive-500'
+                                }`}>
+                                  {formatCurrency((tableSummary?.summary?.total || 0) - tabSplitMethods.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0))}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className={`p-4 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'} space-y-2`}>
+                      <button
+                        onClick={() => {
+                          if (tabSplitPayment) {
+                            processTabPayment();
+                          } else if (tabPaymentMethod === 'cash') {
+                            setTabSummaryMode('amount');
+                          } else if (tabPaymentMethod) {
+                            processTabPayment();
+                          } else {
+                            showToast('Please select a payment method');
+                          }
+                        }}
+                        disabled={closingTable || (!tabPaymentMethod && !tabSplitPayment) || (tabSplitPayment && tabSplitMethods.length === 0)}
+                        className="w-full py-3 bg-green-600 text-white rounded-xl font-bold text-sm uppercase hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {closingTable ? 'Processing...' : tabPaymentMethod === 'cash' && !tabSplitPayment ? 'Enter Amount' : 'Complete Payment'}
+                      </button>
+                      <button
+                        onClick={() => setTabSummaryMode('view')}
+                        disabled={closingTable}
+                        className={`w-full py-2.5 border ${darkMode ? 'border-slate-600 text-slate-300' : 'border-gray-300 text-gray-600'} rounded-xl font-bold text-sm uppercase hover:opacity-80`}
+                      >
+                        ← Back
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* AMOUNT MODE - Enter cash amount */}
+                {tabSummaryMode === 'amount' && (
+                  <>
+                    <div className="flex-1 overflow-y-auto p-4">
+                      <div className={`rounded-xl p-4 ${darkMode ? 'bg-slate-700' : 'bg-gray-50'} mb-4`}>
+                        <label className={`block text-sm font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          Amount Tendered
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{currencySymbol}</span>
+                          <input
+                            type="number"
+                            value={tabAmountTendered}
+                            onChange={(e) => setTabAmountTendered(e.target.value)}
+                            placeholder="0.00"
+                            autoFocus
+                            className={`flex-1 text-2xl font-bold p-3 rounded-xl ${darkMode ? 'bg-slate-600 text-white' : 'bg-white text-gray-900'} border-2 border-accent-500 focus:outline-none`}
+                          />
+                        </div>
+                      </div>
+                      {/* Quick amounts */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <button
+                          onClick={() => setTabAmountTendered((tableSummary?.summary?.total || 0).toString())}
+                          className={`px-3 py-2 rounded-lg text-sm font-bold ${darkMode ? 'bg-green-600 text-white hover:bg-green-500' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                        >
+                          Exact
+                        </button>
+                        {(() => {
+                          const total = tableSummary?.summary?.total || 0;
+                          // Generate smart quick amounts based on total
+                          const roundUp = (n, to) => Math.ceil(n / to) * to;
+                          const amounts = [
+                            roundUp(total, 5),      // Round to nearest 5
+                            roundUp(total, 10),     // Round to nearest 10
+                            roundUp(total, 20),     // Round to nearest 20
+                            roundUp(total, 50),     // Round to nearest 50
+                          ].filter((amt, idx, arr) => amt > total && arr.indexOf(amt) === idx); // Remove duplicates and exact
+                          return amounts.slice(0, 4).map(amt => (
+                            <button
+                              key={amt}
+                              onClick={() => setTabAmountTendered(amt.toString())}
+                              className={`px-3 py-2 rounded-lg text-sm font-bold ${darkMode ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                            >
+                              {formatCurrency(amt)}
+                            </button>
+                          ));
+                        })()}
+                      </div>
+                      {/* Change calculation */}
+                      {parseFloat(tabAmountTendered) >= (tableSummary?.summary?.total || 0) && (
+                        <div className={`rounded-xl p-4 ${darkMode ? 'bg-green-900/30' : 'bg-green-50'}`}>
+                          <div className="flex justify-between items-center">
+                            <span className={`text-sm font-bold ${darkMode ? 'text-green-400' : 'text-green-700'}`}>Change</span>
+                            <span className="text-2xl font-black text-green-600">
+                              {formatCurrency(parseFloat(tabAmountTendered) - (tableSummary?.summary?.total || 0))}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className={`p-4 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'} space-y-2`}>
+                      <button
+                        onClick={processTabPayment}
+                        disabled={closingTable || parseFloat(tabAmountTendered) < (tableSummary?.summary?.total || 0)}
+                        className="w-full py-3 bg-green-600 text-white rounded-xl font-bold text-sm uppercase hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {closingTable ? 'Processing...' : 'Complete Payment'}
+                      </button>
+                      <button
+                        onClick={() => setTabSummaryMode('payment')}
+                        disabled={closingTable}
+                        className={`w-full py-2.5 border ${darkMode ? 'border-slate-600 text-slate-300' : 'border-gray-300 text-gray-600'} rounded-xl font-bold text-sm uppercase hover:opacity-80`}
+                      >
+                        ← Back
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* RECEIPT MODE - Show receipt */}
+                {tabSummaryMode === 'receipt' && tabReceiptData && (
+                  <>
+                    <div className="flex-1 overflow-y-auto p-3">
+                      {/* Header - Business Info */}
+                      <div className="text-center mb-2">
+                        <h1 className={`text-xs font-black uppercase leading-tight ${textClass}`}>{user?.tenantName}</h1>
+                        <p className={`text-[7px] ${mutedClass} mt-0.5`}>{user?.tenant?.address || 'Business Address'}</p>
+                      </div>
+
+                      {/* Receipt Title */}
+                      <div className={`text-center py-2 border-y border-dashed ${borderClass} mb-2`}>
+                        <p className={`text-xs font-black uppercase tracking-wide ${textClass}`}>Sales Receipt</p>
+                        <CheckCircle className="w-5 h-5 text-green-500 mx-auto mt-1" />
+                      </div>
+
+                      {/* Transaction Details */}
+                      <div className={`text-[9px] space-y-0.5 mb-2`}>
+                        <div className="flex justify-between font-medium">
+                          <span className={mutedClass}>Served by:</span>
+                          <span className={textClass}>{user?.fullName}</span>
+                        </div>
+                        <div className="flex justify-between font-medium">
+                          <span className={mutedClass}>Date:</span>
+                          <span className={textClass}>{new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </div>
+                        <div className="flex justify-between font-medium">
+                          <span className={mutedClass}>Table:</span>
+                          <span className={textClass}>{tabReceiptData.table?.tableNumber || selectedTable?.tableNumber}</span>
+                        </div>
+                        <div className="flex justify-between font-medium">
+                          <span className={mutedClass}>Invoice #:</span>
+                          <span className={`font-bold ${textClass}`}>{tabReceiptData.transactionNumber || tabReceiptData.receiptNumber}</span>
+                        </div>
+                      </div>
+
+                      {/* Items Table */}
+                      <table className="w-full text-[9px] mb-2">
+                        <thead>
+                          <tr className={`border-y border-dashed ${borderClass} ${mutedClass} uppercase`}>
+                            <th className="py-1 text-left w-5">Qty</th>
+                            <th className="py-1 text-left">Item</th>
+                            <th className="py-1 text-right w-12">Price</th>
+                            <th className="py-1 text-right w-14">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(tabReceiptData.items || []).map((item, idx) => (
+                            <tr key={idx} className={`border-b border-dotted ${borderClass}`}>
+                              <td className="py-1 text-left">{item.quantity}</td>
+                              <td className="py-1 text-left">
+                                <span className={textClass}>{item.product?.name || item.productName || 'Item'}</span>
+                                {(() => {
+                                  try {
+                                    const mods = typeof item.modifiers === 'string'
+                                      ? JSON.parse(item.modifiers || '[]')
+                                      : (item.modifiers || []);
+                                    return mods.length > 0 ? (
+                                      <span className={`block text-[7px] ${mutedClass}`}>
+                                        {mods.map(m => m.value || m.name).join(', ')}
+                                      </span>
+                                    ) : null;
+                                  } catch { return null; }
+                                })()}
+                                {item.specialRequest && (
+                                  <span className={`block text-[7px] ${mutedClass} italic`}>{item.specialRequest}</span>
+                                )}
+                              </td>
+                              <td className="py-1 text-right">{formatCurrency(item.unitPrice)}</td>
+                              <td className="py-1 text-right font-medium">{formatCurrency(item.unitPrice * item.quantity)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      {/* Totals */}
+                      <div className={`border-t border-dashed ${borderClass} pt-2 space-y-1`}>
+                        <div className="flex justify-between text-[9px] font-medium">
+                          <span className={mutedClass}>Subtotal:</span>
+                          <span className={textClass}>{formatCurrency(tabReceiptData.totalAmount || tabReceiptData.finalAmount)}</span>
+                        </div>
+                        {tabReceiptData.discountAmount > 0 && (
+                          <div className="flex justify-between text-[9px] font-medium">
+                            <span className={mutedClass}>Discount:</span>
+                            <span className="text-red-500">-{formatCurrency(tabReceiptData.discountAmount)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-[10px] font-black">
+                          <span className={textClass}>Total:</span>
+                          <span className="text-accent-600">{formatCurrency(tabReceiptData.finalAmount)}</span>
+                        </div>
+                      </div>
+
+                      {/* Payment Info */}
+                      <div className={`border-t border-dashed ${borderClass} mt-2 pt-2 space-y-1`}>
+                        {tabReceiptData.amountTendered && (
+                          <div className="flex justify-between text-[9px] font-medium">
+                            <span className={mutedClass}>Amount Paid:</span>
+                            <span className={textClass}>{formatCurrency(tabReceiptData.amountTendered)}</span>
+                          </div>
+                        )}
+                        {tabReceiptData.change > 0 && (
+                          <div className="flex justify-between text-[9px] font-bold">
+                            <span className="text-green-600">Change:</span>
+                            <span className="text-green-600">{formatCurrency(tabReceiptData.change)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-[9px] font-medium">
+                          <span className={mutedClass}>Payment:</span>
+                          <span className={textClass}>
+                            {tabReceiptData.splitPayments
+                              ? tabReceiptData.splitPayments.map(p => p.method).join(' + ')
+                              : (tabReceiptData.paymentMethod || '').replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Thank You */}
+                      <div className={`text-center py-2 mt-2 border-t border-dashed ${borderClass}`}>
+                        <p className={`text-[9px] font-bold ${textClass}`}>Thank you for dining with us!</p>
+                        <p className={`text-[8px] ${mutedClass}`}>We appreciate your patronage</p>
+                      </div>
+
+                      {/* Footer */}
+                      <div className={`text-center pt-2 border-t ${borderClass}`}>
+                        <p className={`text-[7px] ${mutedClass}`}>Software by Kameta Samuel</p>
+                        <p className={`text-[7px] ${mutedClass}`}>+233 24 000 0000</p>
+                      </div>
+                    </div>
+                    <div className={`p-3 border-t ${borderClass} space-y-2`}>
+                      <button
+                        onClick={() => window.print()}
+                        className={`w-full py-2.5 ${darkMode ? 'bg-white text-black' : 'bg-slate-900 text-white'} rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5`}
+                      >
+                        <Printer className="w-3.5 h-3.5" /> Print Receipt
+                      </button>
+                      <button
+                        onClick={completeTabPayment}
+                        className="w-full py-2.5 bg-green-600 text-white rounded-xl font-black text-[10px] uppercase hover:bg-green-700"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center p-8">
+                <p className={`${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>No orders found for this table</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Switch Table Modal */}
+      {showSwitchTable && (
+        <SwitchTableModal
+          currentTable={selectedTable}
+          onSwitch={handleSwitchTable}
+          onClose={() => setShowSwitchTable(false)}
+          darkMode={darkMode}
+        />
+      )}
+
+      {/* Cancel Request Modal */}
+      {showCancelRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`${darkMode ? 'bg-slate-800' : 'bg-white'} rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in`}>
+            <div className={`p-4 border-b ${darkMode ? 'border-slate-700' : 'border-gray-200'} flex items-center justify-between`}>
+              <div>
+                <h2 className={`text-lg font-black uppercase ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Request Cancellation
+                </h2>
+                <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                  Order {activeOrder?.orderNumber} • Table {selectedTable?.tableNumber}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCancelRequest(false);
+                  setCancelRequestReason('');
+                }}
+                className={`p-2 rounded-lg ${darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              {(() => {
+                const existingItems = cart.filter(i => i.isExisting);
+                const servedItems = existingItems.filter(i => i.itemStatus === 'served');
+                const cancellableItems = existingItems.filter(i => i.itemStatus !== 'served');
+                return (
+                  <div className={`mb-4 p-3 rounded-lg ${darkMode ? 'bg-yellow-900/30 border-yellow-700' : 'bg-yellow-50 border-yellow-200'} border`}>
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
+                      <div className={`text-xs ${darkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
+                        <p className="mb-2">
+                          Orders sent to kitchen cannot be cancelled directly. Your request will be sent to kitchen/manager for approval.
+                        </p>
+                        {servedItems.length > 0 && (
+                          <p className="font-bold text-red-500">
+                            Note: {servedItems.length} item(s) already served cannot be cancelled.
+                          </p>
+                        )}
+                        {cancellableItems.length > 0 && (
+                          <p className="mt-1">
+                            {cancellableItems.length} item(s) can be requested for cancellation.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              <label className={`block text-sm font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Reason for cancellation *
+              </label>
+              <textarea
+                value={cancelRequestReason}
+                onChange={(e) => setCancelRequestReason(e.target.value)}
+                placeholder="e.g., Customer changed their mind, Wrong order, etc."
+                className={`w-full p-3 rounded-xl ${darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-gray-50 text-gray-900 border-gray-200'} border focus:outline-none focus:border-accent-500`}
+                rows={3}
+              />
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => {
+                    setShowCancelRequest(false);
+                    setCancelRequestReason('');
+                  }}
+                  disabled={sendingCancelRequest}
+                  className={`flex-1 py-2.5 border ${darkMode ? 'border-slate-600 text-slate-300' : 'border-gray-300 text-gray-600'} rounded-xl font-bold text-sm uppercase hover:opacity-80 disabled:opacity-50`}
+                >
+                  Back
+                </button>
+                <button
+                  onClick={requestCancelOrder}
+                  disabled={sendingCancelRequest || !cancelRequestReason.trim()}
+                  className="flex-1 py-2.5 bg-negative-500 text-white rounded-xl font-bold text-sm uppercase hover:bg-negative-600 disabled:opacity-50"
+                >
+                  {sendingCancelRequest ? 'Sending...' : 'Send Request'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes fade-in {
           from { opacity: 0; transform: scale(0.95); }
@@ -2401,6 +4160,38 @@ const CashierPOS = ({
           }
         }
       `}</style>
+
+      {/* Draft Recovery Dialog - for power interruption recovery */}
+      {showDraftRecovery && draftData && (
+        <DraftRecoveryDialog
+          draft={draftData}
+          onRestore={async () => {
+            // Restore cart from draft
+            if (draftData.cart) {
+              setCart(draftData.cart);
+            }
+            if (draftData.customer) {
+              setSelectedCustomer(draftData.customer);
+              setCustomerName(draftData.customer.name || '');
+            }
+            if (draftData.paymentMethod) {
+              setSelectedPayment(draftData.paymentMethod);
+            }
+            // Clear the draft from storage after restoring
+            await clearDraft();
+            setShowDraftRecovery(false);
+            setDraftData(null);
+            showToast('Transaction restored');
+          }}
+          onDiscard={async () => {
+            await clearDraft();
+            setShowDraftRecovery(false);
+            setDraftData(null);
+          }}
+          darkMode={darkMode}
+          currencySymbol={currencySymbol}
+        />
+      )}
     </div>
   );
 };

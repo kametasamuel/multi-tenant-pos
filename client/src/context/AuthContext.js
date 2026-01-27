@@ -135,6 +135,7 @@ export const AuthProvider = ({ children }) => {
   const isOwner = () => user?.role === 'OWNER' || user?.role === 'ADMIN';
   const isManager = () => user?.role === 'MANAGER';
   const isCashier = () => user?.role === 'CASHIER';
+  const isKitchen = () => user?.role === 'KITCHEN';
   const isSuperAdmin = () => user?.isSuperAdmin === true;
   const canViewAnalytics = () => user?.role === 'ADMIN' || user?.role === 'OWNER' || user?.role === 'MANAGER' || user?.isSuperAdmin;
   const clearError = () => setError(null);
@@ -154,6 +155,7 @@ export const AuthProvider = ({ children }) => {
     isOwner,
     isManager,
     isCashier,
+    isKitchen,
     isSuperAdmin,
     canViewAnalytics,
     businessType,

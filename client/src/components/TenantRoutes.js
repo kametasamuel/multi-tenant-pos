@@ -10,6 +10,9 @@ import SuperAdminLayout from './SuperAdminLayout';
 import TenantLogin from '../pages/TenantLogin';
 import Dashboard from '../pages/Dashboard';
 import CashierPOS from '../pages/CashierPOS';
+import KitchenDisplay from '../pages/KitchenDisplay';
+import FrontDesk from '../pages/FrontDesk';
+import Housekeeping from '../pages/Housekeeping';
 import Inventory from '../pages/Inventory';
 import Staff from '../pages/Staff';
 import Reports from '../pages/Reports';
@@ -47,7 +50,11 @@ import {
   OwnerBranches,
   OwnerSettings,
   OwnerStockTransfers,
-  OwnerAttendants
+  OwnerAttendants,
+  OwnerTables,
+  OwnerRooms,
+  OwnerBookings,
+  OwnerGuests
 } from '../pages/owner';
 
 // Owner Routes with shared BranchProvider
@@ -68,6 +75,11 @@ const OwnerRoutes = () => {
         <Route path="reports" element={<OwnerLayout><OwnerReports /></OwnerLayout>} />
         <Route path="branches" element={<OwnerLayout><OwnerBranches /></OwnerLayout>} />
         <Route path="settings" element={<OwnerLayout><OwnerSettings /></OwnerLayout>} />
+        <Route path="tables" element={<OwnerLayout><OwnerTables /></OwnerLayout>} />
+        {/* Hospitality routes */}
+        <Route path="rooms" element={<OwnerLayout><OwnerRooms /></OwnerLayout>} />
+        <Route path="bookings" element={<OwnerLayout><OwnerBookings /></OwnerLayout>} />
+        <Route path="guests" element={<OwnerLayout><OwnerGuests /></OwnerLayout>} />
         <Route path="pos" element={<OwnerLayout><CashierPOS managerView={true} /></OwnerLayout>} />
       </Routes>
     </BranchProvider>
@@ -330,6 +342,36 @@ const TenantRoutes = () => {
               <ManagerLayout>
                 <CashierPOS managerView={true} />
               </ManagerLayout>
+            </PrivateRoute>
+          }
+        />
+
+        {/* Kitchen Display (Restaurant Mode) */}
+        <Route
+          path="kitchen"
+          element={
+            <PrivateRoute>
+              <KitchenDisplay />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Front Desk (Hospitality Mode) */}
+        <Route
+          path="front-desk"
+          element={
+            <PrivateRoute>
+              <FrontDesk />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Housekeeping (Hospitality Mode) */}
+        <Route
+          path="housekeeping"
+          element={
+            <PrivateRoute>
+              <Housekeeping />
             </PrivateRoute>
           }
         />

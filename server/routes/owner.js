@@ -1,11 +1,44 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { authenticate, requireOwner, logAudit } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Configure multer for business logo uploads
+const logosDir = path.join(__dirname, '..', '..', 'uploads', 'logos');
+if (!fs.existsSync(logosDir)) {
+  fs.mkdirSync(logosDir, { recursive: true });
+}
+
+const logoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, logosDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'logo-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const logoUpload = multer({
+  storage: logoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error('Only image files are allowed (JPEG, PNG, GIF, WebP)'));
+  }
+});
 
 // All routes require owner authentication
 router.use(authenticate);
@@ -1174,6 +1207,105 @@ router.put('/settings', [
   } catch (error) {
     console.error('Update settings error:', error);
     res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// POST /api/owner/settings/logo - Upload business logo
+router.post('/settings/logo', logoUpload.single('logo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Get current tenant to delete old logo if exists
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: req.tenantId },
+      select: { businessLogo: true }
+    });
+
+    // Delete old logo file if exists
+    if (tenant?.businessLogo) {
+      const oldLogoPath = path.join(__dirname, '..', '..', tenant.businessLogo);
+      if (fs.existsSync(oldLogoPath)) {
+        fs.unlinkSync(oldLogoPath);
+      }
+    }
+
+    const logoPath = '/uploads/logos/' + req.file.filename;
+
+    const updatedTenant = await prisma.tenant.update({
+      where: { id: req.tenantId },
+      data: { businessLogo: logoPath },
+      select: {
+        id: true,
+        businessName: true,
+        businessLogo: true
+      }
+    });
+
+    await logAudit(
+      req.tenantId,
+      req.user.id,
+      'logo_updated',
+      'Updated business logo',
+      { logoPath },
+      req.branchId
+    );
+
+    res.json({
+      message: 'Logo uploaded successfully',
+      logo: updatedTenant.businessLogo
+    });
+  } catch (error) {
+    console.error('Logo upload error:', error);
+    // Clean up uploaded file on error
+    if (req.file) {
+      const filePath = path.join(logosDir, req.file.filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    res.status(500).json({ error: 'Failed to upload logo' });
+  }
+});
+
+// DELETE /api/owner/settings/logo - Delete business logo
+router.delete('/settings/logo', async (req, res) => {
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: req.tenantId },
+      select: { businessLogo: true }
+    });
+
+    if (!tenant?.businessLogo) {
+      return res.status(404).json({ error: 'No logo to delete' });
+    }
+
+    // Delete the file
+    const logoPath = path.join(__dirname, '..', '..', tenant.businessLogo);
+    if (fs.existsSync(logoPath)) {
+      fs.unlinkSync(logoPath);
+    }
+
+    // Update database
+    await prisma.tenant.update({
+      where: { id: req.tenantId },
+      data: { businessLogo: null }
+    });
+
+    await logAudit(
+      req.tenantId,
+      req.user.id,
+      'logo_deleted',
+      'Deleted business logo',
+      {},
+      req.branchId
+    );
+
+    res.json({ message: 'Logo deleted successfully' });
+  } catch (error) {
+    console.error('Logo delete error:', error);
+    res.status(500).json({ error: 'Failed to delete logo' });
   }
 });
 

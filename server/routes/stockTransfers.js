@@ -372,13 +372,17 @@ router.post('/:id/receive',
             data: { receivedQty }
           });
 
+          // Get source product first (needed for both lookup and potential copy)
+          const sourceProduct = await tx.product.findUnique({
+            where: { id: transferItem.productId }
+          });
+
           // Find or create product at destination branch
-          // First check if product exists at destination
           const destProduct = await tx.product.findFirst({
             where: {
               tenantId: req.user.tenantId,
               branchId: transfer.toBranchId,
-              name: { equals: (await tx.product.findUnique({ where: { id: transferItem.productId } })).name }
+              name: sourceProduct.name
             }
           });
 
@@ -390,10 +394,6 @@ router.post('/:id/receive',
             });
           } else {
             // Copy product to destination branch
-            const sourceProduct = await tx.product.findUnique({
-              where: { id: transferItem.productId }
-            });
-
             await tx.product.create({
               data: {
                 name: sourceProduct.name,

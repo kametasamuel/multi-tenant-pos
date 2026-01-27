@@ -25,6 +25,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Skip redirect for login attempts - let the login form handle the error
+      const requestUrl = error.config?.url || '';
+      if (requestUrl.includes('/auth/login')) {
+        return Promise.reject(error);
+      }
+
       // Get user info before clearing
       const userStr = localStorage.getItem('user');
       let redirectUrl = '/';
@@ -81,7 +87,10 @@ export const productsAPI = {
     return api.put(`/products/${id}`, data);
   },
   getLowStock: () => api.get('/products/inventory/low-stock'),
-  delete: (id) => api.delete(`/products/${id}`)
+  delete: (id) => api.delete(`/products/${id}`),
+  // 86'd (temporarily unavailable) management
+  toggle86: (id) => api.put(`/products/${id}/86`),
+  get86d: () => api.get('/products/status/86d')
 };
 
 // Sales API
@@ -307,7 +316,12 @@ export const ownerAPI = {
   getStylistPerformance: (params) => api.get('/owner/reports/stylist-performance', { params }),
   // Settings
   getSettings: () => api.get('/owner/settings'),
-  updateSettings: (data) => api.put('/owner/settings', data)
+  updateSettings: (data) => api.put('/owner/settings', data),
+  // Logo Management
+  uploadLogo: (formData) => api.post('/owner/settings/logo', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  deleteLogo: () => api.delete('/owner/settings/logo')
 };
 
 // Stock Transfers API (Retail Module)
@@ -366,6 +380,151 @@ export const branchesAPI = {
   getRequests: (params) => api.get('/branches/requests/list', { params }),
   createRequest: (data) => api.post('/branches/requests', data),
   cancelRequest: (id) => api.delete(`/branches/requests/${id}`)
+};
+
+// Restaurant Tables API
+export const tablesAPI = {
+  getAll: (params) => api.get('/tables', { params }),
+  getById: (id) => api.get(`/tables/${id}`),
+  create: (data) => api.post('/tables', data),
+  update: (id, data) => api.put(`/tables/${id}`, data),
+  delete: (id) => api.delete(`/tables/${id}`),
+  updateStatus: (id, status) => api.put(`/tables/${id}/status`, { status }),
+  bulkCreate: (data) => api.post('/tables/bulk', data),
+  updatePositions: (positions) => api.put('/tables/positions/update', { positions })
+};
+
+// Restaurant Orders API
+export const ordersAPI = {
+  getAll: (params) => api.get('/orders', { params }),
+  getById: (id) => api.get(`/orders/${id}`),
+  getOpenTabs: (params) => api.get('/orders/open-tabs', { params }),
+  create: (data) => api.post('/orders', data),
+  addItems: (id, items) => api.post(`/orders/${id}/items`, { items }),
+  updateStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
+  updatePriority: (id, priority) => api.put(`/orders/${id}/priority`, { priority }),
+  closeTab: (id, data) => api.put(`/orders/${id}/close`, data),
+  cancel: (id, reason) => api.delete(`/orders/${id}`, { data: { reason } }),
+  updateItem: (orderId, itemId, data) => api.put(`/orders/${orderId}/items/${itemId}`, data),
+  removeItem: (orderId, itemId) => api.delete(`/orders/${orderId}/items/${itemId}`),
+  // Table-level operations
+  getTableSummary: (tableId) => api.get(`/orders/table/${tableId}/summary`),
+  closeTable: (tableId, data) => api.put(`/orders/table/${tableId}/close`, data),
+  refreshOrder: (id) => api.get(`/orders/${id}/refresh`),
+  // Switch table and cancel request
+  switchTable: (id, newTableId) => api.put(`/orders/${id}/switch-table`, { newTableId }),
+  requestCancel: (id, reason) => api.post(`/orders/${id}/request-cancel`, { reason })
+};
+
+// Kitchen Display System API
+export const kdsAPI = {
+  getOrders: (params) => api.get('/kds/orders', { params }),
+  getReadyOrders: (params) => api.get('/kds/orders/ready', { params }),
+  getOrderDetails: (id) => api.get(`/kds/orders/${id}`),
+  updateOrderStatus: (id, status) => api.put(`/kds/orders/${id}/status`, { status }),
+  updateItemStatus: (id, status) => api.put(`/kds/items/${id}`, { status }),
+  bumpOrder: (id) => api.post(`/kds/orders/${id}/bump`),
+  recallOrder: (id, reason) => api.post(`/kds/orders/${id}/recall`, { reason }),
+  getStats: (params) => api.get('/kds/stats', { params })
+};
+
+// Product Modifiers API
+export const modifiersAPI = {
+  getForProduct: (productId) => api.get(`/modifiers/products/${productId}/modifiers`),
+  getAll: (params) => api.get('/modifiers', { params }),
+  create: (productId, data) => api.post(`/modifiers/products/${productId}/modifiers`, data),
+  update: (id, data) => api.put(`/modifiers/${id}`, data),
+  delete: (id) => api.delete(`/modifiers/${id}`),
+  reorder: (productId, modifierIds) => api.post('/modifiers/reorder', { productId, modifierIds }),
+  copy: (sourceProductId, targetProductId) => api.post('/modifiers/copy', { sourceProductId, targetProductId })
+};
+
+// ============================================
+// HOSPITALITY MODULE APIs
+// ============================================
+
+// Room Types & Rooms API
+export const roomsAPI = {
+  // Room Types
+  getTypes: (params) => api.get('/rooms/types', { params }),
+  getTypeById: (id) => api.get(`/rooms/types/${id}`),
+  createType: (data) => api.post('/rooms/types', data),
+  updateType: (id, data) => api.put(`/rooms/types/${id}`, data),
+  deleteType: (id) => api.delete(`/rooms/types/${id}`),
+  // Rooms
+  getAll: (params) => api.get('/rooms', { params }),
+  getById: (id) => api.get(`/rooms/${id}`),
+  getAvailability: (params) => api.get('/rooms/availability', { params }),
+  create: (data) => api.post('/rooms', data),
+  bulkCreate: (data) => api.post('/rooms/bulk', data),
+  update: (id, data) => api.put(`/rooms/${id}`, data),
+  updateStatus: (id, data) => api.put(`/rooms/${id}/status`, data),
+  delete: (id) => api.delete(`/rooms/${id}`),
+  // Rate Plans
+  getRatePlans: (roomTypeId) => api.get(`/rooms/types/${roomTypeId}/rates`),
+  createRatePlan: (roomTypeId, data) => api.post(`/rooms/types/${roomTypeId}/rates`, data)
+};
+
+// Bookings API
+export const bookingsAPI = {
+  getAll: (params) => api.get('/bookings', { params }),
+  getById: (id) => api.get(`/bookings/${id}`),
+  getArrivals: (params) => api.get('/bookings/arrivals', { params }),
+  getDepartures: (params) => api.get('/bookings/departures', { params }),
+  getInHouse: (params) => api.get('/bookings/in-house', { params }),
+  create: (data) => api.post('/bookings', data),
+  update: (id, data) => api.put(`/bookings/${id}`, data),
+  checkIn: (id, data) => api.post(`/bookings/${id}/check-in`, data),
+  checkOut: (id, data) => api.post(`/bookings/${id}/check-out`, data),
+  cancel: (id, reason) => api.post(`/bookings/${id}/cancel`, { reason }),
+  markNoShow: (id) => api.post(`/bookings/${id}/no-show`)
+};
+
+// Guests API
+export const guestsAPI = {
+  search: (q) => api.get('/guests/search', { params: { q } }),
+  getAll: (params) => api.get('/guests', { params }),
+  getById: (id) => api.get(`/guests/${id}`),
+  getVIP: () => api.get('/guests/vip'),
+  getFrequent: (params) => api.get('/guests/frequent', { params }),
+  create: (data) => api.post('/guests', data),
+  update: (id, data) => api.put(`/guests/${id}`, data),
+  updateVIPStatus: (id, vipStatus) => api.put(`/guests/${id}/vip`, { vipStatus }),
+  delete: (id) => api.delete(`/guests/${id}`),
+  merge: (keepGuestId, mergeGuestId) => api.post('/guests/merge', { keepGuestId, mergeGuestId })
+};
+
+// Folios API
+export const foliosAPI = {
+  getOpen: (params) => api.get('/folios/open', { params }),
+  getById: (id) => api.get(`/folios/${id}`),
+  getByBooking: (bookingId) => api.get(`/folios/booking/${bookingId}`),
+  getPrintData: (id) => api.get(`/folios/${id}/print`),
+  // Charges
+  addCharge: (folioId, data) => api.post(`/folios/${folioId}/charges`, data),
+  addQuickCharge: (folioId, type, roomNumber) => api.post(`/folios/${folioId}/charges/quick`, { type, roomNumber }),
+  voidCharge: (chargeId, reason) => api.post(`/folios/charges/${chargeId}/void`, { reason }),
+  // Payments
+  addPayment: (folioId, data) => api.post(`/folios/${folioId}/payments`, data),
+  voidPayment: (paymentId, reason) => api.post(`/folios/payments/${paymentId}/void`, { reason }),
+  // Transfer
+  transferCharges: (sourceChargeIds, targetFolioId) => api.post('/folios/transfer', { sourceChargeIds, targetFolioId })
+};
+
+// Housekeeping API
+export const housekeepingAPI = {
+  getTasks: (params) => api.get('/housekeeping/tasks', { params }),
+  getPendingTasks: (params) => api.get('/housekeeping/pending', { params }),
+  getRoomStatus: (params) => api.get('/housekeeping/room-status', { params }),
+  getTaskById: (id) => api.get(`/housekeeping/tasks/${id}`),
+  getStats: (params) => api.get('/housekeeping/stats', { params }),
+  createTask: (data) => api.post('/housekeeping/tasks', data),
+  bulkCreateTasks: (data) => api.post('/housekeeping/tasks/bulk', data),
+  updateTask: (id, data) => api.put(`/housekeeping/tasks/${id}`, data),
+  startTask: (id) => api.post(`/housekeeping/tasks/${id}/start`),
+  completeTask: (id, notes) => api.post(`/housekeeping/tasks/${id}/complete`, { notes }),
+  verifyTask: (id, approved, notes) => api.post(`/housekeeping/tasks/${id}/verify`, { approved, notes }),
+  deleteTask: (id) => api.delete(`/housekeeping/tasks/${id}`)
 };
 
 export default api;

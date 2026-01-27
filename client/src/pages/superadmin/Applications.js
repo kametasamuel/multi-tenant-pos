@@ -430,7 +430,7 @@ const Applications = ({
                         <p className={`text-xs ${mutedClass}`}>{app.ownerEmail}</p>
                       </td>
                       <td className={`px-4 py-4 text-sm ${mutedClass}`}>
-                        {app.industryType || 'General'}
+                        {app.businessType || 'General'}
                       </td>
                       <td className="px-4 py-4">
                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${status.bg} ${status.text}`}>
@@ -524,8 +524,8 @@ const Applications = ({
                     <p className={`text-sm font-bold ${textClass}`}>{selectedApp.businessName}</p>
                   </div>
                   <div>
-                    <p className={`text-xs ${mutedClass}`}>Industry</p>
-                    <p className={`text-sm font-bold ${textClass}`}>{selectedApp.industryType || 'General'}</p>
+                    <p className={`text-xs ${mutedClass}`}>Business Type</p>
+                    <p className={`text-sm font-bold ${textClass}`}>{selectedApp.businessType || 'General'}</p>
                   </div>
                   <div>
                     <p className={`text-xs ${mutedClass}`}>Business Email</p>

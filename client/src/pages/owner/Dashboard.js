@@ -30,6 +30,7 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
   const navigate = useNavigate();
   const { user } = useAuth();
   const isServicesType = ['SERVICES', 'SALON'].includes(user?.businessType);
+  const isRestaurantType = user?.businessType === 'FOOD_AND_BEVERAGE';
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -307,7 +308,7 @@ const Dashboard = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass,
                     <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 shrink-0" />
                     <div className="min-w-0">
                       <p className={`text-xs sm:text-sm font-bold ${textClass}`}>
-                        {totalVoidAlerts} Void Request{totalVoidAlerts !== 1 ? 's' : ''}
+                        {totalVoidAlerts} {isRestaurantType ? 'Cancel Request' : 'Void Request'}{totalVoidAlerts !== 1 ? 's' : ''}
                       </p>
                       <p className={`text-[10px] sm:text-xs ${mutedClass} truncate`}>
                         {alerts.pendingRequests > 0 && `${alerts.pendingRequests} pending`}

@@ -30,7 +30,8 @@ router.get('/search', authenticate, async (req, res) => {
         phone: true,
         email: true,
         totalSpent: true,
-        visitCount: true
+        visitCount: true,
+        lastVisit: true
       }
     });
 

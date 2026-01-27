@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ownerAPI } from '../../api';
+import React, { useState, useEffect, useRef } from 'react';
+import { ownerAPI, IMAGE_BASE_URL } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import {
   Settings as SettingsIcon,
@@ -10,7 +10,10 @@ import {
   RefreshCw,
   Calendar,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Upload,
+  Trash2,
+  Image as ImageIcon
 } from 'lucide-react';
 
 const Settings = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass }) => {
@@ -27,6 +30,11 @@ const Settings = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass }
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Logo upload state
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [deletingLogo, setDeletingLogo] = useState(false);
+  const logoInputRef = useRef(null);
 
   useEffect(() => {
     loadSettings();
@@ -75,6 +83,64 @@ const Settings = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass }
       setError(error.response?.data?.error || 'Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Please upload a valid image file (JPEG, PNG, GIF, or WebP)');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size must be less than 5MB');
+      return;
+    }
+
+    setUploadingLogo(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('logo', file);
+      await ownerAPI.uploadLogo(formData);
+      setSuccess('Logo updated successfully');
+      loadSettings();
+      await refreshUser();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+      // Reset file input
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleLogoDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete the business logo?')) return;
+
+    setDeletingLogo(true);
+    setError('');
+
+    try {
+      await ownerAPI.deleteLogo();
+      setSuccess('Logo deleted successfully');
+      loadSettings();
+      await refreshUser();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to delete logo');
+    } finally {
+      setDeletingLogo(false);
     }
   };
 
@@ -208,6 +274,71 @@ const Settings = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass }
             <Building2 className={`w-5 h-5 ${mutedClass}`} />
             <h2 className={`text-sm font-black uppercase ${textClass}`}>Business Profile</h2>
           </div>
+
+          {/* Logo Section */}
+          <div className="mb-6">
+            <label className={`block text-xs font-bold uppercase ${mutedClass} mb-3`}>Business Logo</label>
+            <div className="flex items-center gap-6">
+              {/* Logo Preview */}
+              <div className={`w-24 h-24 rounded-2xl border-2 border-dashed ${borderClass} flex items-center justify-center overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-gray-50'}`}>
+                {settings?.businessLogo ? (
+                  <img
+                    src={`${IMAGE_BASE_URL}${settings.businessLogo}`}
+                    alt="Business Logo"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon className={`w-8 h-8 ${mutedClass}`} />
+                )}
+              </div>
+
+              {/* Upload/Delete Buttons */}
+              <div className="flex flex-col gap-2">
+                <input
+                  type="file"
+                  ref={logoInputRef}
+                  onChange={handleLogoUpload}
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={uploadingLogo}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm uppercase transition-colors ${
+                    darkMode
+                      ? 'bg-slate-600 hover:bg-slate-500 text-white'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  } disabled:opacity-50`}
+                >
+                  {uploadingLogo ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
+                </button>
+                {settings?.businessLogo && (
+                  <button
+                    type="button"
+                    onClick={handleLogoDelete}
+                    disabled={deletingLogo}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm uppercase text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                  >
+                    {deletingLogo ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {deletingLogo ? 'Deleting...' : 'Remove'}
+                  </button>
+                )}
+                <p className={`text-xs ${mutedClass}`}>JPEG, PNG, GIF, WebP. Max 5MB</p>
+                <p className={`text-xs ${mutedClass}`}>Shows on login page & receipts</p>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <label className={`block text-xs font-bold uppercase ${mutedClass} mb-2`}>Business Name</label>

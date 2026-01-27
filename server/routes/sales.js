@@ -156,7 +156,8 @@ router.post('/', authenticate, validateCreateSale, async (req, res) => {
           where: { id: customerId },
           data: {
             totalSpent: { increment: finalAmount },
-            visitCount: { increment: 1 }
+            visitCount: { increment: 1 },
+            lastVisit: new Date()
           }
         });
       }

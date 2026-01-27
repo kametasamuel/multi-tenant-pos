@@ -11,3 +11,8 @@ export { default as OwnerBranches } from './Branches';
 export { default as OwnerSettings } from './Settings';
 export { default as OwnerStockTransfers } from './StockTransfers';
 export { default as OwnerAttendants } from './Attendants';
+export { default as OwnerTables } from './Tables';
+// Hospitality module
+export { default as OwnerRooms } from './Rooms';
+export { default as OwnerBookings } from './Bookings';
+export { default as OwnerGuests } from './Guests';

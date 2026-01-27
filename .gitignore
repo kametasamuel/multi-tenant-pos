@@ -3,6 +3,8 @@ client/node_modules/
 .env
 .DS_Store
 *.log
+logs/
+backups/
 dist/
 build/
 client/build/

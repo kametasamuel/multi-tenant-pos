@@ -43,7 +43,16 @@ import {
   Sparkles,
   ArrowLeftRight,
   Briefcase,
-  UserCog
+  UserCog,
+  Armchair,
+  ChefHat,
+  BedDouble,
+  CalendarCheck,
+  UserCircle,
+  Sparkles as SparklesIcon,
+  Hotel,
+  ConciergeBell,
+  Sparkle
 } from 'lucide-react';
 
 const OwnerLayout = ({ children }) => {
@@ -257,19 +266,33 @@ const OwnerLayout = ({ children }) => {
 
   // Check if this is a services-type business
   const isServicesType = ['SERVICES', 'SALON'].includes(user?.businessType);
+  // Check if this is a restaurant-type business
+  const isRestaurantType = user?.businessType === 'FOOD_AND_BEVERAGE';
+  // Check if this is a hospitality-type business
+  const isHospitalityType = user?.businessType === 'HOSPITALITY';
 
   // Full navigation - Owner has access to everything
   const navLinks = [
     { path: `/${tenantSlug}/owner/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
     { path: `/${tenantSlug}/owner/sales`, label: 'Sales & Revenue', icon: BarChart3 },
-    { path: `/${tenantSlug}/owner/inventory`, label: isServicesType ? 'Services' : 'Inventory', icon: isServicesType ? Briefcase : Package },
-    // Transfers - hide for SERVICES/SALON business types
-    ...(!isServicesType ? [{ path: `/${tenantSlug}/owner/stock-transfers`, label: 'Transfers', icon: ArrowLeftRight }] : []),
+    { path: `/${tenantSlug}/owner/inventory`, label: isServicesType ? 'Services' : isRestaurantType ? 'Menu' : 'Inventory', icon: isServicesType ? Briefcase : isRestaurantType ? ChefHat : Package },
+    // Transfers - hide for SERVICES/SALON and FOOD_AND_BEVERAGE business types (restaurants don't transfer food)
+    ...(!isServicesType && !isRestaurantType ? [{ path: `/${tenantSlug}/owner/stock-transfers`, label: 'Transfers', icon: ArrowLeftRight }] : []),
     { path: `/${tenantSlug}/owner/staff`, label: 'Staff', icon: Users },
+    // Tables - only for FOOD_AND_BEVERAGE business types
+    ...(isRestaurantType ? [{ path: `/${tenantSlug}/owner/tables`, label: 'Tables', icon: Armchair }] : []),
+    // Hospitality - only for HOSPITALITY business types
+    ...(isHospitalityType ? [
+      { path: `/${tenantSlug}/owner/rooms`, label: 'Rooms', icon: BedDouble },
+      { path: `/${tenantSlug}/owner/bookings`, label: 'Bookings', icon: CalendarCheck },
+      { path: `/${tenantSlug}/owner/guests`, label: 'Guests', icon: UserCircle },
+      { path: `/${tenantSlug}/front-desk`, label: 'Front Desk', icon: ConciergeBell },
+      { path: `/${tenantSlug}/housekeeping`, label: 'Housekeeping', icon: Sparkle }
+    ] : []),
     // Commission Tracking - only for SERVICES/SALON business types
     ...(isServicesType ? [{ path: `/${tenantSlug}/owner/attendants`, label: 'Commission', icon: UserCog }] : []),
     { path: `/${tenantSlug}/owner/customers`, label: 'Customers', icon: UserCheck },
-    { path: `/${tenantSlug}/owner/requests`, label: 'Void Requests', icon: Bell },
+    { path: `/${tenantSlug}/owner/requests`, label: isRestaurantType ? 'Cancel Orders' : 'Void Requests', icon: Bell },
     { path: `/${tenantSlug}/owner/expenses`, label: 'Expenses', icon: Wallet },
     { path: `/${tenantSlug}/owner/activity`, label: 'Activity Logs', icon: Activity },
     { path: `/${tenantSlug}/owner/reports`, label: 'Reports', icon: FileText },

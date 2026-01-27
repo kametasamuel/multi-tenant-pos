@@ -135,6 +135,16 @@ model Tenant {
   isActive          Boolean      @default(true)
   isInGracePeriod   Boolean      @default(false) // True when subscription expired but in grace
   lastActivityAt    DateTime?    // Last transaction or login time (for health tracking)
+  // Restaurant features (for FOOD_AND_BEVERAGE)
+  enableTables      Boolean      @default(false)
+  enableKDS         Boolean      @default(false)
+  enableModifiers   Boolean      @default(false)
+  enableRunningTabs Boolean      @default(false)
+  // Hospitality features (for HOSPITALITY)
+  enableHousekeeping Boolean     @default(false)
+  enableRoomService  Boolean     @default(false)
+  enableFolios       Boolean     @default(false)
+  enableRatePlans    Boolean     @default(false)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -157,6 +167,18 @@ model Tenant {
   stockAdjustments  StockAdjustment[]
   // Services module relations
   attendants        Attendant[]
+  // Restaurant module relations
+  restaurantTables  RestaurantTable[]
+  restaurantOrders  RestaurantOrder[]
+  productModifiers  ProductModifier[]
+  // Hospitality module relations
+  roomTypes         RoomType[]
+  rooms             Room[]
+  ratePlans         RatePlan[]
+  guests            Guest[]
+  bookings          Booking[]
+  folios            Folio[]
+  housekeepingTasks HousekeepingTask[]
 
   @@index([tierId])
   @@index([country])
@@ -207,6 +229,9 @@ model User {
   transfersReceived       StockTransfer[]   @relation("TransfersReceived")
   returnsProcessed        Return[]          @relation("ReturnsProcessed")
   stockAdjustments        StockAdjustment[] @relation("StockAdjustments")
+  // Restaurant module relations
+  restaurantOrdersCreated RestaurantOrder[] @relation("OrdersCreated")
+  tablesAssigned          RestaurantTable[] @relation("TablesAssigned")
 
   @@unique([username, tenantId]) // Username unique per tenant
   @@index([branchId])
@@ -247,6 +272,7 @@ enum Role {
   OWNER
   ADMIN      // Kept for backward compatibility, same as OWNER
   ATTENDANT  // Service provider (stylist, technician) - no login credentials
+  KITCHEN    // Kitchen staff - access to KDS only
 }
 
 // Products: Inventory items and services
@@ -270,7 +296,12 @@ model Product {
   weight      Float?           // Weight in kg (for shipping)
   dimensions  String?          // LxWxH in cm (for shipping)
   isActive    Boolean  @default(true)
+  is86d       Boolean  @default(false) // Restaurant: temporarily unavailable (86'd)
   trackInventory Boolean @default(true) // False for services
+  // Restaurant fields (for FOOD_AND_BEVERAGE)
+  kitchenCategory String?       // Appetizers, Mains, Desserts, Drinks, No-Kitchen
+  prepTime        Int?          // Estimated prep time in minutes
+  recipe          String?  @db.Text  // Recipe/preparation instructions for kitchen
   tenantId    String
   branchId    String?          // Branch that owns this product
   createdAt   DateTime @default(now())
@@ -286,6 +317,9 @@ model Product {
   stockTransferItems StockTransferItem[]
   returnItems       ReturnItem[]
   stockAdjustments  StockAdjustment[]
+  // Restaurant module relations
+  modifiers           ProductModifier[]
+  restaurantOrderItems RestaurantOrderItem[]
 
   @@index([tenantId, name])
   @@index([branchId])
@@ -313,6 +347,7 @@ model Customer {
   notes       String?
   totalSpent  Float    @default(0)
   visitCount  Int      @default(0)
+  lastVisit   DateTime?
   tenantId    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -320,6 +355,8 @@ model Customer {
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sales       Sale[]
   returns     Return[] // Retail: returns by this customer
+  restaurantOrders RestaurantOrder[] // Restaurant: orders by this customer
+  guest       Guest?   // Hospitality: linked guest profile
 
   @@index([tenantId, name])
   @@index([tenantId, phone])
@@ -335,6 +372,7 @@ model Sale {
   finalAmount Float
   paymentMethod PaymentMethod
   paymentStatus String @default("completed") // completed, cancelled, voided
+  splitPayments String? // JSON for split payment details
   cashierId   String
   customerId  String?
   tenantId    String
@@ -343,6 +381,8 @@ model Sale {
   voidedById  String?  // User who voided the sale
   voidedAt    DateTime? // When the sale was voided
   voidReason  String?  // Reason for voiding
+  // Restaurant order link
+  restaurantOrderId String? @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -354,6 +394,8 @@ model Sale {
   items             SaleItem[]
   securityRequests  SecurityRequest[]
   returns           Return[]          // Retail: returns for this sale
+  restaurantOrder   RestaurantOrder?  // Restaurant: linked order
+  folio             Folio?            // Hospitality: linked folio
 
   @@index([tenantId, createdAt])
   @@index([cashierId, createdAt])
@@ -393,6 +435,7 @@ enum PaymentMethod {
   CARD
   MOMO
   BANK_TRANSFER
+  SPLIT
 }
 
 // Expenses: Business expenses
@@ -440,6 +483,7 @@ model AuditLog {
 enum SecurityRequestType {
   VOID
   REVIEW
+  ORDER_CANCEL  // Restaurant order cancellation request
 }
 
 // Security Request Status enum
@@ -505,6 +549,14 @@ model Branch {
   stockAdjustments  StockAdjustment[]
   // Services module relations
   attendants        Attendant[]
+  // Restaurant module relations
+  restaurantTables  RestaurantTable[]
+  restaurantOrders  RestaurantOrder[]
+  // Hospitality module relations
+  roomTypes         RoomType[]
+  rooms             Room[]
+  bookings          Booking[]
+  housekeepingTasks HousekeepingTask[]
 
   @@index([tenantId])
   @@map("branches")
@@ -859,4 +911,443 @@ model StockAdjustment {
   @@index([productId])
   @@index([branchId])
   @@map("stock_adjustments")
+}
+
+// ============================================
+// RESTAURANT MODULE
+// ============================================
+
+// RestaurantTable: Table management for dine-in orders
+model RestaurantTable {
+  id          String   @id @default(uuid())
+  tableNumber String
+  capacity    Int      @default(4)
+  status      String   @default("available") // available, occupied, reserved
+  section     String?  // e.g., "Patio", "Main Floor", "VIP"
+  positionX   Int?     // For visual layout
+  positionY   Int?
+  tenantId    String
+  branchId    String?
+  assignedCashierId String? // Cashier currently serving this table
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch         Branch?  @relation(fields: [branchId], references: [id])
+  assignedCashier User?   @relation("TablesAssigned", fields: [assignedCashierId], references: [id])
+  orders         RestaurantOrder[]
+
+  @@unique([tenantId, branchId, tableNumber])
+  @@index([tenantId, branchId])
+  @@index([status])
+  @@index([assignedCashierId])
+  @@map("restaurant_tables")
+}
+
+// RestaurantOrder: Order lifecycle for restaurants
+model RestaurantOrder {
+  id              String   @id @default(uuid())
+  orderNumber     String   // ORD-001, ORD-002 (daily sequence)
+  orderType       String   // dine-in, takeout, delivery
+  status          String   @default("pending") // pending, confirmed, preparing, ready, served, completed, cancelled
+  priority        String   @default("normal") // normal, rush, vip
+
+  tableId         String?
+  customerId      String?
+
+  // Timing
+  confirmedAt     DateTime?
+  preparingAt     DateTime?
+  readyAt         DateTime?
+  servedAt        DateTime?
+  completedAt     DateTime?
+
+  // Running tab
+  isTabOpen       Boolean  @default(true)
+
+  // Order notes (special instructions, customer requests)
+  notes           String?
+
+  // Link to payment
+  saleId          String?  @unique
+
+  tenantId        String
+  branchId        String?
+  createdById     String   // Cashier who created
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch          Branch?  @relation(fields: [branchId], references: [id])
+  table           RestaurantTable? @relation(fields: [tableId], references: [id])
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  sale            Sale?    @relation(fields: [saleId], references: [id])
+  createdBy       User     @relation("OrdersCreated", fields: [createdById], references: [id])
+  items           RestaurantOrderItem[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([tableId])
+  @@index([branchId])
+  @@map("restaurant_orders")
+}
+
+// RestaurantOrderItem: Order items with modifiers
+model RestaurantOrderItem {
+  id              String   @id @default(uuid())
+  orderId         String
+  productId       String
+  quantity        Int
+  unitPrice       Float
+  modifiers       String?  // JSON: [{"name": "Size", "value": "Large", "price": 2.00}]
+  specialRequest  String?  // Free-form text
+  status          String   @default("pending") // pending, preparing, ready, served
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  order           RestaurantOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([status])
+  @@map("restaurant_order_items")
+}
+
+// ProductModifier: Modifier templates for menu items
+model ProductModifier {
+  id          String   @id @default(uuid())
+  productId   String
+  name        String   // "Size", "Add-ons", "Spice Level"
+  type        String   // radio (single), checkbox (multi), text
+  isRequired  Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  options     String   // JSON: [{"label": "Small", "price": 0}, {"label": "Large", "price": 2}]
+  tenantId    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([tenantId])
+  @@map("product_modifiers")
+}
+
+// ============================================
+// HOSPITALITY MODULE - Hotels, Lodges, Guest Houses
+// ============================================
+
+// Room Type: Categories of rooms (Single, Double, Suite, etc.)
+model RoomType {
+  id          String   @id @default(uuid())
+  tenantId    String
+  branchId    String?
+  name        String   // "Standard Single", "Deluxe Double", "Executive Suite"
+  code        String   // "STD", "DLX", "STE"
+  description String?
+  basePrice   Float    // Base rate per night
+  maxOccupancy Int     @default(2)
+  bedType     String?  // "Single", "Double", "Queen", "King", "Twin"
+  bedCount    Int      @default(1)
+  size        Float?   // Room size in sq meters
+  amenities   String?  // JSON: ["wifi", "ac", "tv", "minibar", "balcony"]
+  images      String?  // JSON: array of image URLs
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch      Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  rooms       Room[]
+  ratePlans   RatePlan[]
+
+  @@unique([tenantId, branchId, code])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([isActive])
+  @@map("room_types")
+}
+
+// Room: Individual physical rooms
+model Room {
+  id              String   @id @default(uuid())
+  tenantId        String
+  branchId        String?
+  roomTypeId      String
+  roomNumber      String   // "101", "202", "P-501"
+  floor           String?  // "1", "2", "Ground", "Penthouse"
+  building        String?  // For properties with multiple buildings
+  status          String   @default("available") // available, occupied, reserved, cleaning, maintenance, out_of_order
+  cleaningStatus  String   @default("clean") // clean, dirty, inspecting
+  isActive        Boolean  @default(true)
+  notes           String?  // Internal notes about the room
+  lastCleanedAt   DateTime?
+  lastInspectedAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch          Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  roomType        RoomType @relation(fields: [roomTypeId], references: [id])
+  bookingRooms    BookingRoom[]
+  housekeepingTasks HousekeepingTask[]
+
+  @@unique([tenantId, branchId, roomNumber])
+  @@index([tenantId, status])
+  @@index([tenantId, cleaningStatus])
+  @@index([branchId])
+  @@index([roomTypeId])
+  @@map("rooms")
+}
+
+// Rate Plan: Different pricing strategies (Rack Rate, Corporate, Weekend, etc.)
+model RatePlan {
+  id          String   @id @default(uuid())
+  tenantId    String
+  roomTypeId  String
+  name        String   // "Rack Rate", "Corporate", "Weekend Special"
+  code        String   // "RACK", "CORP", "WKND"
+  price       Float    // Override price for this plan
+  isDefault   Boolean  @default(false)
+  startDate   DateTime? // For seasonal rates
+  endDate     DateTime?
+  daysOfWeek  String?  // JSON: [0,1,2,3,4,5,6] for day-specific rates
+  minNights   Int      @default(1)
+  maxNights   Int?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roomType    RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([roomTypeId])
+  @@index([isActive])
+  @@map("rate_plans")
+}
+
+// Guest: Guest profiles (extends customer concept)
+model Guest {
+  id              String   @id @default(uuid())
+  tenantId        String
+  customerId      String?  @unique // Link to existing customer if any
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  idType          String?  // "passport", "national_id", "drivers_license"
+  idNumber        String?
+  nationality     String?
+  dateOfBirth     DateTime?
+  address         String?
+  city            String?
+  country         String?
+  company         String?  // For corporate guests
+  vipStatus       String   @default("regular") // regular, silver, gold, platinum
+  preferences     String?  // JSON: room preferences, dietary, etc.
+  notes           String?  // Internal notes
+  totalStays      Int      @default(0)
+  totalSpent      Float    @default(0)
+  lastStayAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  bookings        Booking[]
+
+  @@index([tenantId])
+  @@index([tenantId, email])
+  @@index([tenantId, phone])
+  @@index([tenantId, lastName])
+  @@map("guests")
+}
+
+// Booking: Reservations
+model Booking {
+  id              String   @id @default(uuid())
+  tenantId        String
+  branchId        String?
+  bookingNumber   String   // "BK-2024-0001"
+  guestId         String
+  status          String   @default("confirmed") // pending, confirmed, checked_in, checked_out, cancelled, no_show
+  source          String   @default("direct") // direct, website, booking.com, expedia, phone, walk_in
+  checkInDate     DateTime
+  checkOutDate    DateTime
+  expectedArrival String?  // "14:00"
+  adultsCount     Int      @default(1)
+  childrenCount   Int      @default(0)
+  specialRequests String?  // Guest special requests
+  internalNotes   String?  // Staff notes
+  totalAmount     Float    @default(0)
+  paidAmount      Float    @default(0)
+  depositAmount   Float    @default(0)
+  depositPaidAt   DateTime?
+  checkedInAt     DateTime?
+  checkedOutAt    DateTime?
+  checkedInBy     String?  // User ID who checked in
+  checkedOutBy    String?  // User ID who checked out
+  cancelledAt     DateTime?
+  cancelReason    String?
+  createdBy       String   // User ID who created booking
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch          Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  guest           Guest    @relation(fields: [guestId], references: [id])
+  rooms           BookingRoom[]
+  folio           Folio?
+
+  @@index([tenantId, status])
+  @@index([tenantId, checkInDate])
+  @@index([tenantId, checkOutDate])
+  @@index([tenantId, bookingNumber])
+  @@index([branchId])
+  @@index([guestId])
+  @@map("bookings")
+}
+
+// BookingRoom: Links bookings to rooms (supports multi-room bookings)
+model BookingRoom {
+  id          String   @id @default(uuid())
+  bookingId   String
+  roomId      String
+  ratePerNight Float
+  ratePlanCode String?  // Which rate plan was used
+  checkInDate  DateTime // Can differ from main booking for room changes
+  checkOutDate DateTime
+  adultsCount  Int      @default(1)
+  childrenCount Int     @default(0)
+  status      String   @default("reserved") // reserved, checked_in, checked_out
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  room        Room     @relation(fields: [roomId], references: [id])
+
+  @@index([bookingId])
+  @@index([roomId])
+  @@index([checkInDate, checkOutDate])
+  @@map("booking_rooms")
+}
+
+// Folio: Running bill during guest stay
+model Folio {
+  id          String   @id @default(uuid())
+  tenantId    String
+  bookingId   String   @unique
+  folioNumber String   // "F-2024-0001"
+  guestName   String   // Snapshot of guest name
+  roomNumber  String   // Primary room number
+  status      String   @default("open") // open, closed, settled
+  subtotal    Float    @default(0)
+  taxAmount   Float    @default(0)
+  totalAmount Float    @default(0)
+  paidAmount  Float    @default(0)
+  balance     Float    @default(0)
+  closedAt    DateTime?
+  settledAt   DateTime?
+  saleId      String?  @unique // Link to sale when settled
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  sale        Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  charges     FolioCharge[]
+  payments    FolioPayment[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, folioNumber])
+  @@map("folios")
+}
+
+// FolioCharge: Individual charges on a folio
+model FolioCharge {
+  id          String   @id @default(uuid())
+  folioId     String
+  chargeType  String   // "room", "room_service", "minibar", "laundry", "restaurant", "spa", "parking", "phone", "damage", "other"
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float
+  amount      Float
+  taxAmount   Float    @default(0)
+  chargeDate  DateTime @default(now())
+  roomNumber  String?  // Which room if multi-room booking
+  reference   String?  // Order number, receipt number, etc.
+  postedBy    String   // User ID who posted the charge
+  isVoided    Boolean  @default(false)
+  voidedAt    DateTime?
+  voidedBy    String?
+  voidReason  String?
+  createdAt   DateTime @default(now())
+
+  folio       Folio    @relation(fields: [folioId], references: [id], onDelete: Cascade)
+
+  @@index([folioId])
+  @@index([chargeDate])
+  @@index([chargeType])
+  @@map("folio_charges")
+}
+
+// FolioPayment: Payments received against a folio
+model FolioPayment {
+  id            String   @id @default(uuid())
+  folioId       String
+  amount        Float
+  paymentMethod String   // "cash", "card", "momo", "bank_transfer", "city_ledger"
+  reference     String?  // Transaction reference
+  notes         String?
+  receivedBy    String   // User ID who received payment
+  receivedAt    DateTime @default(now())
+  isVoided      Boolean  @default(false)
+  voidedAt      DateTime?
+  voidedBy      String?
+  voidReason    String?
+
+  folio         Folio    @relation(fields: [folioId], references: [id], onDelete: Cascade)
+
+  @@index([folioId])
+  @@index([receivedAt])
+  @@map("folio_payments")
+}
+
+// HousekeepingTask: Cleaning and maintenance tasks
+model HousekeepingTask {
+  id          String   @id @default(uuid())
+  tenantId    String
+  branchId    String?
+  roomId      String
+  taskType    String   // "checkout_clean", "stayover_clean", "deep_clean", "inspection", "turndown", "maintenance"
+  priority    String   @default("normal") // low, normal, high, urgent
+  status      String   @default("pending") // pending, in_progress, completed, verified
+  assignedTo  String?  // User ID of assigned housekeeper
+  notes       String?
+  scheduledFor DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  verifiedAt  DateTime?
+  verifiedBy  String?
+  createdBy   String   // User ID who created task
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch      Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  room        Room     @relation(fields: [roomId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, taskType])
+  @@index([branchId])
+  @@index([roomId])
+  @@index([assignedTo])
+  @@index([scheduledFor])
+  @@map("housekeeping_tasks")
 }

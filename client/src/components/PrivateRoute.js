@@ -1,9 +1,10 @@
 import React from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { Navigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const PrivateRoute = ({ children, requireAdmin = false, requireOwner = false, requireSuperAdmin = false }) => {
+const PrivateRoute = ({ children, requireAdmin = false, requireOwner = false, requireSuperAdmin = false, allowKitchen = false }) => {
   const { slug } = useParams();
+  const location = useLocation();
   const { user, loading, isAdmin, isOwner, isSuperAdmin } = useAuth();
 
   if (loading) {
@@ -25,6 +26,14 @@ const PrivateRoute = ({ children, requireAdmin = false, requireOwner = false, re
 
   if (!user) {
     return <Navigate to={`/${currentSlug}/login`} />;
+  }
+
+  // Kitchen staff can only access /kitchen route
+  const isKitchenStaff = user.role === 'KITCHEN';
+  const isKitchenRoute = location.pathname.includes('/kitchen');
+
+  if (isKitchenStaff && !isKitchenRoute) {
+    return <Navigate to={`/${currentSlug}/kitchen`} />;
   }
 
   // Super admin only route

@@ -39,6 +39,8 @@ const TenantLogin = () => {
           navigate(`/${userSlug}/owner/dashboard`, { replace: true });
         } else if (isManager()) {
           navigate(`/${userSlug}/manager/dashboard`, { replace: true });
+        } else if (user.role === 'KITCHEN') {
+          navigate(`/${userSlug}/kitchen`, { replace: true });
         } else {
           navigate(`/${userSlug}/dashboard`, { replace: true });
         }
@@ -109,6 +111,8 @@ const TenantLogin = () => {
         navigate(`/${userSlug}/owner/dashboard`, { replace: true });
       } else if (loggedInUser.role === 'MANAGER') {
         navigate(`/${userSlug}/manager/dashboard`, { replace: true });
+      } else if (loggedInUser.role === 'KITCHEN') {
+        navigate(`/${userSlug}/kitchen`, { replace: true });
       } else {
         navigate(`/${userSlug}/dashboard`, { replace: true });
       }

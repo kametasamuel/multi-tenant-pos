@@ -19,6 +19,7 @@ import {
 
 const OwnerRequests = ({ darkMode, surfaceClass, textClass, mutedClass, borderClass, bgClass, currentBranch, isAllBranches, branches = [] }) => {
   const { user } = useAuth();
+  const isRestaurantType = user?.businessType === 'FOOD_AND_BEVERAGE';
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -158,7 +159,7 @@ const OwnerRequests = ({ darkMode, surfaceClass, textClass, mutedClass, borderCl
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className={`text-2xl sm:text-3xl font-black uppercase tracking-tighter ${textClass}`}>
-            Void Requests
+            {isRestaurantType ? 'Cancel Order Requests' : 'Void Requests'}
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <Building2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
@@ -318,11 +319,13 @@ const OwnerRequests = ({ darkMode, surfaceClass, textClass, mutedClass, borderCl
             <AlertTriangle className="w-5 h-5 text-warning-500" />
           </div>
           <div>
-            <p className={`text-sm font-black uppercase ${textClass} mb-1`}>About Void Requests</p>
+            <p className={`text-sm font-black uppercase ${textClass} mb-1`}>
+              {isRestaurantType ? 'About Cancel Order Requests' : 'About Void Requests'}
+            </p>
             <p className={`text-xs ${mutedClass} leading-relaxed`}>
-              Cashiers can submit void requests to cancel transactions. As the owner, you have full authority
-              to approve or reject these requests. Approved void requests will restore inventory and mark
-              the transaction as voided. This helps maintain accountability and audit trails across all branches.
+              {isRestaurantType
+                ? 'Staff can submit requests to cancel orders. As the owner, you have full authority to approve or reject these requests. Approved cancellations will update the order status and restore any ingredients/inventory. This helps maintain accountability and audit trails across all branches.'
+                : 'Cashiers can submit void requests to cancel transactions. As the owner, you have full authority to approve or reject these requests. Approved void requests will restore inventory and mark the transaction as voided. This helps maintain accountability and audit trails across all branches.'}
             </p>
           </div>
         </div>

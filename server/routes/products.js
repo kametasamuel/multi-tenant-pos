@@ -347,6 +347,82 @@ router.get('/inventory/low-stock', authenticate, requireAdmin, async (req, res) 
   }
 });
 
+// Toggle 86'd status (mark item as temporarily unavailable)
+router.put('/:id/86', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const where = { id: req.params.id, tenantId: req.tenantId };
+
+    // Managers can only 86 their branch's products
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      where.branchId = req.branchId;
+    }
+
+    const product = await prisma.product.findFirst({ where });
+
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    const newStatus = !product.is86d;
+
+    const updated = await prisma.product.update({
+      where: { id: req.params.id },
+      data: { is86d: newStatus }
+    });
+
+    await logAudit(
+      req.tenantId,
+      req.user.id,
+      newStatus ? 'product_86d' : 'product_available',
+      `${newStatus ? '86\'d' : 'Made available'}: ${product.name}`,
+      { productId: product.id },
+      product.branchId
+    );
+
+    res.json({
+      product: updated,
+      message: newStatus ? `${product.name} is now 86'd (unavailable)` : `${product.name} is now available`
+    });
+  } catch (error) {
+    console.error('Toggle 86 error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get all 86'd products
+router.get('/status/86d', authenticate, async (req, res) => {
+  try {
+    const where = {
+      tenantId: req.tenantId,
+      isActive: true,
+      is86d: true
+    };
+
+    if (req.user.role === 'MANAGER' && req.branchId) {
+      where.branchId = req.branchId;
+    } else if (req.user.role === 'CASHIER' && req.branchId) {
+      where.branchId = req.branchId;
+    }
+
+    const products = await prisma.product.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        image: true,
+        sellingPrice: true,
+        kitchenCategory: true
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    res.json({ products });
+  } catch (error) {
+    console.error('Get 86d products error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Delete product (soft delete - sets isActive to false)
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
