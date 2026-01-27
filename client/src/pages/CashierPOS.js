@@ -707,15 +707,24 @@ const CashierPOS = ({
 
   // Load table summary for Tab modal (view or close mode)
   const loadTableSummary = async (mode = 'view') => {
-    if (!selectedTable) {
+    // Use selectedTable, or fall back to activeOrder's table
+    const tableToUse = selectedTable || activeOrder?.table;
+    const tableId = tableToUse?.id || activeOrder?.tableId;
+
+    if (!tableId) {
       showToast('No table selected');
       return;
+    }
+
+    // If we're using activeOrder's table, also set selectedTable for consistency
+    if (!selectedTable && tableToUse) {
+      setSelectedTable(tableToUse);
     }
 
     setLoadingTabSummary(true);
     setTabSummaryMode(mode);
     try {
-      const response = await ordersAPI.getTableSummary(selectedTable.id);
+      const response = await ordersAPI.getTableSummary(tableId);
       setTableSummary(response.data);
       setShowTabSummary(true);
     } catch (error) {
@@ -728,10 +737,12 @@ const CashierPOS = ({
 
   // View tab - show summary and allow payment
   const viewTab = () => {
-    if (!activeOrder && !selectedTable) {
+    // Need either a selected table or an active order with a table
+    if (!selectedTable && !activeOrder?.table && !activeOrder?.tableId) {
       showToast('No active order to view');
       return;
     }
+
     // Reset payment state
     setTabSummaryMode('view');
     setTabPaymentMethod('');
